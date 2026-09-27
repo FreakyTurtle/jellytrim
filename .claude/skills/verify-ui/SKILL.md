@@ -4,7 +4,7 @@ description: Check JellyTrim pages in a real browser with the Playwright MCP at 
 argument-hint: "[page paths, default: all top-level pages]"
 ---
 
-1. Make sure the app is running: `task dev` (local) or the dev stack (`/dev-stack`). JellyTrim is on `http://localhost:8080`; the dev Jellyfin is on `:8096`.
+1. Make sure the app is running: `task dev` (local) or the dev stack (`/dev-stack`). JellyTrim is on `http://localhost:8097`; the dev Jellyfin is on `:8096`.
 2. For each page in `$ARGUMENTS` (default: `/`, `/library`, `/policies`, `/queue`, `/history`, `/settings`):
    - Load it at 1440x900 and at 390x844 with the Playwright MCP.
    - Check the console for errors and failed requests.

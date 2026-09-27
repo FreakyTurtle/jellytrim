@@ -95,7 +95,7 @@ Domain packages (`media`, `pathmap`, `policy`, `plan`) are pure: no files, netwo
 |---|---|
 | `task setup` | Install the git pre-commit hook, download modules |
 | `task generate` | `go tool templ generate` |
-| `task dev` | Run locally with templ watch (uses `./tmp/config`) |
+| `task dev` | Run locally on :8097 with templ watch (uses `./tmp/config`) |
 | `task build` | Build `bin/jellytrim` |
 | `task test` | `go test -race ./...` |
 | `task lint` | golangci-lint |

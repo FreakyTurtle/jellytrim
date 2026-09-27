@@ -1,0 +1,612 @@
+package views
+
+import (
+	"strconv"
+	"strings"
+)
+
+// ---------- Panel ----------
+
+// PanelProps configures a panel beyond the plain Panel.
+type PanelProps struct {
+	Tab     string          // the printed label in the top-left corner
+	ID      string          // the section's id; the tab heading gets ID + "-tab"
+	Variant string          // "", "emphasis" or "sunk"
+	Level   int             // heading level for the tab: 2 (default) or 3
+	Actions templ.Component // optional buttons or links on the right of the head
+	Flush   bool            // no padding in the body, for tables and metric grids
+}
+
+func panelTabID(id string) string {
+	if id == "" {
+		return ""
+	}
+	return id + "-tab"
+}
+
+// Panel is the main container: a module in an equipment rack with a printed
+// label. Children render inside the panel body.
+templ Panel(tab string, id string) {
+	@PanelWith(PanelProps{Tab: tab, ID: id}) {
+		{ children... }
+	}
+}
+
+// PanelWith is Panel with a variant, a heading level, actions or a flush body.
+templ PanelWith(p PanelProps) {
+	<section
+		class={ "panel", templ.KV("panel--"+p.Variant, p.Variant != "") }
+		if p.ID != "" {
+			id={ p.ID }
+			aria-labelledby={ panelTabID(p.ID) }
+		}
+	>
+		<header class="panel__head">
+			if p.Level == 3 {
+				<h3
+					class="panel__tab"
+					if p.ID != "" {
+						id={ panelTabID(p.ID) }
+					}
+				>{ p.Tab }</h3>
+			} else {
+				<h2
+					class="panel__tab"
+					if p.ID != "" {
+						id={ panelTabID(p.ID) }
+					}
+				>{ p.Tab }</h2>
+			}
+			if p.Actions != nil {
+				<div class="panel__actions">
+					@p.Actions
+				</div>
+			}
+		</header>
+		<div class={ "panel__body", templ.KV("panel__body--flush", p.Flush) }>
+			{ children... }
+		</div>
+	</section>
+}
+
+// ---------- Metric ----------
+
+// Metrics groups several Metric components with rules between them.
+templ Metrics() {
+	<div class="metrics">
+		{ children... }
+	</div>
+}
+
+func metricUnknown(value string) bool {
+	return value == "" || value == "--"
+}
+
+func metricNote(note string, estimate bool) string {
+	if estimate && !strings.Contains(note, "Estimate") {
+		if note == "" {
+			return "Estimate."
+		}
+		return "Estimate. " + note
+	}
+	return note
+}
+
+// Metric is a big number with its unit and label. An empty value (or "--")
+// shows the unknown state; the note should say why. An estimate shows "~",
+// read as "About", and its note always contains the word "Estimate".
+templ Metric(label, value, unit, note string, estimate bool) {
+	<div class="metric">
+		<p class="metric__label">{ label }</p>
+		if metricUnknown(value) {
+			<p class="metric__value metric__value--unknown">
+				<span aria-hidden="true">--</span><span class="visually-hidden">Unknown</span>
+			</p>
+		} else {
+			<p class="metric__value">
+				if estimate {
+					<span class="metric__approx" aria-hidden="true">~</span><span class="visually-hidden">About </span>
+				}
+				{ value }
+				if unit != "" {
+					<span class="metric__unit">{ unit }</span>
+				}
+			</p>
+		}
+		if n := metricNote(note, estimate && !metricUnknown(value)); n != "" {
+			<p class="metric__note">{ n }</p>
+		}
+	</div>
+}
+
+// ---------- Stat rows ----------
+
+// Stats is a definition list of label and value pairs, like a spec sheet.
+// Children are StatRow components.
+templ Stats() {
+	<dl class="stats">
+		{ children... }
+	</dl>
+}
+
+// StatRow is one label and value. An empty value shows "Unknown".
+templ StatRow(label, value string, mono bool) {
+	<div class="stats__row">
+		<dt>{ label }</dt>
+		if value == "" {
+			<dd class="stats__unknown">Unknown</dd>
+		} else {
+			<dd class={ templ.KV("mono", mono) }>{ value }</dd>
+		}
+	</div>
+}
+
+// ---------- Lamp and status ----------
+
+// Lamp is a small square LED: ok, warn, bad, info, idle, active (pulsing) or
+// active-steady. It is decorative; always put a word next to it.
+templ Lamp(variant string) {
+	<span class={ "lamp", "lamp--" + variant } aria-hidden="true"></span>
+}
+
+// Status is a lamp with the word that carries its meaning.
+templ Status(variant, text string) {
+	<span class="status">
+		@Lamp(variant)
+		<span class="status__text">{ text }</span>
+	</span>
+}
+
+// ---------- Badge ----------
+
+// Badge is a bordered chip for a technical fact. Variants: "", "hdr",
+// "muted", "count".
+templ Badge(text, variant string) {
+	<span class={ "badge", templ.KV("badge--"+variant, variant != "") }>{ text }</span>
+}
+
+// ---------- Empty state ----------
+
+// EmptyState is a counter at rest, a heading, one sentence on why it is
+// empty and at most one action (omitted when href or label is empty).
+templ EmptyState(count, title, text, actionHref, actionLabel string) {
+	<div class="empty">
+		<p class="empty__count" aria-hidden="true">{ count }</p>
+		<p class="empty__title">{ title }</p>
+		if text != "" {
+			<p class="empty__text">{ text }</p>
+		}
+		if actionHref != "" && actionLabel != "" {
+			<a class="btn btn--secondary" href={ templ.URL(actionHref) }>{ actionLabel }</a>
+		}
+	</div>
+}
+
+// ---------- Callout ----------
+
+// CalloutProps configures a callout beyond the plain Callout.
+type CalloutProps struct {
+	Variant string // "bad", "warn", "info" or "ok"
+	Title   string
+	Text    string
+	Alert   bool // role="alert": only for an error that appears after the user acted
+}
+
+func calloutLamp(variant string) string {
+	switch variant {
+	case "ok", "warn", "bad", "info":
+		return variant
+	default:
+		return "info"
+	}
+}
+
+// Callout reports a problem, a warning or useful information. Children
+// render after the text: use CalloutActions and TechnicalDetails.
+templ Callout(variant, title, text string) {
+	@CalloutWith(CalloutProps{Variant: variant, Title: title, Text: text}) {
+		{ children... }
+	}
+}
+
+// CalloutWith is Callout with the alert role option.
+templ CalloutWith(c CalloutProps) {
+	<div
+		class={ "callout", "callout--" + calloutLamp(c.Variant) }
+		if c.Alert {
+			role="alert"
+		}
+	>
+		if c.Title != "" {
+			<p class="callout__title">
+				@Lamp(calloutLamp(c.Variant))
+				<span>{ c.Title }</span>
+			</p>
+		}
+		if c.Text != "" {
+			<p class="callout__text">{ c.Text }</p>
+		}
+		{ children... }
+	</div>
+}
+
+// CalloutActions holds the buttons inside a callout.
+templ CalloutActions() {
+	<div class="callout__actions">
+		{ children... }
+	</div>
+}
+
+// TechnicalDetails is a closed <details> with the technical text in a <pre>
+// and a Copy button (shown only when JavaScript runs). Never pass the
+// Jellyfin API key or any header value.
+templ TechnicalDetails(summary, text string) {
+	<details class="callout__details">
+		<summary>{ summary }</summary>
+		<div class="callout__tools">
+			<button class="btn btn--secondary btn--small" type="button" data-copy>Copy</button>
+			<span class="callout__copied" role="status" data-copy-status></span>
+		</div>
+		<pre class="mono">{ text }</pre>
+	</details>
+}
+
+// ---------- Explanation list ----------
+
+// ExplainLine is one reason: met (Pass), not met, or for information only
+// (Neutral, which wins over Pass).
+type ExplainLine struct {
+	Pass    bool
+	Neutral bool
+	Text    string
+}
+
+// Explain lists why a policy matched or an item was skipped.
+templ Explain(lines []ExplainLine) {
+	<ul class="explain">
+		for _, line := range lines {
+			if line.Neutral {
+				<li class="explain__item explain__item--neutral">
+					<span class="explain__mark" aria-hidden="true">·</span>
+					<span>{ line.Text }</span>
+				</li>
+			} else if line.Pass {
+				<li class="explain__item explain__item--pass">
+					<span class="explain__mark" aria-hidden="true">✓</span>
+					<span><span class="visually-hidden">Met: </span>{ line.Text }</span>
+				</li>
+			} else {
+				<li class="explain__item explain__item--fail">
+					<span class="explain__mark" aria-hidden="true">✗</span>
+					<span><span class="visually-hidden">Not met: </span>{ line.Text }</span>
+				</li>
+			}
+		}
+	</ul>
+}
+
+// ---------- Progress meter ----------
+
+func clampPercent(p int) int {
+	if p > 100 {
+		return 100
+	}
+	return p
+}
+
+// Meter is a segmented progress bar with its readout. A negative percent
+// shows an indeterminate meter; an empty readout then reads "Working".
+templ Meter(id string, percent int, readout string) {
+	<div class="meter">
+		<span class="meter__frame">
+			if percent < 0 {
+				<progress class="meter__bar" max="100" aria-describedby={ id }>Working</progress>
+			} else {
+				<progress class="meter__bar" max="100" value={ strconv.Itoa(clampPercent(percent)) } aria-describedby={ id }>{ strconv.Itoa(clampPercent(percent)) }%</progress>
+			}
+		</span>
+		<p class="meter__readout" id={ id }>
+			if readout != "" {
+				{ readout }
+			} else if percent < 0 {
+				Working
+			} else {
+				{ strconv.Itoa(clampPercent(percent)) }%
+			}
+		</p>
+	</div>
+}
+
+// ---------- Toggle switch ----------
+
+// ToggleProps configures a toggle beyond the plain Toggle.
+type ToggleProps struct {
+	Name    string
+	Label   string
+	Checked bool
+	Large   bool   // twice the normal size, for the Dry Run setting
+	Note    string // a hint, or the visible reason a disabled toggle cannot change
+	NoteID  string // id for the note; defaults to Name + "-note"
+	Attrs   templ.Attributes
+}
+
+func toggleNoteID(t ToggleProps) string {
+	if t.NoteID != "" {
+		return t.NoteID
+	}
+	return t.Name + "-note"
+}
+
+// Toggle is a hardware switch with a real checkbox (role="switch")
+// underneath. attrs go on the input: disabled, hx-post, aria-describedby.
+templ Toggle(name, label string, checked bool, attrs templ.Attributes) {
+	<label class="toggle">
+		<input class="toggle__input" type="checkbox" role="switch" name={ name } checked?={ checked } { attrs... }/>
+		<span class="toggle__track" aria-hidden="true"><span class="toggle__knob"></span></span>
+		<span class="toggle__label">{ label }</span>
+	</label>
+}
+
+// ToggleWith is Toggle with a size and a visible note linked by
+// aria-describedby.
+templ ToggleWith(t ToggleProps) {
+	<div class="toggle-field">
+		<label class={ "toggle", templ.KV("toggle--large", t.Large) }>
+			<input
+				class="toggle__input"
+				type="checkbox"
+				role="switch"
+				name={ t.Name }
+				checked?={ t.Checked }
+				if t.Note != "" {
+					aria-describedby={ toggleNoteID(t) }
+				}
+				{ t.Attrs... }
+			/>
+			<span class="toggle__track" aria-hidden="true"><span class="toggle__knob"></span></span>
+			<span class="toggle__label">{ t.Label }</span>
+		</label>
+		if t.Note != "" {
+			<p class="toggle-field__note" id={ toggleNoteID(t) }>{ t.Note }</p>
+		}
+	</div>
+}
+
+// ---------- Segmented control and chips ----------
+
+// Option is one choice in a Segmented control or a Chips group.
+type Option struct {
+	Value    string
+	Label    string
+	Disabled bool
+	Hint     string // plain words describing this choice, shown when it is selected
+}
+
+// optionID builds a stable element id from a group name and a value.
+func optionID(name, value string) string {
+	var b strings.Builder
+	b.WriteString(name)
+	b.WriteByte('-')
+	for _, r := range strings.ToLower(value) {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+		} else {
+			b.WriteByte('-')
+		}
+	}
+	return b.String()
+}
+
+func describedBy(ids ...string) string {
+	var out []string
+	for _, id := range ids {
+		if id != "" {
+			out = append(out, id)
+		}
+	}
+	return strings.Join(out, " ")
+}
+
+func segmentedHintID(name, hint string) string {
+	if hint == "" {
+		return ""
+	}
+	return name + "-hint"
+}
+
+func optionHintID(name string, o Option) string {
+	if o.Hint == "" {
+		return ""
+	}
+	return optionID(name, o.Value) + "-hint"
+}
+
+func showPlanned(o Option) bool {
+	return o.Disabled && !strings.Contains(strings.ToLower(o.Label), "planned")
+}
+
+// Segmented is a radio group styled as a row of hardware buttons. Each
+// option's Hint shows below while that option is selected; hint is a general
+// hint shown all the time. Disabled options show "(planned)".
+templ Segmented(name, legend string, options []Option, selected string, hint string) {
+	<fieldset class="segmented">
+		<legend class="segmented__legend">{ legend }</legend>
+		<div class="segmented__options">
+			for _, o := range options {
+				<input
+					class="segmented__input"
+					type="radio"
+					id={ optionID(name, o.Value) }
+					name={ name }
+					value={ o.Value }
+					checked?={ o.Value == selected }
+					disabled?={ o.Disabled }
+					if d := describedBy(optionHintID(name, o), segmentedHintID(name, hint)); d != "" {
+						aria-describedby={ d }
+					}
+				/>
+				<label class="segmented__option" for={ optionID(name, o.Value) }>
+					{ o.Label }
+					if showPlanned(o) {
+						<span class="segmented__planned">(planned)</span>
+					}
+				</label>
+			}
+		</div>
+		for _, o := range options {
+			if o.Hint != "" {
+				<p class="segmented__hint segmented__hint--option" id={ optionHintID(name, o) }>{ o.Hint }</p>
+			}
+		}
+		if hint != "" {
+			<p class="segmented__hint" id={ segmentedHintID(name, hint) }>{ hint }</p>
+		}
+	</fieldset>
+}
+
+func isSelected(value string, selected []string) bool {
+	for _, s := range selected {
+		if s == value {
+			return true
+		}
+	}
+	return false
+}
+
+// Chips is a group of checkbox chips, used for Library filters. Chips in one
+// group widen the results; the form sends each checked value under name.
+templ Chips(name, legend string, options []Option, selected []string) {
+	<fieldset class="chips">
+		<legend class="chips__legend">{ legend }</legend>
+		<div class="chips__options">
+			for _, o := range options {
+				<input
+					class="chips__input"
+					type="checkbox"
+					id={ optionID(name, o.Value) }
+					name={ name }
+					value={ o.Value }
+					checked?={ isSelected(o.Value, selected) }
+					disabled?={ o.Disabled }
+				/>
+				<label class="chips__option" for={ optionID(name, o.Value) }>{ o.Label }</label>
+			}
+		</div>
+	</fieldset>
+}
+
+// ---------- Form field ----------
+
+// FieldProps describes a labelled text input.
+type FieldProps struct {
+	ID          string
+	Name        string
+	Label       string
+	Hint        string
+	Type        string // defaults to "text"
+	Value       string
+	Placeholder string // an example, never the label
+	Error       string // shown below with a cross, and sets aria-invalid
+	Mono        bool   // paths, URLs and keys
+	Required    bool
+	ReadOnly    bool
+	Attrs       templ.Attributes
+}
+
+func fieldType(f FieldProps) string {
+	if f.Type == "" {
+		return "text"
+	}
+	return f.Type
+}
+
+func fieldHintID(f FieldProps) string {
+	if f.Hint == "" {
+		return ""
+	}
+	return f.ID + "-hint"
+}
+
+func fieldErrorID(f FieldProps) string {
+	if f.Error == "" {
+		return ""
+	}
+	return f.ID + "-error"
+}
+
+// Field is a label, an optional hint, an input and an optional error.
+templ Field(f FieldProps) {
+	<div class="field">
+		<label class="field__label" for={ f.ID }>{ f.Label }</label>
+		if f.Hint != "" {
+			<p class="field__hint" id={ fieldHintID(f) }>{ f.Hint }</p>
+		}
+		<input
+			class={ "field__input", templ.KV("mono", f.Mono) }
+			id={ f.ID }
+			name={ f.Name }
+			type={ fieldType(f) }
+			if f.Value != "" {
+				value={ f.Value }
+			}
+			if f.Placeholder != "" {
+				placeholder={ f.Placeholder }
+			}
+			required?={ f.Required }
+			readonly?={ f.ReadOnly }
+			if f.Error != "" {
+				aria-invalid="true"
+			}
+			if d := describedBy(fieldHintID(f), fieldErrorID(f)); d != "" {
+				aria-describedby={ d }
+			}
+			{ f.Attrs... }
+		/>
+		if f.Error != "" {
+			<p class="field__error" id={ fieldErrorID(f) }><span aria-hidden="true">✗</span> { f.Error }</p>
+		}
+	</div>
+}
+
+// ---------- Dialog ----------
+
+func dialogTitleID(id string) string {
+	return id + "-title"
+}
+
+// Dialog is a native <dialog> for confirmations that matter. Children render
+// in the body; put the buttons in DialogActions, with DialogCancel first.
+// Open it with a button carrying data-dialog-open="<id>" (see DialogButton).
+templ Dialog(id, title string) {
+	<dialog class="dialog" id={ id } aria-labelledby={ dialogTitleID(id) }>
+		<header class="dialog__head">
+			<h2 class="panel__tab" id={ dialogTitleID(id) }>{ title }</h2>
+		</header>
+		{ children... }
+	</dialog>
+}
+
+// DialogBody holds a dialog's text.
+templ DialogBody() {
+	<div class="dialog__body">
+		{ children... }
+	</div>
+}
+
+// DialogActions holds a dialog's buttons.
+templ DialogActions() {
+	<div class="dialog__actions">
+		{ children... }
+	</div>
+}
+
+// DialogCancel is the safe choice. It takes focus when the dialog opens.
+templ DialogCancel(label string) {
+	<button class="btn btn--secondary" type="button" data-dialog-close autofocus>{ label }</button>
+}
+
+// DialogButton opens the dialog with the given id. variant is a button
+// variant: "primary", "secondary" or "danger".
+templ DialogButton(dialogID, label, variant string) {
+	<button class={ "btn", "btn--" + variant } type="button" data-dialog-open={ dialogID } aria-haspopup="dialog">{ label }</button>
+}

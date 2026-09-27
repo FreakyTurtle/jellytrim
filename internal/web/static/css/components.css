@@ -1,0 +1,1419 @@
+/*
+  JellyTrim components. Each block matches a templ component in
+  internal/web/views/components.templ and a section in docs/UI.md.
+  Class names: .block, .block__element, .block--variant.
+*/
+
+/* ---------- Panel ---------- */
+
+.panel {
+  min-inline-size: 0;
+  background: var(--surface);
+  border: var(--border);
+  border-radius: var(--radius-panel);
+}
+
+.panel__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+  border-block-end: var(--border-strong);
+}
+
+/* The printed equipment label, flush in the top-left corner. */
+.panel__tab {
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  background: var(--ink);
+  color: var(--surface);
+  font-size: var(--text-label);
+  font-weight: 500;
+  line-height: var(--leading-lg);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
+.panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-sm);
+}
+
+.panel__actions:empty {
+  display: none;
+}
+
+.panel__body {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  min-inline-size: 0;
+}
+
+.panel__body--flush {
+  padding: 0;
+}
+
+.panel--emphasis {
+  border: var(--border-strong);
+}
+
+.panel--sunk {
+  background: var(--surface-sunk);
+}
+
+/* ---------- Metric ---------- */
+
+/* Several metrics in one panel, with 1px rules between them. The container's
+   ink shows through the gaps. */
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--rule);
+}
+
+.metrics > .metric {
+  padding: var(--space-4);
+  background: var(--surface);
+}
+
+.metric {
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+  min-inline-size: 0;
+}
+
+.metric__label {
+  font-size: var(--text-label);
+  font-weight: 500;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
+.metric__value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  font-size: var(--text-metric);
+  font-weight: 700;
+  line-height: var(--leading-metric);
+  letter-spacing: var(--tracking-metric);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.metric__approx {
+  margin-inline-end: 0.08em;
+  color: var(--ink-2);
+  font-weight: 400;
+}
+
+.metric__unit {
+  margin-inline-start: var(--space-2);
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-lg);
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.metric__value--unknown {
+  color: var(--ink-2);
+  font-weight: 400;
+}
+
+.metric__note {
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+/* ---------- Stat rows ---------- */
+
+.stats {
+  display: grid;
+}
+
+.stats__row {
+  display: grid;
+  grid-template-columns: minmax(8rem, 1fr) minmax(0, 2fr);
+  gap: var(--space-4);
+  align-items: baseline;
+  padding-block: var(--space-2);
+  border-block-end: var(--border-soft);
+}
+
+.stats__row:last-child {
+  border-block-end: 0;
+}
+
+.stats__row > dt {
+  color: var(--ink-2);
+  font-size: var(--text-label);
+  font-weight: 500;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
+.stats__row > dd {
+  margin: 0;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.stats__row > dd.mono {
+  font-size: var(--text-sm);
+}
+
+.stats__unknown {
+  color: var(--ink-2);
+}
+
+/* ---------- Status lamp ---------- */
+
+.lamp {
+  display: inline-block;
+  flex: none;
+  inline-size: var(--lamp-size);
+  block-size: var(--lamp-size);
+  background: var(--surface-sunk);
+  border: var(--border);
+  border-radius: var(--radius);
+  vertical-align: -1px;
+}
+
+.lamp--ok {
+  background: var(--ok);
+}
+
+.lamp--warn {
+  background: var(--warn);
+}
+
+.lamp--bad {
+  background: var(--bad);
+}
+
+.lamp--info {
+  background: var(--info);
+}
+
+.lamp--idle {
+  background: var(--surface-sunk);
+}
+
+.lamp--active,
+.lamp--active-steady {
+  background: var(--accent);
+}
+
+.lamp--active {
+  animation: lamp-pulse 1.2s var(--ease) infinite;
+}
+
+@keyframes lamp-pulse {
+  0%,
+  100% {
+    background-color: var(--accent);
+  }
+
+  50% {
+    background-color: var(--accent-dim);
+  }
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.status__text {
+  color: var(--ink);
+}
+
+/* ---------- Badge ---------- */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-0) calc(var(--space-1) + var(--space-0));
+  background: var(--surface);
+  color: var(--ink);
+  border: var(--border);
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  font-weight: 500;
+  line-height: var(--leading-lg);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.badge--hdr {
+  color: var(--accent-ink);
+  border-color: var(--accent-ink);
+}
+
+.badge--muted {
+  color: var(--ink-2);
+  border-color: var(--rule-soft);
+}
+
+.badge--count {
+  min-inline-size: 1.75em;
+  background: var(--ink);
+  color: var(--surface);
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+/* ---------- Toggle switch ---------- */
+
+.toggle {
+  --toggle-w: 44px;
+  --toggle-h: 24px;
+  --toggle-knob: 16px;
+  --toggle-inset: 2px;
+  --toggle-travel: calc(var(--toggle-w) - 4px - 2 * var(--toggle-inset) - var(--toggle-knob));
+
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-block-size: var(--touch-target);
+  cursor: pointer;
+}
+
+.toggle--large {
+  --toggle-w: 88px;
+  --toggle-h: 48px;
+  --toggle-knob: 32px;
+  --toggle-inset: 6px;
+}
+
+.toggle__input {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  opacity: 0;
+}
+
+.toggle__track {
+  position: relative;
+  flex: none;
+  inline-size: var(--toggle-w);
+  block-size: var(--toggle-h);
+  background: var(--surface-sunk);
+  border: var(--border-strong);
+  border-radius: var(--radius);
+  transition: background-color var(--dur) var(--ease), translate var(--dur) var(--ease);
+}
+
+/* ON and OFF are printed on the track, so the state reads without colour. */
+.toggle__track::after {
+  content: "OFF";
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-end: calc(var(--toggle-inset) + 1px);
+  translate: 0 -50%;
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0.02em;
+}
+
+.toggle--large .toggle__track::after {
+  inset-inline-end: calc(var(--toggle-inset) + 4px);
+  font-size: var(--text-label);
+}
+
+.toggle__knob {
+  position: absolute;
+  inset-block-start: var(--toggle-inset);
+  inset-inline-start: var(--toggle-inset);
+  inline-size: var(--toggle-knob);
+  block-size: calc(var(--toggle-h) - 4px - 2 * var(--toggle-inset));
+  background: var(--ink);
+  border-radius: 1px;
+  transition: translate var(--dur) var(--ease-click);
+}
+
+.toggle__input:checked + .toggle__track {
+  background: var(--accent);
+}
+
+.toggle__input:checked + .toggle__track::after {
+  content: "ON";
+  inset-inline-start: calc(var(--toggle-inset) + 3px);
+  inset-inline-end: auto;
+  color: var(--on-accent);
+}
+
+.toggle--large .toggle__input:checked + .toggle__track::after {
+  inset-inline-start: calc(var(--toggle-inset) + 6px);
+}
+
+.toggle__input:checked + .toggle__track .toggle__knob {
+  translate: var(--toggle-travel) 0;
+}
+
+.toggle__input:focus-visible + .toggle__track {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+.toggle:active .toggle__track {
+  translate: 0 1px;
+}
+
+.toggle__label {
+  font-weight: 500;
+}
+
+.toggle--large .toggle__label {
+  font-size: var(--text-lg);
+}
+
+.toggle__input:disabled + .toggle__track {
+  border-color: var(--rule-soft);
+  background: var(--surface-sunk);
+}
+
+.toggle__input:disabled + .toggle__track .toggle__knob {
+  background: var(--rule-soft);
+}
+
+.toggle__input:disabled:checked + .toggle__track {
+  background: var(--accent-dim);
+}
+
+.toggle:has(.toggle__input:disabled) {
+  cursor: not-allowed;
+}
+
+.toggle:has(.toggle__input:disabled):active .toggle__track {
+  translate: none;
+}
+
+.toggle:has(.toggle__input:disabled) .toggle__label {
+  color: var(--ink-2);
+}
+
+/* A toggle with a hint or a reason below it. */
+.toggle-field {
+  display: grid;
+  gap: 0;
+}
+
+.toggle-field__note {
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+/* ---------- Segmented control ---------- */
+
+.segmented {
+  display: grid;
+  gap: var(--space-2);
+  min-inline-size: 0;
+}
+
+.segmented__legend,
+.chips__legend {
+  margin-block-end: var(--space-2);
+  font-weight: 500;
+}
+
+/* Joined hardware buttons. The container's ink shows through the 1px gaps as
+   rules; options grow to fill each row, so wrapping on a phone stays tidy. */
+.segmented__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1px;
+  inline-size: fit-content;
+  max-inline-size: 100%;
+  background: var(--rule);
+  border: var(--border-strong);
+  border-radius: var(--radius);
+}
+
+.segmented__input,
+.chips__input {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  opacity: 0;
+}
+
+.segmented__option {
+  position: relative;
+  display: inline-flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  min-block-size: var(--control-height);
+  padding: 0 var(--space-4);
+  background: var(--surface);
+  color: var(--ink);
+  white-space: nowrap;
+  transition: background-color var(--dur) var(--ease), translate var(--dur) var(--ease);
+}
+
+.segmented__option:hover {
+  background: var(--surface-sunk);
+}
+
+.segmented__input:checked + .segmented__option {
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 500;
+  translate: 0 1px;
+}
+
+.segmented__input:focus-visible + .segmented__option {
+  z-index: 1;
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+.segmented__option:active {
+  translate: 0 1px;
+}
+
+.segmented__input:disabled + .segmented__option {
+  background: var(--surface-sunk);
+  color: var(--ink-2);
+  cursor: not-allowed;
+  translate: none;
+}
+
+.segmented__planned {
+  font-size: var(--text-sm);
+}
+
+.segmented__hint {
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+/* Per-option hints: only the checked option's hint shows. Each radio is also
+   linked to its hint with aria-describedby. Supports up to eight options. */
+.segmented__hint--option {
+  display: none;
+}
+
+.segmented:has(.segmented__input:nth-of-type(1):checked) .segmented__hint--option:nth-of-type(1),
+.segmented:has(.segmented__input:nth-of-type(2):checked) .segmented__hint--option:nth-of-type(2),
+.segmented:has(.segmented__input:nth-of-type(3):checked) .segmented__hint--option:nth-of-type(3),
+.segmented:has(.segmented__input:nth-of-type(4):checked) .segmented__hint--option:nth-of-type(4),
+.segmented:has(.segmented__input:nth-of-type(5):checked) .segmented__hint--option:nth-of-type(5),
+.segmented:has(.segmented__input:nth-of-type(6):checked) .segmented__hint--option:nth-of-type(6),
+.segmented:has(.segmented__input:nth-of-type(7):checked) .segmented__hint--option:nth-of-type(7),
+.segmented:has(.segmented__input:nth-of-type(8):checked) .segmented__hint--option:nth-of-type(8) {
+  display: block;
+}
+
+/* ---------- Filter chips (checkboxes) ---------- */
+
+.chips {
+  display: grid;
+  min-inline-size: 0;
+}
+
+.chips__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.chips__option {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: var(--control-height-small);
+  padding: 0 var(--space-3);
+  background: var(--surface);
+  color: var(--ink);
+  border: var(--border);
+  border-radius: var(--radius);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  white-space: nowrap;
+  transition: background-color var(--dur) var(--ease), translate var(--dur) var(--ease);
+}
+
+/* A small printed square: hollow when off, filled when on. */
+.chips__option::before {
+  content: "";
+  flex: none;
+  inline-size: var(--space-2);
+  block-size: var(--space-2);
+  background: var(--surface);
+  border: var(--border);
+}
+
+.chips__option:hover {
+  background: var(--surface-sunk);
+}
+
+.chips__input:checked + .chips__option {
+  background: var(--accent);
+  color: var(--on-accent);
+  border: var(--border-strong);
+  padding-inline: calc(var(--space-3) - 1px);
+  translate: 0 1px;
+}
+
+.chips__input:checked + .chips__option::before {
+  background: var(--ink);
+}
+
+.chips__input:focus-visible + .chips__option {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+.chips__option:active {
+  translate: 0 1px;
+}
+
+.chips__input:disabled + .chips__option {
+  background: var(--surface-sunk);
+  color: var(--ink-2);
+  border-color: var(--rule-soft);
+  cursor: not-allowed;
+}
+
+/* ---------- Button ---------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-block-size: var(--control-height);
+  padding: 0 var(--space-4);
+  background: var(--surface);
+  color: var(--ink);
+  border: var(--border);
+  border-radius: var(--radius);
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  font-weight: 500;
+  line-height: 1.2;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background-color var(--dur) var(--ease), translate var(--dur) var(--ease);
+}
+
+.btn:hover {
+  background: var(--surface-sunk);
+}
+
+.btn:active,
+.btn--pressed,
+.btn[aria-pressed="true"] {
+  translate: 0 1px;
+}
+
+.btn--primary {
+  background: var(--accent);
+  color: var(--on-accent);
+  border: var(--border-strong);
+}
+
+.btn--primary:hover {
+  background: var(--accent-hover);
+}
+
+.btn--secondary {
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.btn--danger {
+  background: var(--surface);
+  color: var(--bad);
+  border: 2px solid var(--bad);
+}
+
+.btn--danger:hover {
+  background: var(--bad-tint);
+}
+
+/* Held in: a toggle button that is on, or the styleguide's frozen press. */
+.btn--pressed,
+.btn[aria-pressed="true"] {
+  background: var(--surface-sunk);
+  border: var(--border-strong);
+}
+
+.btn--primary.btn--pressed {
+  background: var(--accent-hover);
+}
+
+.btn--small {
+  min-block-size: var(--control-height-small);
+  padding: 0 var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.btn:disabled,
+.btn[aria-disabled="true"] {
+  background: var(--surface-sunk);
+  color: var(--ink-2);
+  border: 1px solid var(--rule-soft);
+  cursor: not-allowed;
+  translate: none;
+}
+
+/* Busy: the label stays and a small active lamp appears before it. */
+.btn.htmx-request::before,
+.btn--busy::before,
+.btn[aria-busy="true"]::before,
+form.htmx-request .btn[type="submit"]::before {
+  content: "";
+  flex: none;
+  inline-size: var(--lamp-size);
+  block-size: var(--lamp-size);
+  background: var(--accent);
+  border: var(--border);
+  border-radius: var(--radius);
+  animation: lamp-pulse 1.2s var(--ease) infinite;
+}
+
+.btn--primary.htmx-request::before,
+.btn--primary.btn--busy::before,
+.btn--primary[aria-busy="true"]::before,
+form.htmx-request .btn--primary[type="submit"]::before {
+  background: var(--surface);
+  animation-name: lamp-pulse-on-accent;
+}
+
+@keyframes lamp-pulse-on-accent {
+  0%,
+  100% {
+    background-color: var(--surface);
+  }
+
+  50% {
+    background-color: var(--ink);
+  }
+}
+
+/* A row of buttons, with an optional note (such as the reason a button is
+   disabled) beside them. */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.actions__note {
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  max-inline-size: 48ch;
+}
+
+/* HTMX indicators (htmx's own inline styles are turned off in the layout). */
+.htmx-indicator {
+  visibility: hidden;
+}
+
+.htmx-request .htmx-indicator,
+.htmx-request.htmx-indicator {
+  visibility: visible;
+}
+
+/* ---------- Table ---------- */
+
+/* Wide tables scroll inside their panel, never the page. */
+.table-wrap {
+  max-inline-size: 100%;
+  overflow-x: auto;
+}
+
+.table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.table th,
+.table td {
+  padding: var(--space-2) var(--space-3);
+  text-align: start;
+}
+
+.table th {
+  color: var(--ink-2);
+  font-size: var(--text-label);
+  font-weight: 500;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  white-space: nowrap;
+  vertical-align: bottom;
+  border-block-end: var(--border-strong);
+}
+
+.table td {
+  block-size: var(--control-height);
+  background: var(--surface);
+  vertical-align: middle;
+  border-block-end: var(--border-soft);
+}
+
+.table tbody tr:hover td {
+  background: var(--surface-sunk);
+}
+
+.table tbody tr:last-child td {
+  border-block-end: 0;
+}
+
+.table .num {
+  text-align: end;
+}
+
+.table td.mono {
+  font-size: var(--text-sm);
+}
+
+.table a {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.table a:hover {
+  color: var(--accent-ink);
+}
+
+/* Sortable headers are links; the active one has aria-sort on its th. */
+.table__sort {
+  color: inherit;
+  font-weight: inherit;
+  text-decoration: none;
+}
+
+.table th a.table__sort {
+  color: var(--ink-2);
+}
+
+.table th[aria-sort] .table__sort {
+  color: var(--ink);
+}
+
+.table th[aria-sort="ascending"] .table__sort::after {
+  content: " \2191";
+  font-family: var(--font-mono);
+}
+
+.table th[aria-sort="descending"] .table__sort::after {
+  content: " \2193";
+  font-family: var(--font-mono);
+}
+
+/* ---------- Progress meter ---------- */
+
+.meter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+/* The frame's 1px rule surrounds the whole bar; the gaps between segments
+   show the frame's surface. */
+.meter__frame {
+  display: block;
+  flex: 1 1 12rem;
+  min-inline-size: 0;
+  padding: var(--space-0);
+  background: var(--surface);
+  border: var(--border);
+}
+
+/* A native <progress>, masked into 20 segments with 2px gaps. The mask is one
+   segment plus its gap, repeated; its tile is (width + 2px) / 20 so the last
+   gap falls just outside the bar. */
+.meter__bar {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  inline-size: 100%;
+  block-size: var(--space-3);
+  margin: 0;
+  padding: 0;
+  color: var(--accent);
+  background: var(--surface-sunk);
+  border: 0;
+  border-radius: 0;
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 2px), transparent calc(100% - 2px));
+  mask-image: linear-gradient(90deg, #000 calc(100% - 2px), transparent calc(100% - 2px));
+  -webkit-mask-size: calc((100% + 2px) / 20) 100%;
+  mask-size: calc((100% + 2px) / 20) 100%;
+  -webkit-mask-repeat: repeat-x;
+  mask-repeat: repeat-x;
+}
+
+.meter__bar::-webkit-progress-bar {
+  background: var(--surface-sunk);
+}
+
+/* The fill moves in visible ticks rather than a smooth slide. */
+.meter__bar::-webkit-progress-value {
+  background: var(--accent);
+  transition: width var(--dur-slow) steps(4, end);
+}
+
+.meter__bar::-moz-progress-bar {
+  background: var(--accent);
+}
+
+/* Indeterminate: a block of segments steps along the bar, left to right. */
+.meter__bar:indeterminate {
+  background: linear-gradient(var(--accent), var(--accent)) no-repeat 0 0 / calc((100% + 2px) / 5) 100%, var(--surface-sunk);
+  animation: meter-scan calc(var(--dur-slow) * 5) steps(5, jump-none) infinite;
+}
+
+.meter__bar:indeterminate::-webkit-progress-bar {
+  background: transparent;
+}
+
+.meter__bar:indeterminate::-moz-progress-bar {
+  background: transparent;
+}
+
+@keyframes meter-scan {
+  from {
+    background-position: 0 0, 0 0;
+  }
+
+  to {
+    background-position: 100% 0, 0 0;
+  }
+}
+
+.meter__readout {
+  flex: none;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Explanation list ---------- */
+
+.explain {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.explain__item {
+  display: grid;
+  grid-template-columns: 1.25rem minmax(0, 1fr);
+  gap: var(--space-2);
+  align-items: baseline;
+}
+
+.explain__mark {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  text-align: center;
+}
+
+.explain__item--pass .explain__mark {
+  color: var(--ok);
+}
+
+.explain__item--fail .explain__mark {
+  color: var(--bad);
+}
+
+.explain__item--neutral {
+  color: var(--ink-2);
+}
+
+/* ---------- Empty state ---------- */
+
+.empty {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+  padding-block: var(--space-4);
+}
+
+/* A counter at rest, behind a small display window. */
+.empty__count {
+  margin-block-end: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  background: var(--surface-sunk);
+  color: var(--ink-2);
+  border: var(--border);
+  font-family: var(--font-mono);
+  font-size: var(--text-3xl);
+  font-weight: 500;
+  line-height: var(--leading-3xl);
+  font-variant-numeric: tabular-nums;
+}
+
+.empty__title {
+  font-size: var(--text-lg);
+  font-weight: 500;
+  line-height: var(--leading-lg);
+}
+
+.empty__text {
+  color: var(--ink-2);
+}
+
+.empty .btn {
+  margin-block-start: var(--space-2);
+}
+
+/* ---------- Callout ---------- */
+
+.callout {
+  --callout-colour: var(--info);
+  --callout-tint: var(--info-tint);
+
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: var(--callout-tint);
+  border: var(--border);
+  border-inline-start: 4px solid var(--callout-colour);
+  border-radius: var(--radius-panel);
+}
+
+.callout--ok {
+  --callout-colour: var(--ok);
+  --callout-tint: var(--ok-tint);
+}
+
+.callout--warn {
+  --callout-colour: var(--warn);
+  --callout-tint: var(--warn-tint);
+}
+
+.callout--bad {
+  --callout-colour: var(--bad);
+  --callout-tint: var(--bad-tint);
+}
+
+.callout__title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 500;
+}
+
+.callout__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-block-start: var(--space-1);
+}
+
+.callout__details {
+  margin-block-start: var(--space-1);
+  border-block-start: var(--border-soft);
+  padding-block-start: var(--space-2);
+}
+
+.callout__details > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: var(--control-height-small);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  list-style: none;
+}
+
+.callout__details > summary::-webkit-details-marker {
+  display: none;
+}
+
+/* A printed [+] or [-] instead of the browser's triangle. */
+.callout__details > summary::before {
+  content: "[+]";
+  font-family: var(--font-mono);
+  font-weight: 400;
+}
+
+.callout__details[open] > summary::before {
+  content: "[-]";
+}
+
+.callout__tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-block: var(--space-2);
+}
+
+.callout__copied {
+  color: var(--ink);
+  font-size: var(--text-sm);
+}
+
+.callout__details pre {
+  max-block-size: 24rem;
+  overflow: auto;
+  padding: var(--space-3);
+  background: var(--surface);
+  color: var(--ink);
+  border: var(--border-soft);
+  font-size: var(--text-sm);
+  line-height: var(--leading-body);
+}
+
+/* The copy button only works with JavaScript, so it only shows with it. */
+:root:not(.js) [data-copy] {
+  display: none;
+}
+
+/* ---------- Form field ---------- */
+
+.field {
+  display: grid;
+  gap: var(--space-1);
+  min-inline-size: 0;
+}
+
+.field__label {
+  font-weight: 500;
+}
+
+.field__hint {
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.field__input {
+  inline-size: 100%;
+  max-inline-size: 36rem;
+  min-block-size: var(--control-height);
+  margin-block-start: var(--space-1);
+  padding: 0 var(--space-3);
+  background: var(--surface);
+  color: var(--ink);
+  border: var(--border);
+  border-radius: var(--radius);
+}
+
+textarea.field__input {
+  min-block-size: 6rem;
+  padding-block: var(--space-2);
+  resize: vertical;
+}
+
+.field__input::placeholder {
+  color: var(--ink-2);
+  opacity: 1;
+}
+
+.field__input:read-only:not(select),
+.field__input:disabled {
+  background: var(--surface-sunk);
+  color: var(--ink-2);
+}
+
+.field__input:disabled {
+  cursor: not-allowed;
+}
+
+.field__input[aria-invalid="true"] {
+  border: 2px solid var(--bad);
+  padding-inline: calc(var(--space-3) - 1px);
+}
+
+.field__error {
+  color: var(--bad);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--accent);
+}
+
+/* A checkbox or radio with its label, such as a library checklist row. */
+.check {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-block-size: var(--touch-target);
+  padding-block: var(--space-2);
+}
+
+.check > input {
+  flex: none;
+  inline-size: 1.125rem;
+  block-size: 1.125rem;
+  margin: 0.2em 0 0;
+}
+
+/* Inline slots in the policy sentence: an underline, not a box. */
+.field--slot {
+  display: inline-flex;
+  gap: 0;
+  vertical-align: baseline;
+}
+
+.field--slot .field__input {
+  inline-size: auto;
+  min-block-size: 0;
+  margin: 0 var(--space-1);
+  padding: 0 var(--space-1);
+  background: transparent;
+  color: var(--ink);
+  border: 0;
+  border-block-end: var(--border-strong);
+  border-radius: 0;
+  font-weight: 500;
+}
+
+.field--slot input.field__input {
+  inline-size: 5ch;
+  text-align: center;
+}
+
+.field--slot .field__input[aria-invalid="true"] {
+  border: 0;
+  border-block-end: 2px solid var(--bad);
+}
+
+/* A sentence built from slots. */
+.sentence {
+  font-size: var(--text-lg);
+  line-height: 2.2;
+  max-inline-size: var(--measure);
+}
+
+/* ---------- Dialog ---------- */
+
+.dialog {
+  inline-size: min(34rem, 100% - 2 * var(--space-4));
+  max-inline-size: none;
+  padding: 0;
+  background: var(--surface);
+  color: var(--ink);
+  border: var(--border-strong);
+  border-radius: var(--radius-panel);
+}
+
+.dialog::backdrop {
+  background: var(--backdrop);
+}
+
+.dialog__head {
+  border-block-end: var(--border-strong);
+}
+
+.dialog__body {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-5);
+}
+
+.dialog__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: 0 var(--space-5) var(--space-5);
+}
+
+/* ---------- Reduced motion ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .btn:active,
+  .btn--pressed,
+  .btn[aria-pressed="true"],
+  .toggle:active .toggle__track,
+  .segmented__option:active,
+  .segmented__input:checked + .segmented__option,
+  .chips__option:active,
+  .chips__input:checked + .chips__option,
+  .dryrun:active {
+    translate: none;
+  }
+
+  /* Indeterminate progress: a static half-lit bar. The readout says
+     "Working". */
+  .meter__bar:indeterminate {
+    background: linear-gradient(var(--accent), var(--accent)) no-repeat 0 0 / 50% 100%, var(--surface-sunk);
+  }
+}
+
+/* ---------- Below 720px ---------- */
+
+@media (max-width: 719.98px) {
+  .panel__body {
+    padding: var(--space-4);
+  }
+
+  .metric__value {
+    font-size: var(--text-3xl);
+    line-height: var(--leading-3xl);
+  }
+
+  .metric__unit {
+    font-size: var(--text-body);
+  }
+
+  .stats__row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-1);
+  }
+
+  .btn {
+    min-block-size: var(--control-height-touch);
+  }
+
+  .btn--small {
+    min-block-size: var(--touch-target);
+  }
+
+  .segmented__options {
+    inline-size: auto;
+  }
+
+  .segmented__option {
+    min-block-size: var(--control-height-touch);
+    padding-inline: var(--space-3);
+  }
+
+  .chips__option {
+    min-block-size: var(--touch-target);
+  }
+
+  .field__input {
+    min-block-size: var(--control-height-touch);
+  }
+
+  .field--slot .field__input {
+    min-block-size: var(--touch-target);
+  }
+
+  /* Tables become cards. Collapsing tables carry explicit ARIA roles in the
+     markup, since changing display drops table semantics in some browsers.
+     Add .table--scroll to keep the table and scroll it instead. */
+  .table:not(.table--scroll),
+  .table:not(.table--scroll) tbody,
+  .table:not(.table--scroll) tr,
+  .table:not(.table--scroll) td {
+    display: block;
+  }
+
+  .table:not(.table--scroll) thead {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .table:not(.table--scroll) tr {
+    margin-block-end: var(--space-3);
+    background: var(--surface);
+    border: var(--border);
+  }
+
+  .table:not(.table--scroll) tr:last-child {
+    margin-block-end: 0;
+  }
+
+  .table:not(.table--scroll) td {
+    display: grid;
+    grid-template-columns: minmax(6rem, 2fr) minmax(0, 3fr);
+    gap: var(--space-3);
+    align-items: baseline;
+    block-size: auto;
+    min-block-size: var(--control-height);
+    text-align: start;
+    border-block-end: var(--border-soft);
+  }
+
+  .table:not(.table--scroll) td:last-child {
+    border-block-end: 0;
+  }
+
+  .table:not(.table--scroll) td::before {
+    content: attr(data-label);
+    color: var(--ink-2);
+    font-family: var(--font-sans);
+    font-size: var(--text-label);
+    font-weight: 500;
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+  }
+
+  .table:not(.table--scroll) td:not([data-label]),
+  .table:not(.table--scroll) td[data-label=""] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .table:not(.table--scroll) td:not([data-label])::before,
+  .table:not(.table--scroll) td[data-label=""]::before {
+    content: none;
+  }
+
+  .table:not(.table--scroll) tbody tr:hover td {
+    background: var(--surface);
+  }
+
+  .dialog__actions {
+    flex-direction: column-reverse;
+  }
+
+  .dialog__actions > .btn {
+    inline-size: 100%;
+  }
+}
+
+/* ---------- 1080px and above ---------- */
+
+@media (min-width: 1080px) {
+  .metrics {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .metrics > .metric {
+    padding: var(--space-5);
+  }
+}

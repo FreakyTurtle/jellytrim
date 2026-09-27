@@ -1,0 +1,33 @@
+# Example deployment. Copy this file, then change the paths, the user and the
+# render group ID to match your system. See README.md for details.
+services:
+  jellytrim:
+    image: ghcr.io/freakyturtle/jellytrim:latest
+    container_name: jellytrim
+    restart: unless-stopped
+    # Run as the user that owns your media, so JellyTrim can replace files.
+    user: "1000:1000"
+    ports:
+      # JellyTrim has no login. Publish it on your LAN or localhost only, or
+      # put it behind a reverse proxy with authentication (see SECURITY.md).
+      - "127.0.0.1:8080:8080"
+    environment:
+      TZ: Europe/London
+      # Optional: preset the Jellyfin connection (otherwise enter it in setup).
+      # JELLYTRIM_JELLYFIN_URL: http://jellyfin:8096
+      # JELLYTRIM_JELLYFIN_API_KEY_FILE: /run/secrets/jellyfin_api_key
+    volumes:
+      - ./jellytrim-config:/config
+      # Mount media read-write. The path inside the container does not have to
+      # match Jellyfin's; you map the two in the setup wizard.
+      - /srv/media/movies:/mnt/media/movies
+      - /srv/media/tv:/mnt/media/tv
+    # Intel Quick Sync (QSV) and VAAPI: pass the GPU through and add the
+    # container to the group that owns it. Find the group ID with:
+    #   stat -c %g /dev/dri/renderD128
+    # Remove these two sections if you only use software encoding.
+    devices:
+      - /dev/dri:/dev/dri
+    group_add:
+      - "993"
+    stop_grace_period: 30s

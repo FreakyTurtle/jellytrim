@@ -1,0 +1,326 @@
+package views
+
+// Example data for the styleguide. Every value is a placeholder.
+
+var sgQuality = []Option{
+	{Value: "maximum", Label: "Maximum", Hint: "As close to the original as JellyTrim can make it. Saves the least space."},
+	{Value: "high", Label: "High", Hint: "Hard to tell apart from the original on a large screen."},
+	{Value: "balanced", Label: "Balanced", Hint: "Looks good on a TV. Saves a good amount of space."},
+	{Value: "space-saver", Label: "Space Saver", Hint: "Fine for phones and tablets. Saves the most space."},
+}
+
+var sgCodec = []Option{
+	{Value: "hevc", Label: "HEVC"},
+	{Value: "h264", Label: "H.264"},
+	{Value: "av1", Label: "AV1", Disabled: true},
+}
+
+var sgDecision = []Option{
+	{Value: "needs", Label: "Needs optimisation"},
+	{Value: "optimal", Label: "Already optimal"},
+	{Value: "protected", Label: "Protected"},
+	{Value: "skipped", Label: "Skipped"},
+}
+
+var sgExplain = []ExplainLine{
+	{Pass: true, Text: "watched by any of Alice, Sam"},
+	{Pass: true, Text: "last watched 143 days ago, more than 90"},
+	{Pass: true, Text: "2160p is above 1080p"},
+	{Pass: false, Text: "is a favourite"},
+	{Neutral: true, Text: "bitrate estimated from file size"},
+}
+
+const sgStderr = `[hevc_qsv @ 0x5581c2a0] Error during encoding: device failed (-17)
+Error submitting video frame to the encoder
+Conversion failed!
+ffmpeg -hide_banner -i /media/movies/Example Film (2019)/Example Film (2019).mkv -map 0 -c:v hevc_qsv -global_quality 23 -c:a copy -c:s copy /media/movies/Example Film (2019)/.jellytrim-tmp.mkv`
+
+// Styleguide renders every shared component in its states, so the design
+// system can be checked in a browser. Served at GET /styleguide.
+templ Styleguide(s Shell) {
+	@Layout(s) {
+		@PageHeader("Styleguide", "Every shared component in its states. Use it to check the design system at phone and desktop widths.") {
+			<a class="btn btn--secondary" href="/">Dashboard</a>
+			<button class="btn btn--primary" type="button">Primary action</button>
+		}
+		<div class="styleguide">
+			@PanelWith(PanelProps{Tab: "Colour", ID: "sg-colour"}) {
+				<ul class="swatches">
+					<li class="swatch" style="--swatch: var(--bg)"><span class="mono">--bg</span></li>
+					<li class="swatch" style="--swatch: var(--surface)"><span class="mono">--surface</span></li>
+					<li class="swatch" style="--swatch: var(--surface-sunk)"><span class="mono">--surface-sunk</span></li>
+					<li class="swatch" style="--swatch: var(--ink)"><span class="mono">--ink</span></li>
+					<li class="swatch" style="--swatch: var(--ink-2)"><span class="mono">--ink-2</span></li>
+					<li class="swatch" style="--swatch: var(--rule-soft)"><span class="mono">--rule-soft</span></li>
+					<li class="swatch" style="--swatch: var(--accent)"><span class="mono">--accent</span></li>
+					<li class="swatch" style="--swatch: var(--accent-ink)"><span class="mono">--accent-ink</span></li>
+					<li class="swatch" style="--swatch: var(--ok)"><span class="mono">--ok</span></li>
+					<li class="swatch" style="--swatch: var(--warn)"><span class="mono">--warn</span></li>
+					<li class="swatch" style="--swatch: var(--bad)"><span class="mono">--bad</span></li>
+					<li class="swatch" style="--swatch: var(--info)"><span class="mono">--info</span></li>
+				</ul>
+			}
+			@PanelWith(PanelProps{Tab: "Type", ID: "sg-type"}) {
+				<div class="type-scale">
+					<div class="type-scale__sample">
+						<span class="type-scale__label">--text-metric</span>
+						<span class="type-scale__metric">4.8</span>
+					</div>
+					<div class="type-scale__sample">
+						<span class="type-scale__label">--text-3xl</span>
+						<span class="type-scale__3xl">1,432</span>
+					</div>
+					<div class="type-scale__sample">
+						<span class="type-scale__label">h2 --text-xl</span>
+						<h2>Section heading</h2>
+					</div>
+					<div class="type-scale__sample">
+						<span class="type-scale__label">h3 --text-lg</span>
+						<h3>List item title</h3>
+					</div>
+					<div class="type-scale__sample">
+						<span class="type-scale__label">--text-body</span>
+						<p>JellyTrim checks each file against your policies and shows what it would change. Read more in <a href="/settings">Settings</a>.</p>
+					</div>
+					<div class="type-scale__sample">
+						<span class="type-scale__label">.mono</span>
+						<span class="mono">/media/movies/Example Film (2019).mkv · 48.2 GB · HEVC Main 10</span>
+					</div>
+					<div class="type-scale__sample">
+						<span class="type-scale__label">--text-label</span>
+						<span class="type-scale__label-style">Label style</span>
+					</div>
+				</div>
+			}
+			<div class="styleguide__wide">
+				@PanelWith(PanelProps{Tab: "Metrics", ID: "sg-metrics", Flush: true}) {
+					@Metrics() {
+						@Metric("Media storage", "4.8", "TB", "1,432 items in 3 libraries", false)
+						@Metric("JellyTrim saved", "612", "GB", "From 57 files", false)
+						@Metric("Optimisable", "1.5", "TB", "If every current plan ran.", true)
+						@Metric("Queued", "", "", "Sync not run yet.", false)
+					}
+				}
+			</div>
+			@PanelWith(PanelProps{Tab: "Lamps", ID: "sg-lamps"}) {
+				<ul class="styleguide__stack">
+					<li>
+						@Status("ok", "Complete")
+					</li>
+					<li>
+						@Status("warn", "Skipped")
+					</li>
+					<li>
+						@Status("bad", "Failed")
+					</li>
+					<li>
+						@Status("info", "Information")
+					</li>
+					<li>
+						@Status("idle", "Waiting")
+					</li>
+					<li>
+						@Status("active", "Encoding")
+					</li>
+					<li>
+						@Status("active-steady", "Dry Run")
+					</li>
+				</ul>
+			}
+			@PanelWith(PanelProps{Tab: "Badges", ID: "sg-badges"}) {
+				<div class="styleguide__stack">
+					<div class="badges">
+						@Badge("HEVC", "")
+						@Badge("2160p", "")
+						@Badge("MKV", "")
+						@Badge("HDR10", "hdr")
+						@Badge("Dolby Vision", "hdr")
+						@Badge("Stereo", "muted")
+						@Badge("3", "count")
+					</div>
+					@Stats() {
+						@StatRow("Codec", "H.264 (High)", true)
+						@StatRow("Resolution", "3840 × 1600", true)
+						@StatRow("Local path", "/media/movies/Example Film (2019)/Example Film (2019).mkv", true)
+						@StatRow("Video bitrate", "", true)
+						@StatRow("Watched", "Alice: watched 12 Mar 2026. Sam: not watched", false)
+					}
+				</div>
+			}
+			@PanelWith(PanelProps{Tab: "Buttons", ID: "sg-buttons"}) {
+				<div class="styleguide__stack">
+					<div class="actions">
+						<button class="btn btn--primary" type="button">Save policy</button>
+						<button class="btn btn--secondary" type="button">Test connection</button>
+						<button class="btn btn--danger" type="button">Cancel job</button>
+					</div>
+					<div class="actions">
+						<button class="btn btn--primary btn--busy" type="button" aria-busy="true">Saving policy</button>
+						<button class="btn btn--secondary btn--pressed" type="button">Pressed</button>
+						<button class="btn btn--secondary" type="button" aria-pressed="true">Toggle on</button>
+						<button class="btn btn--secondary btn--small" type="button">Small</button>
+						<a class="btn btn--secondary" href="/history">Link as button</a>
+					</div>
+					<div class="actions">
+						<button class="btn btn--primary" type="button" disabled aria-describedby="sg-optimise-reason">Optimise now</button>
+						<p class="actions__note" id="sg-optimise-reason">Dry Run is on, so JellyTrim will not change files. Turn off Dry Run in Settings to optimise this item.</p>
+					</div>
+				</div>
+			}
+			@PanelWith(PanelProps{Tab: "Toggles", ID: "sg-toggles"}) {
+				<div class="styleguide__stack">
+					@Toggle("sg-enabled", "Enabled", true, nil)
+					@Toggle("sg-window", "Only encode during a time window", false, nil)
+					@ToggleWith(ToggleProps{Name: "sg-hdr10plus", Label: "Allow HDR10+ to become HDR10", Note: "Planned. Not available in this version.", Attrs: templ.Attributes{"disabled": true}})
+					@ToggleWith(ToggleProps{Name: "sg-dry-run", Label: "Dry Run", Checked: true, Large: true, Note: "While Dry Run is on, JellyTrim evaluates everything and changes nothing."})
+				</div>
+			}
+			@PanelWith(PanelProps{Tab: "Choices", ID: "sg-choices"}) {
+				<div class="styleguide__stack">
+					@Segmented("sg-quality", "Quality", sgQuality, "high", "")
+					@Segmented("sg-codec", "Codec", sgCodec, "hevc", "HEVC saves the most space on devices that can play it.")
+					@Chips("sg-decision", "Decision", sgDecision, []string{"needs", "protected"})
+				</div>
+			}
+			@PanelWith(PanelProps{Tab: "Progress", ID: "sg-progress"}) {
+				<div class="styleguide__stack">
+					<p class="styleguide__caption">Running at 38%</p>
+					@Meter("sg-meter-38", 38, "38% · 2.4× · 12 min left")
+					<p class="styleguide__caption">Complete</p>
+					@Meter("sg-meter-100", 100, "100% · Validating")
+					<p class="styleguide__caption">Indeterminate</p>
+					@Meter("sg-meter-working", -1, "")
+				</div>
+			}
+			@PanelWith(PanelProps{Tab: "Why", ID: "sg-explain"}) {
+				<div class="styleguide__stack">
+					<h3>Matches Archive watched 4K</h3>
+					@Explain(sgExplain)
+				</div>
+			}
+			<div class="styleguide__wide">
+				@PanelWith(PanelProps{Tab: "Waiting", ID: "sg-table", Actions: sgTableActions()}) {
+					<div class="table-wrap">
+						<table class="table" role="table">
+							<caption class="visually-hidden">Waiting jobs</caption>
+							<thead role="rowgroup">
+								<tr role="row">
+									<th scope="col" role="columnheader" class="num">#</th>
+									<th scope="col" role="columnheader">Title</th>
+									<th scope="col" role="columnheader">Change</th>
+									<th scope="col" role="columnheader" aria-sort="descending"><a class="table__sort" href="/queue?sort=saving">Est. saving</a></th>
+									<th scope="col" role="columnheader">Status</th>
+								</tr>
+							</thead>
+							<tbody role="rowgroup">
+								<tr role="row">
+									<td role="cell" data-label="#" class="num mono">1</td>
+									<td role="cell" data-label="Title"><a href="/library/1">Example Film (2019)</a></td>
+									<td role="cell" data-label="Change" class="mono">2160p H.264 → 1080p HEVC</td>
+									<td role="cell" data-label="Est. saving" class="num mono">~ 31.2 GB</td>
+									<td role="cell" data-label="Status">
+										@Status("active", "Encoding")
+									</td>
+								</tr>
+								<tr role="row">
+									<td role="cell" data-label="#" class="num mono">2</td>
+									<td role="cell" data-label="Title"><a href="/library/2">Example Series · S02E05 · The Long Episode</a></td>
+									<td role="cell" data-label="Change" class="mono">1080p H.264 → 1080p HEVC</td>
+									<td role="cell" data-label="Est. saving" class="num mono">~ 1.8 GB</td>
+									<td role="cell" data-label="Status">
+										@Status("idle", "Waiting")
+									</td>
+								</tr>
+								<tr role="row">
+									<td role="cell" data-label="#" class="num mono">3</td>
+									<td role="cell" data-label="Title"><a href="/library/3">Another Film (2021)</a></td>
+									<td role="cell" data-label="Change" class="mono">2160p HEVC → 1080p HEVC</td>
+									<td role="cell" data-label="Est. saving" class="num mono">~ 12.4 GB</td>
+									<td role="cell" data-label="Status">
+										@Status("idle", "Waiting")
+									</td>
+								</tr>
+							</tbody>
+						</table>
+					</div>
+				}
+			</div>
+			<div class="styleguide__wide styleguide__stack">
+				@Callout("bad", "Encoding failed at 38%", "Intel QSV returned an encoder error. The original file is unchanged. Try again with software encoding, or check the hardware test in Settings.") {
+					@CalloutActions() {
+						<button class="btn btn--secondary" type="button">Retry with software</button>
+					}
+					@TechnicalDetails("Technical details", sgStderr)
+				}
+				@Callout("warn", "24 files not found under /media/movies", "Check the path mapping. Items under this mapping are skipped until the files are found.")
+				@Callout("info", "Dry Run is on", "JellyTrim will not change any files until you turn it off.")
+				@Callout("ok", "Connected to Jellyfin 12.0.1 on your-server-name", "")
+			</div>
+			@PanelWith(PanelProps{Tab: "Now processing", ID: "sg-empty"}) {
+				@EmptyState("0", "No jobs in the queue", "Jobs appear here when Dry Run is off and an enabled policy matches an item.", "/policies", "Review policies")
+			}
+			@PanelWith(PanelProps{Tab: "Confirm", ID: "sg-dialog", Variant: "emphasis"}) {
+				<div class="styleguide__stack">
+					<p>A dialog confirms an action that matters. Focus moves to Cancel and returns here when it closes.</p>
+					<div class="actions">
+						@DialogButton("sg-dry-run-dialog", "Turn off Dry Run", "danger")
+					</div>
+				</div>
+				@Dialog("sg-dry-run-dialog", "Turn off Dry Run") {
+					@DialogBody() {
+						<p>Turn off Dry Run? JellyTrim will start replacing files that match enabled policies. Originals are kept as backups for 7 days.</p>
+					}
+					@DialogActions() {
+						@DialogCancel("Cancel")
+						<button class="btn btn--danger" type="button" data-dialog-close>Turn off Dry Run</button>
+					}
+				}
+			}
+			<div class="styleguide__wide">
+				@PanelWith(PanelProps{Tab: "Form", ID: "sg-form"}) {
+					<form class="styleguide__stack" action="/styleguide" method="get">
+						@Field(FieldProps{ID: "sg-jf-url", Name: "url", Label: "Jellyfin address", Hint: "The address JellyTrim uses to reach Jellyfin, for example http://jellyfin:8096.", Type: "url", Placeholder: "http://jellyfin:8096", Mono: true})
+						@Field(FieldProps{ID: "sg-jf-key", Name: "key", Label: "API key", Hint: "In Jellyfin, open Dashboard, then API Keys, and add a key named JellyTrim.", Type: "password", Mono: true, Attrs: templ.Attributes{"autocomplete": "off"}})
+						@Field(FieldProps{ID: "sg-jf-bad", Name: "bad", Label: "Jellyfin address", Type: "url", Value: "jellyfin:8096", Mono: true, Error: "Enter an address starting with http:// or https://."})
+						@Field(FieldProps{ID: "sg-jf-env", Name: "env", Label: "API key", Hint: "Set by JELLYTRIM_JELLYFIN_API_KEY.", ReadOnly: true, Mono: true})
+						<div class="field">
+							<label class="field__label" for="sg-library">Library</label>
+							<select class="field__input" id="sg-library" name="library">
+								<option value="">All libraries</option>
+								<option value="movies">Movies</option>
+								<option value="shows">Shows</option>
+							</select>
+						</div>
+						<label class="check">
+							<input type="checkbox" name="movies" checked/>
+							<span>Movies <span class="mono field__hint">/media/movies</span></span>
+						</label>
+						<p class="sentence">
+							In
+							<span class="field field--slot">
+								<label class="visually-hidden" for="sg-scope">Scope</label>
+								<select class="field__input" id="sg-scope" name="scope">
+									<option>Movies</option>
+									<option>Shows</option>
+								</select>
+							</span>, when last watched more than
+							<span class="field field--slot">
+								<label class="visually-hidden" for="sg-days">Days</label>
+								<input class="field__input mono" id="sg-days" name="days" type="text" inputmode="numeric" value="90"/>
+							</span>
+							days ago.
+						</p>
+						<div class="actions">
+							<button class="btn btn--primary" type="submit">Save policy</button>
+							<button class="btn btn--secondary" type="reset">Reset</button>
+						</div>
+					</form>
+				}
+			</div>
+		</div>
+	}
+}
+
+templ sgTableActions() {
+	<button class="btn btn--danger btn--small" type="button">Cancel all waiting</button>
+}

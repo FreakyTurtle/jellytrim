@@ -1,0 +1,383 @@
+package views
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"net/url"
+	"strconv"
+)
+
+// SyncStatus is the Jellyfin sync state shown in the top bar.
+type SyncStatus struct {
+	State string // "never", "ok", "running", "error"
+	Text  string // for example "Synced 12 min ago"
+}
+
+// Shell is what every page after setup needs to render the app shell.
+type Shell struct {
+	Title        string // page title without the " · JellyTrim" suffix
+	Active       string // "dashboard", "library", "policies", "queue", "history", "settings"
+	DryRun       bool
+	QueueCount   int
+	Sync         SyncStatus
+	AssetVersion string // appended as ?v= to static URLs
+}
+
+// navItem is one channel in the main navigation.
+type navItem struct {
+	Key   string
+	Href  string
+	Label string
+	Index string
+}
+
+var navItems = []navItem{
+	{Key: "dashboard", Href: "/", Label: "Dashboard", Index: "01"},
+	{Key: "library", Href: "/library", Label: "Library", Index: "02"},
+	{Key: "policies", Href: "/policies", Label: "Policies", Index: "03"},
+	{Key: "queue", Href: "/queue", Label: "Queue", Index: "04"},
+	{Key: "history", Href: "/history", Label: "History", Index: "05"},
+	{Key: "settings", Href: "/settings", Label: "Settings", Index: "06"},
+}
+
+// The bottom bar shows these directly; the rest go under "More".
+var bottomKeys = map[string]bool{"dashboard": true, "library": true, "queue": true}
+
+// setupStepNames names the wizard steps in docs/UI.md, in order.
+var setupStepNames = []string{
+	"Welcome",
+	"Connect Jellyfin",
+	"Libraries",
+	"Path mappings",
+	"Hardware",
+	"Default strategy",
+	"Starter policies",
+	"Dry Run scan",
+}
+
+// htmxConfig stops htmx injecting its own inline indicator styles.
+const htmxConfig = `{"includeIndicatorStyles":false}`
+
+func asset(path, version string) string {
+	if version == "" {
+		return path
+	}
+	return path + "?v=" + url.QueryEscape(version)
+}
+
+func twoDigits(n int) string {
+	return fmt.Sprintf("%02d", n)
+}
+
+func channelIndex(active string) string {
+	for _, item := range navItems {
+		if item.Key == active {
+			return item.Index
+		}
+	}
+	return ""
+}
+
+func moreIsCurrent(active string) bool {
+	return channelIndex(active) != "" && !bottomKeys[active]
+}
+
+func syncLamp(state string) string {
+	switch state {
+	case "ok":
+		return "ok"
+	case "running":
+		return "active"
+	case "error":
+		return "bad"
+	default:
+		return "idle"
+	}
+}
+
+func syncText(s SyncStatus) string {
+	if s.Text != "" {
+		return s.Text
+	}
+	switch s.State {
+	case "ok":
+		return "Synced"
+	case "running":
+		return "Syncing"
+	case "error":
+		return "Jellyfin unreachable"
+	default:
+		return "Not synced yet"
+	}
+}
+
+func setupStepText(i, current int) string {
+	text := "Step " + strconv.Itoa(i) + ": " + setupStepName(i)
+	if i < current {
+		text += ", done"
+	}
+	return text
+}
+
+func setupStepName(step int) string {
+	if step >= 1 && step <= len(setupStepNames) {
+		return setupStepNames[step-1]
+	}
+	return "Step " + strconv.Itoa(step)
+}
+
+// pageLabelKey carries the printed label above the page title (the channel
+// number, or the setup step) from the layout down to PageHeader.
+type pageLabelKey struct{}
+
+func pageLabel(ctx context.Context) string {
+	label, _ := ctx.Value(pageLabelKey{}).(string)
+	return label
+}
+
+// withPageLabel renders its children with a page label in the context.
+func withPageLabel(label string) templ.Component {
+	return templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
+		children := templ.GetChildren(ctx)
+		ctx = templ.ClearChildren(ctx)
+		if children == nil {
+			return nil
+		}
+		if label != "" {
+			ctx = context.WithValue(ctx, pageLabelKey{}, label)
+		}
+		return children.Render(ctx, w)
+	})
+}
+
+templ head(title, assetVersion string) {
+	<meta charset="utf-8"/>
+	<meta name="viewport" content="width=device-width, initial-scale=1"/>
+	<title>{ title } · JellyTrim</title>
+	<meta name="color-scheme" content="light"/>
+	<meta name="htmx-config" content={ htmxConfig }/>
+	<link rel="preload" href="/static/vendor/fonts/ibm-plex-sans-latin-400.woff2" as="font" type="font/woff2" crossorigin/>
+	<link rel="preload" href="/static/vendor/fonts/ibm-plex-mono-latin-500.woff2" as="font" type="font/woff2" crossorigin/>
+	<link rel="stylesheet" href={ asset("/static/css/tokens.css", assetVersion) }/>
+	<link rel="stylesheet" href={ asset("/static/css/base.css", assetVersion) }/>
+	<link rel="stylesheet" href={ asset("/static/css/shell.css", assetVersion) }/>
+	<link rel="stylesheet" href={ asset("/static/css/components.css", assetVersion) }/>
+	<script src={ asset("/static/vendor/htmx.min.js", assetVersion) } defer></script>
+	<script src={ asset("/static/js/app.js", assetVersion) } defer></script>
+}
+
+templ wordmark() {
+	<a class="wordmark" href="/">
+		<span class="wordmark__lamp" aria-hidden="true"></span>
+		<span>JellyTrim</span>
+	</a>
+}
+
+// queueBadge shows how many jobs are waiting or running.
+templ queueBadge(count int) {
+	<span class="badge badge--count"><span class="visually-hidden">, </span>{ strconv.Itoa(count) }<span class="visually-hidden">{ " jobs" }</span></span>
+}
+
+templ topbar(s Shell) {
+	<header class="topbar">
+		@wordmark()
+		<a class={ "dryrun", templ.KV("dryrun--live", !s.DryRun) } href="/settings#dry-run">
+			<span class="dryrun__caption">Mode<span class="visually-hidden">:</span></span>
+			<span class="dryrun__state">
+				if s.DryRun {
+					@Lamp("active-steady")
+					<span class="dryrun__label">Dry Run</span>
+				} else {
+					@Lamp("idle")
+					<span class="dryrun__label">Live</span>
+				}
+			</span>
+		</a>
+		<p class="topbar__sync">
+			@Status(syncLamp(s.Sync.State), syncText(s.Sync))
+		</p>
+	</header>
+}
+
+templ rail(s Shell) {
+	<nav class="rail" aria-label="Main">
+		<div class="rail__inner">
+			<p class="rail__caption" aria-hidden="true">Channels</p>
+			<ol class="rail__list">
+				for _, item := range navItems {
+					<li>
+						<a
+							class="rail__link"
+							href={ templ.SafeURL(item.Href) }
+							if s.Active == item.Key {
+								aria-current="page"
+							}
+						>
+							<span class="rail__index" aria-hidden="true">{ item.Index }</span>
+							<span class="rail__label">{ item.Label }</span>
+							if item.Key == "queue" && s.QueueCount > 0 {
+								@queueBadge(s.QueueCount)
+							}
+						</a>
+					</li>
+				}
+			</ol>
+		</div>
+	</nav>
+}
+
+templ bottombar(s Shell) {
+	<nav class="bottombar" aria-label="Main">
+		<ul class="bottombar__list">
+			for _, item := range navItems {
+				if bottomKeys[item.Key] {
+					<li>
+						<a
+							class="bottombar__link"
+							href={ templ.SafeURL(item.Href) }
+							if s.Active == item.Key {
+								aria-current="page"
+							}
+						>
+							<span class="bottombar__index" aria-hidden="true">{ item.Index }</span>
+							<span class="bottombar__label">{ item.Label }</span>
+							if item.Key == "queue" && s.QueueCount > 0 {
+								@queueBadge(s.QueueCount)
+							}
+						</a>
+					</li>
+				}
+			}
+			<li>
+				<details class="bottombar__more">
+					<summary class={ "bottombar__link", templ.KV("bottombar__link--current", moreIsCurrent(s.Active)) }>
+						<span class="bottombar__index" aria-hidden="true">+</span>
+						<span class="bottombar__label">More</span>
+					</summary>
+					<ul class="bottombar__menu">
+						for _, item := range navItems {
+							if !bottomKeys[item.Key] {
+								<li>
+									<a
+										href={ templ.SafeURL(item.Href) }
+										if s.Active == item.Key {
+											aria-current="page"
+										}
+									>
+										<span class="rail__index" aria-hidden="true">{ item.Index }</span>
+										<span>{ item.Label }</span>
+									</a>
+								</li>
+							}
+						}
+					</ul>
+				</details>
+			</li>
+		</ul>
+	</nav>
+}
+
+// Layout is the full app shell: top bar, rail (or bottom bar on phones) and
+// the page. Children render inside <main id="main" class="page">.
+templ Layout(s Shell) {
+	<!DOCTYPE html>
+	<html lang="en-GB">
+		<head>
+			@head(s.Title, s.AssetVersion)
+		</head>
+		<body class="shell">
+			<a class="skip-link" href="#main">Skip to content</a>
+			@topbar(s)
+			@rail(s)
+			@bottombar(s)
+			<main id="main" class="page">
+				@withPageLabel(channelLabel(s.Active)) {
+					{ children... }
+				}
+			</main>
+		</body>
+	</html>
+}
+
+func channelLabel(active string) string {
+	if idx := channelIndex(active); idx != "" {
+		return "Ch " + idx
+	}
+	return ""
+}
+
+// SetupLayout is the wizard shell: the top bar and a step strip, no rail.
+templ SetupLayout(title string, step int, totalSteps int, assetVersion string) {
+	<!DOCTYPE html>
+	<html lang="en-GB">
+		<head>
+			@head(title, assetVersion)
+		</head>
+		<body class="setup">
+			<a class="skip-link" href="#main">Skip to content</a>
+			<header class="topbar topbar--setup">
+				@wordmark()
+				<p class="topbar__context">Setup</p>
+				<p class="topbar__step">Step { twoDigits(step) } of { twoDigits(totalSteps) }</p>
+			</header>
+			<div class="setup__progress">
+				<ol class="steps" aria-label="Setup steps">
+					for i := 1; i <= totalSteps; i++ {
+						<li
+							class={ "steps__item", templ.KV("steps__item--done", i < step) }
+							if i == step {
+								aria-current="step"
+							}
+						>
+							<span class="visually-hidden">{ setupStepText(i, step) }</span>
+							<span class="steps__num" aria-hidden="true">{ twoDigits(i) }</span>
+							if i < step {
+								<span class="steps__mark" aria-hidden="true">✓</span>
+							}
+							<span class="steps__name" aria-hidden="true">{ setupStepName(i) }</span>
+						</li>
+					}
+				</ol>
+			</div>
+			<main id="main" class="page page--setup">
+				@withPageLabel("Step " + twoDigits(step) + " / " + twoDigits(totalSteps)) {
+					{ children... }
+				}
+			</main>
+		</body>
+	</html>
+}
+
+// PageHeader is the page title, an optional description and, from its
+// children, the page actions.
+templ PageHeader(title, description string) {
+	<header class="page__header">
+		<div class="page__heading">
+			if label := pageLabel(ctx); label != "" {
+				<p class="page__channel" aria-hidden="true">{ label }</p>
+			}
+			<h1 class="page__title">{ title }</h1>
+			if description != "" {
+				<p class="page__description">{ description }</p>
+			}
+		</div>
+		<div class="page__actions">
+			{ children... }
+		</div>
+	</header>
+}
+
+// PlaceholderPage stands in for a page that a later milestone builds.
+templ PlaceholderPage(s Shell, heading, description string) {
+	@Layout(s) {
+		@PageHeader(heading, description)
+		@Panel("Not built yet", "placeholder") {
+			if s.Active == "dashboard" {
+				@EmptyState("--", "This page arrives in a later milestone", "JellyTrim is being built in stages. This part is not ready yet.", "", "")
+			} else {
+				@EmptyState("--", "This page arrives in a later milestone", "JellyTrim is being built in stages. This part is not ready yet.", "/", "Go to the Dashboard")
+			}
+		}
+	}
+}

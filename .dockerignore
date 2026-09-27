@@ -1,0 +1,16 @@
+.git
+.github
+.claude
+.codex
+.agents
+dev
+tmp
+bin
+dist
+docs
+*.md
+!README.md
+**/*.mkv
+**/*.mp4
+**/*.db
+.env*

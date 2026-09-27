@@ -1,0 +1,38 @@
+# Development stack: a throwaway Jellyfin and JellyTrim built from source, on
+# synthetic media from `task dev:fixtures`. Jellyfin and JellyTrim see the
+# media at different paths on purpose, so path mapping is exercised.
+# Start with `task dev:stack`, then `task dev:bootstrap`.
+name: jellytrim-dev
+
+services:
+  jellyfin:
+    image: jellyfin/jellyfin:12.1
+    user: "${DEV_UID:-1000}:${DEV_GID:-1000}"
+    ports:
+      - "127.0.0.1:8096:8096"
+    volumes:
+      - ./dev/jellyfin/config:/config
+      - ./dev/jellyfin/cache:/cache
+      - ./dev/media/movies:/media/movies
+      - ./dev/media/tv:/media/tv
+    environment:
+      JELLYFIN_PublishedServerUrl: http://localhost:8096
+
+  jellytrim:
+    build:
+      context: .
+      args:
+        VERSION: dev-stack
+    user: "${DEV_UID:-1000}:${DEV_GID:-1000}"
+    ports:
+      # 8097 on the host so the dev stack can run next to other projects on 8080.
+      - "127.0.0.1:${JELLYTRIM_DEV_PORT:-8097}:8080"
+    environment:
+      JELLYTRIM_LOG_LEVEL: debug
+      TZ: UTC
+    volumes:
+      - ./dev/config:/config
+      - ./dev/media/movies:/mnt/media/movies
+      - ./dev/media/tv:/mnt/media/tv
+    depends_on:
+      - jellyfin

@@ -37,12 +37,12 @@ tasks:
       - CGO_ENABLED=0 go build -trimpath -ldflags "{{.LDFLAGS}}" -o bin/jellytrim ./cmd/jellytrim
 
   dev:
-    desc: Run JellyTrim locally on :8080 with ./tmp/config, regenerating templ and restarting on change
+    desc: Run JellyTrim locally on :8097 with ./tmp/config, regenerating templ and restarting on change
     cmds:
       - mkdir -p tmp/config
       - >-
         go tool templ generate --watch
-        --cmd="go run ./cmd/jellytrim --config-dir ./tmp/config --listen 127.0.0.1:8080"
+        --cmd="go run ./cmd/jellytrim --config-dir ./tmp/config --listen 127.0.0.1:8097"
         --watch-pattern='(.+\.go$)|(.+\.templ$)|(.+\.css$)|(.+\.js$)|(.+\.sql$)'
 
   test:
@@ -101,7 +101,7 @@ tasks:
       - scripts/make-fixtures.sh
 
   dev:stack:
-    desc: Start Jellyfin (:8096) and JellyTrim built from the Dockerfile (:8080)
+    desc: Start Jellyfin (:8096) and JellyTrim built from the Dockerfile (:8097)
     cmds:
       - mkdir -p dev/config dev/jellyfin/config dev/jellyfin/cache
       - DEV_UID=$(id -u) DEV_GID=$(id -g) {{.DEV_COMPOSE}} up -d --build

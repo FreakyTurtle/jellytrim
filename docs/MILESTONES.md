@@ -5,8 +5,8 @@ Each milestone is a vertical slice that leaves JellyTrim working. Each entry is 
 | Milestone | Status |
 |---|---|
 | M0 Project setup | Done |
-| M1a Application shell | In progress |
-| M1b Docker and dev stack | Not started |
+| M1a Application shell | Done |
+| M1b Docker and dev stack | Done |
 | M2 Jellyfin connection and sync | Not started |
 | M3 Inspection and Library | Not started |
 | M4 Policies and Dry Run | Not started |
@@ -28,13 +28,13 @@ Agent setup (Claude Code and Codex), open-source files, design docs, ADRs.
 
 `cmd/jellytrim`, `internal/config`, `internal/store` with migrations, `internal/app` lifecycle, `internal/web` with layout, design tokens, navigation and empty pages, health endpoints, cross-origin protection, CI workflow.
 
-- [ ] `jellytrim --version` prints version, commit and date.
-- [ ] Starting creates `<config>/jellytrim.db` (mode 0600) and applies migrations; restarting applies nothing new.
-- [ ] `/healthz` returns 200; `/readyz` returns 200 once the database is open.
-- [ ] All six pages render with the shared layout; a first run redirects to `/setup`.
-- [ ] A cross-origin POST is rejected with 403.
-- [ ] SIGTERM shuts down cleanly within 10 seconds.
-- [ ] `task check` passes; `actionlint` passes on the workflows.
+- [x] `jellytrim --version` prints version, commit and date.
+- [x] Starting creates `<config>/jellytrim.db` (mode 0600) and applies migrations; restarting applies nothing new.
+- [x] `/healthz` returns 200; `/readyz` returns 200 once the database is open.
+- [x] All six pages render with the shared layout; a first run redirects to `/setup`.
+- [x] A cross-origin POST is rejected with 403.
+- [x] SIGTERM shuts down cleanly within 10 seconds.
+- [x] `task check` passes; `actionlint` passes on the workflows.
 
 Risks: Go 1.26 toolchain download; templ version pinning.
 
@@ -42,10 +42,10 @@ Risks: Go 1.26 toolchain download; templ version pinning.
 
 `Dockerfile`, `docker-compose.yml` (example), `docker-compose.dev.yml`, `scripts/make-fixtures.sh`, `scripts/dev-jellyfin-bootstrap.sh`.
 
-- [ ] The image builds for `linux/amd64` and `linux/arm64`; `docker run ... --version` works; `ffmpeg -version` in the image reports jellyfin-ffmpeg 8.
-- [ ] The container runs as a non-root UID, passes its HEALTHCHECK, and stops cleanly.
-- [ ] `task dev:fixtures` creates the fixture clips and probe JSON.
-- [ ] `task dev:stack && task dev:bootstrap` gives a Jellyfin with Movies and TV libraries, the `dev` user, some items played and favourited, and an API key in `dev/jellyfin-api-key`. Running the bootstrap twice changes nothing.
+- [x] The image builds for `linux/amd64` and `linux/arm64`; `docker run ... --version` works; `ffmpeg -version` in the image reports jellyfin-ffmpeg 8.
+- [x] The container runs as a non-root UID, passes its HEALTHCHECK, and stops cleanly.
+- [x] `task dev:fixtures` creates the fixture clips and probe JSON.
+- [x] `task dev:stack && task dev:bootstrap` gives a Jellyfin with Movies and TV libraries, the `dev` user, some items played and favourited, and an API key in `dev/jellyfin-api-key`. Running the bootstrap twice changes nothing.
 
 Risks: jellyfin-ffmpeg package pinning per architecture; Jellyfin startup API differences.
 

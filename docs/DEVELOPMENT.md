@@ -21,7 +21,7 @@ task check      # everything CI runs
 ## Everyday loop
 
 ```
-task dev        # runs JellyTrim on http://localhost:8080 with ./tmp/config, rebuilding on change
+task dev        # runs JellyTrim on http://localhost:8097 with ./tmp/config, rebuilding on change
 task test       # go test -race ./...
 task lint
 task generate   # after editing .templ files (the dev task does this for you)
@@ -33,7 +33,7 @@ Generated `*_templ.go` files are committed. The pre-commit hook stops you commit
 
 ```
 task dev:fixtures    # generate small test clips into dev/media (never real media)
-task dev:stack       # Jellyfin on :8096, JellyTrim (built from the Dockerfile) on :8080
+task dev:stack       # Jellyfin on :8096, JellyTrim (built from the Dockerfile) on :8097
 task dev:bootstrap   # set up Jellyfin: user dev/dev, libraries, some items watched, API key
 ```
 

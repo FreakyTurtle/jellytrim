@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test and lint
+    runs-on: ubuntu-latest
+    env:
+      JELLYTRIM_REQUIRE_FFMPEG: "1"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      - uses: arduino/setup-task@v2
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Generated templ files are up to date
+        run: task check:generated
+      - name: Vet
+        run: go vet ./...
+      - name: Lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.12.2
+      - name: Generate media fixtures
+        run: scripts/make-fixtures.sh
+      - name: Test
+        run: go test -race -count=1 ./...
+      - name: Agent setup copies are up to date
+        run: task ai:check
+      - name: Public content check
+        run: scripts/check-public.sh --all
+
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: gitleaks
+        run: docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:latest git /repo --no-banner --redact
+
+  docker:
+    name: Docker image (no push)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - name: Build amd64 and arm64
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Smoke test (amd64)
+        run: |
+          docker buildx build --platform linux/amd64 --load -t jellytrim:ci .
+          docker run --rm jellytrim:ci --version
+          docker run --rm --entrypoint /usr/lib/jellyfin-ffmpeg/ffmpeg jellytrim:ci -hide_banner -encoders | grep -E 'libx265|hevc_qsv'

@@ -1,0 +1,58 @@
+version: 2
+
+project_name: jellytrim
+
+before:
+  hooks:
+    - go mod download
+
+builds:
+  - id: jellytrim
+    main: ./cmd/jellytrim
+    binary: jellytrim
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X github.com/freakyturtle/jellytrim/internal/version.Version={{ .Version }}
+      - -X github.com/freakyturtle/jellytrim/internal/version.Commit={{ .ShortCommit }}
+      - -X github.com/freakyturtle/jellytrim/internal/version.Date={{ .Date }}
+
+archives:
+  - formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+      - CHANGELOG.md
+      - config.example.env
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+changelog:
+  use: github
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "^ci:"
+
+release:
+  github:
+    owner: freakyturtle
+    name: jellytrim
+  prerelease: auto
+  footer: |
+    Container image: `ghcr.io/freakyturtle/jellytrim:{{ .Version }}` (linux/amd64 and linux/arm64).
+    Binaries need ffmpeg and ffprobe 7 or later on the PATH. The container image includes them.

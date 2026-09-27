@@ -75,7 +75,7 @@ linters:
   exclusions:
     rules:
       - path: _test\.go$
-        linters: [funlen, gosec, gocyclo]
+        linters: [funlen, gosec, gocyclo, noctx, bodyclose]
       - path: _templ\.go$
         linters: [revive, gosec, funlen, gocyclo, errcheck, misspell]
 
