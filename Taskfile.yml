@@ -1,0 +1,144 @@
+version: "3"
+
+vars:
+  VERSION:
+    sh: git describe --tags --always --dirty 2>/dev/null || echo dev
+  COMMIT:
+    sh: git rev-parse --short HEAD 2>/dev/null || echo none
+  DATE:
+    sh: date -u +%Y-%m-%dT%H:%M:%SZ
+  LDFLAGS: >-
+    -s -w
+    -X github.com/freakyturtle/jellytrim/internal/version.Version={{.VERSION}}
+    -X github.com/freakyturtle/jellytrim/internal/version.Commit={{.COMMIT}}
+    -X github.com/freakyturtle/jellytrim/internal/version.Date={{.DATE}}
+  DEV_COMPOSE: docker compose -f docker-compose.dev.yml
+
+tasks:
+  default:
+    cmds:
+      - task --list
+
+  setup:
+    desc: Install the git pre-commit hook and download modules
+    cmds:
+      - git config core.hooksPath .githooks
+      - go mod download
+
+  generate:
+    desc: Generate Go code from .templ files
+    cmds:
+      - go tool templ generate
+
+  build:
+    desc: Build bin/jellytrim
+    deps: [generate]
+    cmds:
+      - CGO_ENABLED=0 go build -trimpath -ldflags "{{.LDFLAGS}}" -o bin/jellytrim ./cmd/jellytrim
+
+  dev:
+    desc: Run JellyTrim locally on :8080 with ./tmp/config, regenerating templ and restarting on change
+    cmds:
+      - mkdir -p tmp/config
+      - >-
+        go tool templ generate --watch
+        --cmd="go run ./cmd/jellytrim --config-dir ./tmp/config --listen 127.0.0.1:8080"
+        --watch-pattern='(.+\.go$)|(.+\.templ$)|(.+\.css$)|(.+\.js$)|(.+\.sql$)'
+
+  test:
+    desc: Run all tests with the race detector
+    cmds:
+      - go test -race -count=1 ./...
+
+  lint:
+    desc: Run golangci-lint
+    cmds:
+      - golangci-lint run ./...
+
+  fmt:
+    desc: Format Go and templ files
+    cmds:
+      - gofmt -w $(git ls-files '*.go' | grep -v '_templ.go$')
+      - go tool templ fmt .
+
+  tidy:
+    cmds:
+      - go mod tidy
+
+  check:generated:
+    desc: Fail if generated templ files are stale
+    cmds:
+      - go tool templ generate
+      - git diff --exit-code -- '*_templ.go'
+
+  check:
+    desc: Everything CI runs
+    cmds:
+      - task: check:generated
+      - go vet ./...
+      - task: lint
+      - task: test
+      - task: ai:check
+      - scripts/check-public.sh --all
+
+  # --- Agent setup ---------------------------------------------------------
+
+  ai:sync:
+    desc: Regenerate the Codex copies of .claude agents and skills
+    cmds:
+      - python3 .claude/scripts/sync-codex.py
+
+  ai:check:
+    desc: Fail if the Codex copies are out of date
+    cmds:
+      - python3 .claude/scripts/sync-codex.py --check
+
+  # --- Dev stack: throwaway Jellyfin and synthetic media --------------------
+
+  dev:fixtures:
+    desc: Generate synthetic media clips into dev/media and ffprobe JSON into testdata
+    cmds:
+      - scripts/make-fixtures.sh
+
+  dev:stack:
+    desc: Start Jellyfin (:8096) and JellyTrim built from the Dockerfile (:8080)
+    cmds:
+      - mkdir -p dev/config dev/jellyfin/config dev/jellyfin/cache
+      - DEV_UID=$(id -u) DEV_GID=$(id -g) {{.DEV_COMPOSE}} up -d --build
+
+  dev:stack:stop:
+    cmds:
+      - "{{.DEV_COMPOSE}} stop"
+
+  dev:stack:logs:
+    cmds:
+      - "{{.DEV_COMPOSE}} logs -f --tail=100"
+
+  dev:stack:reset:
+    desc: Stop the dev stack and delete its Jellyfin and JellyTrim state (keeps dev/media)
+    prompt: This deletes dev/config and dev/jellyfin. Continue?
+    cmds:
+      - "{{.DEV_COMPOSE}} down"
+      - rm -rf dev/config dev/jellyfin dev/jellyfin-api-key
+
+  dev:bootstrap:
+    desc: Set up the dev Jellyfin (user dev/dev, libraries, watched items, API key)
+    cmds:
+      - scripts/dev-jellyfin-bootstrap.sh
+
+  # --- Images and releases ---------------------------------------------------
+
+  docker:build:
+    desc: Build the image for the local architecture
+    cmds:
+      - docker build --build-arg VERSION={{.VERSION}} --build-arg COMMIT={{.COMMIT}} -t jellytrim:dev .
+
+  docker:buildx:
+    desc: Build the image for amd64 and arm64 without pushing
+    cmds:
+      - docker buildx build --platform linux/amd64,linux/arm64 --output type=cacheonly .
+
+  release:snapshot:
+    desc: Build release binaries locally with GoReleaser, without publishing
+    cmds:
+      - go run github.com/goreleaser/goreleaser/v2@latest release --snapshot --clean

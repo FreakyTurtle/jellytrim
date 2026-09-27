@@ -1,0 +1,21 @@
+---
+paths:
+  - ".github/**"
+  - "Dockerfile"
+  - "docker-compose*.yml"
+  - ".goreleaser.yaml"
+  - "Taskfile.yml"
+  - "scripts/**"
+---
+
+# Build, CI and release
+
+- **Image:** `debian:trixie-slim` plus jellyfin-ffmpeg8 from a pinned `.deb` with sha256 per architecture. Go cross-compiles on `$BUILDPLATFORM` with `CGO_ENABLED=0`. Runs as a non-root UID (any UID works; `/config` must be writable). HEALTHCHECK on `/healthz`. Labels follow OCI (`org.opencontainers.image.*`).
+- **Registry:** `ghcr.io/freakyturtle/jellytrim`. Tags `latest`, `vX.Y.Z`, `vX.Y`, `vX` from `v*` git tags only, via `docker/metadata-action`. Pull requests build without pushing.
+- **Architectures:** `linux/amd64` and `linux/arm64`.
+- **Binaries:** GoReleaser builds linux, darwin and windows for amd64 and arm64, with `checksums.txt`, attached to the GitHub release.
+- **Workflows:** least-privilege `permissions:` per job. Actions pinned to a major version and kept current by Dependabot. No secrets other than the built-in `GITHUB_TOKEN`.
+- **CI must match local:** CI runs the same `task` targets as `task check`. ffmpeg tests are required in CI (`JELLYTRIM_REQUIRE_FFMPEG=1`).
+- **Scripts** are `bash` with `set -euo pipefail`, pass `bash -n`, and never touch paths outside the repo (except the dev stack's Docker volumes).
+- **No telemetry.** Nothing in the build or runtime calls home.
+- Validate workflow changes with `actionlint`, Dockerfile changes with a local buildx build, GoReleaser changes with `goreleaser check`.

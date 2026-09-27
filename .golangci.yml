@@ -1,0 +1,93 @@
+version: "2"
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - ineffassign
+    - unused
+    - gocyclo
+    - revive
+    - gosec
+    - noctx
+    - bodyclose
+    - sqlclosecheck
+    - rowserrcheck
+    - funlen
+    - depguard
+    - misspell
+  settings:
+    misspell:
+      # British English is the project standard.
+      locale: UK
+    gocyclo:
+      min-complexity: 20
+    funlen:
+      lines: 80
+      statements: 60
+    revive:
+      rules:
+        - name: exported
+        - name: unused-parameter
+        - name: error-return
+        - name: error-strings
+        - name: var-naming
+    depguard:
+      rules:
+        # Only internal/ffmpeg runs processes (AGENTS.md, media-safety rules).
+        exec-only-in-ffmpeg:
+          files:
+            - "$all"
+            - "!**/internal/ffmpeg/**"
+            - "!$test"
+          deny:
+            - pkg: "os/exec"
+              desc: "only internal/ffmpeg may run processes"
+        # The domain core is pure: no I/O of any kind.
+        pure-domain:
+          files:
+            - "**/internal/media/*.go"
+            - "**/internal/policy/*.go"
+            - "**/internal/plan/*.go"
+            - "**/internal/pathmap/*.go"
+            - "!$test"
+          deny:
+            - pkg: "os"
+              desc: "domain packages do no file I/O; pass data in"
+            - pkg: "net/http"
+              desc: "domain packages do no network I/O"
+            - pkg: "database/sql"
+              desc: "domain packages do not touch the database"
+            - pkg: "github.com/freakyturtle/jellytrim/internal/store"
+              desc: "domain packages do not touch the database"
+            - pkg: "github.com/freakyturtle/jellytrim/internal/web"
+              desc: "domain packages never depend on the web layer"
+    gosec:
+      excludes:
+        # G204: subprocess launched with variable. internal/ffmpeg builds
+        # argument slices (never a shell) from typed plans; paths are file:
+        # prefixed. This is the one place processes run, by design.
+        - G204
+        # G115: integer conversions between int64 sizes and int are bounded
+        # by what ffprobe and the filesystem report.
+        - G115
+  exclusions:
+    rules:
+      - path: _test\.go$
+        linters: [funlen, gosec, gocyclo]
+      - path: _templ\.go$
+        linters: [revive, gosec, funlen, gocyclo, errcheck, misspell]
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/freakyturtle/jellytrim
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

@@ -1,0 +1,59 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$(git rev-parse --show-toplevel)/.claude/hooks/session-context.sh\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "apply_patch|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$(git rev-parse --show-toplevel)/.claude/hooks/guard-generated.sh\"",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Bash|shell|exec_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$(git rev-parse --show-toplevel)/.claude/hooks/guard-media.sh\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "apply_patch|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$(git rev-parse --show-toplevel)/.claude/hooks/format.sh\"",
+            "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": "\"$(git rev-parse --show-toplevel)/.claude/hooks/no-em-dash.sh\"",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "\"$(git rev-parse --show-toplevel)/.claude/hooks/sync-codex.sh\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,14 @@
+# Codex command rules (execpolicy). Commands that leave the machine or
+# destroy state ask first, matching the "ask" list in .claude/settings.json.
+# Test a command with: codex execpolicy check --rules .codex/rules/default.rules -- <cmd>
+
+prefix_rule(pattern = ["git", "push"], decision = "prompt", justification = "Publishes commits.")
+prefix_rule(pattern = ["git", "reset", "--hard"], decision = "prompt", justification = "Discards local work.")
+prefix_rule(pattern = ["git", "clean"], decision = "prompt", justification = "Deletes untracked files.")
+prefix_rule(pattern = ["git", "branch", "-D"], decision = "prompt", justification = "Deletes a branch.")
+prefix_rule(pattern = ["gh", "release"], decision = "prompt", justification = "Publishes a release.")
+prefix_rule(pattern = ["gh", "pr", "merge"], decision = "prompt", justification = "Merges a pull request.")
+prefix_rule(pattern = ["rm", "-rf"], decision = "prompt", justification = "Recursive delete.")
+prefix_rule(pattern = ["docker", "volume", "rm"], decision = "prompt", justification = "Deletes data volumes.")
+prefix_rule(pattern = ["docker", "system", "prune"], decision = "prompt", justification = "Deletes Docker data.")
+prefix_rule(pattern = ["docker", "compose", "down", "-v"], decision = "prompt", justification = "Deletes the stack's volumes.")

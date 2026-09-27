@@ -1,0 +1,9 @@
+# Codex project config. Loaded only when you trust this project in Codex.
+# Mirrors .mcp.json (Claude Code); keep the two in step.
+
+[mcp_servers.playwright]
+command = "npx"
+args = ["-y", "@playwright/mcp@latest", "--headless", "--isolated"]
+
+[mcp_servers.context7]
+url = "https://mcp.context7.com/mcp"
