@@ -1,0 +1,16 @@
+{
+  "frames": [
+    {
+      "side_data_list": [
+        {
+          "displaymatrix": "\n00000000:            0       65536           0\n00000001:       -65536           0           0\n00000002:            0           0  1073741824\n",
+          "rotation": -90,
+          "side_data_type": "3x3 displaymatrix"
+        },
+        {
+          "side_data_type": "H.26[45] User Data Unregistered SEI message"
+        }
+      ]
+    }
+  ]
+}

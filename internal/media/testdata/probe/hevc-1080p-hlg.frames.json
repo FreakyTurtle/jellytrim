@@ -1,0 +1,14 @@
+{
+  "frames": [
+    {
+      "color_primaries": "bt2020",
+      "color_space": "bt2020nc",
+      "color_transfer": "arib-std-b67",
+      "side_data_list": [
+        {
+          "side_data_type": "H.26[45] User Data Unregistered SEI message"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+path: /media/movies/Hotel (2017)/Hotel (2017).mkv
+container: matroska (format matroska,webm)
+size: 884285
+duration: 2.021s
+bitrate: 3500385
+chapters: 0
+stream count: 4
+tags: {ENCODER="Lavf62.12.102"}
+jellytrim tag: ""
+video #0: codec=h264 profile="High" tag="" 1280x720 (720p) sar=1:1 dar=16:9 fps=24.000 field="progressive" depth=8 pix=yuv420p
+  colour: primaries="" transfer="" matrix="" range="tv"
+  bitrate=0 rotation=0 lang="" title="" disp=[]
+  tags: {DURATION="00:00:02.000000000" ENCODER="Lavc62.28.102 libx264"}
+  hdr10+: false
+  first frame: primaries="" transfer="" matrix="" dolby vision rpu=false
+audio #1: codec=aac profile="LC" channels=1 layout="mono" rate=48000 bitrate=0 lang="jpn" title="" disp=[] commentary=false
+subtitle #2: codec=ass lang="eng" title="" disp=[default] bitmap=false
+attachment #3: codec="" mime="font/woff2" file="IBMPlexSans.woff2"
+real video streams: 1, cover art: 0
+video bitrate: 3404385 known=true source="container" (estimated from the container bitrate)
+main video: #0 resolution=720p interlaced=false
+hdr: sdr (SDR)
+  fact: 8-bit video with no transfer characteristics is treated as SDR

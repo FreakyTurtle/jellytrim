@@ -1,0 +1,49 @@
+{
+  "frames": [
+    {
+      "color_primaries": "bt2020",
+      "color_space": "bt2020nc",
+      "color_transfer": "smpte2084",
+      "side_data_list": [
+        {
+          "side_data_type": "H.26[45] User Data Unregistered SEI message"
+        },
+        {
+          "blue_x": "7500/50000",
+          "blue_y": "3000/50000",
+          "green_x": "13250/50000",
+          "green_y": "34500/50000",
+          "max_luminance": "10000000/10000",
+          "min_luminance": "50/10000",
+          "red_x": "34000/50000",
+          "red_y": "16000/50000",
+          "side_data_type": "Mastering display metadata",
+          "white_point_x": "15635/50000",
+          "white_point_y": "16450/50000"
+        },
+        {
+          "max_average": 400,
+          "max_content": 1000,
+          "side_data_type": "Content light level metadata"
+        },
+        {
+          "application_version": 1,
+          "average_maxrgb": "1500/100000",
+          "color_saturation_mapping_flag": 0,
+          "fraction_bright_pixels": "0/1000",
+          "knee_point_x": "0/4095",
+          "knee_point_y": "0/4095",
+          "mastering_display_actual_peak_luminance_flag": 0,
+          "maxscl": "3000/100000",
+          "num_bezier_curve_anchors": 9,
+          "num_distribution_maxrgb_percentiles": 9,
+          "num_windows": 1,
+          "side_data_type": "HDR Dynamic Metadata SMPTE2094-40 (HDR10+)",
+          "targeted_system_display_actual_peak_luminance_flag": 0,
+          "targeted_system_display_maximum_luminance": "400/1",
+          "tone_mapping_flag": 1
+        }
+      ]
+    }
+  ]
+}

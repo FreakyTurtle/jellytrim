@@ -1,0 +1,21 @@
+path: /media/movies/Whiskey (2021)/Whiskey (2021).mkv
+container: matroska (format matroska,webm)
+size: 77500000
+duration: 1m40s
+bitrate: 6200000
+chapters: 0
+stream count: 2
+tags: {ENCODER="Lavf62.12.102"}
+jellytrim tag: ""
+video #0: codec=hevc profile="Main 10" tag="" 1920x1080 (1080p) sar=1:1 dar=16:9 fps=23.976 field="progressive" depth=10 pix=yuv420p10le
+  colour: primaries="" transfer="" matrix="bt2020nc" range="tv"
+  bitrate=6000000 rotation=0 lang="" title="" disp=[default]
+  tags: {BPS="6000000" DURATION="00:01:40.000000000" NUMBER_OF_BYTES="75000000" NUMBER_OF_FRAMES="2400" _STATISTICS_TAGS="BPS DURATION NUMBER_OF_FRAMES NUMBER_OF_BYTES" _STATISTICS_WRITING_APP="mkvmerge v88.0 ('All I Know') 64-bit"}
+  hdr10+: false
+  first frame: primaries="" transfer="" matrix="" dolby vision rpu=false
+audio #1: codec=aac profile="LC" channels=2 layout="stereo" rate=48000 bitrate=160000 lang="eng" title="" disp=[default] commentary=false
+real video streams: 1, cover art: 0
+video bitrate: 6000000 known=true source="stream" (from the stream)
+main video: #0 resolution=1080p interlaced=false
+hdr: unclear (Unclear HDR)
+  fact: BT.2020 matrix (bt2020nc) with no transfer characteristics

@@ -1,0 +1,29 @@
+path: /media/movies/Quebec (2023)/Quebec (2023).mkv
+container: matroska (format matroska,webm)
+size: 292500000
+duration: 1m40s
+bitrate: 23400000
+chapters: 0
+stream count: 3
+tags: {ENCODER="Lavf62.12.102"}
+jellytrim tag: ""
+video #0: codec=hevc profile="Main 10" tag="" 3840x2160 (2160p) sar=1:1 dar=16:9 fps=23.976 field="progressive" depth=10 pix=yuv420p10le
+  colour: primaries="bt2020" transfer="smpte2084" matrix="bt2020nc" range="tv"
+  bitrate=18500000 rotation=0 lang="" title="" disp=[default]
+  tags: {BPS="18500000" DURATION="00:01:40.000000000" NUMBER_OF_BYTES="231250000" NUMBER_OF_FRAMES="2400" _STATISTICS_TAGS="BPS DURATION NUMBER_OF_FRAMES NUMBER_OF_BYTES" _STATISTICS_WRITING_APP="mkvmerge v88.0 ('All I Know') 64-bit"}
+  dolby vision: profile=8 level=6 rpu=true el=false bl=true compat=1
+  mastering: G(13250,34500)B(7500,3000)R(34000,16000)WP(15635,16450)L(10000000,50)
+  content light: MaxCLL=1000 MaxFALL=400
+  hdr10+: false
+  first frame: primaries="bt2020" transfer="smpte2084" matrix="bt2020nc" dolby vision rpu=true
+audio #1: codec=truehd profile="Dolby TrueHD + Dolby Atmos" channels=8 layout="7.1" rate=48000 bitrate=4200000 lang="eng" title="TrueHD Atmos 7.1" disp=[default] commentary=false
+audio #2: codec=ac3 profile="" channels=6 layout="5.1(side)" rate=48000 bitrate=640000 lang="eng" title="" disp=[] commentary=false
+real video streams: 1, cover art: 0
+video bitrate: 18500000 known=true source="stream" (from the stream)
+main video: #0 resolution=2160p interlaced=false
+hdr: dv-hdr10 (Dolby Vision (HDR10 base))
+  fact: Dolby Vision profile 8, base layer compatibility ID 1
+  fact: transfer is PQ (smpte2084)
+  fact: primaries are BT.2020 (bt2020)
+  fact: the base layer is HDR10
+  fact: mastering display metadata present, MaxCLL 1000, MaxFALL 400

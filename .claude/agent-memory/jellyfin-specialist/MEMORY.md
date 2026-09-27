@@ -8,3 +8,15 @@ Curate this file: keep it under 150 lines, one fact per bullet, date each entry 
 - 2026-09-27 (12.1.0): `EnableInternetProviders: false` alone does NOT stop online lookups; fixture films were renamed after real films. Pass `TypeOptions` with empty `MetadataFetchers` and `ImageFetchers` for Movie, Series, Season, Episode and BoxSet.
 - 2026-09-27 (12.1.0): the first TV library scan can lag the movie scan; wait until the item count is stable across two polls. Without online metadata, item names are the file or folder names ("Alpha (2019)", "Mike Show - S01E01").
 - 2026-09-27 (12.1.0): /UserPlayedItems/{id}?userId=&datePlayed= and /UserFavoriteItems/{id}?userId= work with a user access token.
+- 2026-09-27 (12.1.0): auth failures are an empty 401. `X-Emby-Token` and `?api_key=` get 401, but `?ApiKey=` was still accepted (200). JellyTrim never sends either; the fake rejects both.
+- 2026-09-27 (12.1.0): the MediaBrowser header is parsed leniently: unquoted values and a header with only `Token="..."` both work. The fake is stricter on purpose (all five fields, quoted).
+- 2026-09-27 (12.1.0): `GET /Items/{id}?userId=` works, and so does the legacy `/Users/{userId}/Items/{id}`. An unknown GUID gives a problem+json 404; a non-GUID ID gives a 400 validation problem.
+- 2026-09-27 (12.1.0): `GET /Items/00000000000000000000000000000000?userId=` returns 200 with the user's root folder ("Media Folders"), not 404. The client checks the returned Id matches.
+- 2026-09-27 (12.1.0): an unknown `userId` on `/Items` gives a plain-text 404 "Error processing request.".
+- 2026-09-27 (12.1.0): a missing primary image is a 404 whose body is a JSON string ("<name> does not have an image of type Primary").
+- 2026-09-27 (12.1.0): `POST /Library/Media/Updated` needs `Content-Type: application/json` (415 without). It returns 204 even for an empty list or a path outside every library, so 204 proves nothing; poll the item.
+- 2026-09-27 (12.1.0): `POST /Items/{id}/Refresh?...` returns 204; unknown item 404.
+- 2026-09-27 (12.1.0): without `fields`, items carry no Path, MediaSources, DateCreated, Tags, Genres, ParentId or SortName. Without `userId` there is no UserData. `LastPlayedDate` is omitted when never played. Dates have seven fractional digits and a Z.
+- 2026-09-27 (12.1.0): a movie's `ParentId` is not the library's `ItemId` from /Library/VirtualFolders, but `parentId=<ItemId>&recursive=true` returns the library's items. Episodes carry SeriesId, SeasonId, and a localised SeasonName ("Series 1").
+- 2026-09-27 (12.1.0): `/System/Info` reports `OperatingSystem: ""` in the official container.
+- 2026-09-27: BoxSet queries (`includeItemTypes=BoxSet`, `parentId=<boxset>`) are not yet confirmed against a real server: the dev dataset has no collections, and creating one would add a Collections library to the dev server.

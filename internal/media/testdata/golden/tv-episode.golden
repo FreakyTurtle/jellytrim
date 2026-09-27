@@ -1,0 +1,21 @@
+path: /media/tv/Mike Show/Season 01/Mike Show - S01E01.mkv
+container: matroska (format matroska,webm)
+size: 1555538
+duration: 2.021s
+bitrate: 6157498
+chapters: 0
+stream count: 2
+tags: {ENCODER="Lavf62.12.102"}
+jellytrim tag: ""
+video #0: codec=h264 profile="High" tag="" 1920x1080 (1080p) sar=1:1 dar=16:9 fps=24.000 field="progressive" depth=8 pix=yuv420p
+  colour: primaries="" transfer="" matrix="" range="tv"
+  bitrate=0 rotation=0 lang="" title="" disp=[]
+  tags: {DURATION="00:00:02.000000000" ENCODER="Lavc62.28.102 libx264"}
+  hdr10+: false
+  first frame: primaries="" transfer="" matrix="" dolby vision rpu=false
+audio #1: codec=aac profile="LC" channels=1 layout="mono" rate=48000 bitrate=0 lang="eng" title="" disp=[] commentary=false
+real video streams: 1, cover art: 0
+video bitrate: 6061498 known=true source="container" (estimated from the container bitrate)
+main video: #0 resolution=1080p interlaced=false
+hdr: sdr (SDR)
+  fact: 8-bit video with no transfer characteristics is treated as SDR

@@ -1,0 +1,23 @@
+path: /media/movies/Papa (2021)/Papa (2021).mp4
+container: mp4 (format mov,mp4,m4a,3gp,3g2,mj2)
+size: 207500000
+duration: 1m40s
+bitrate: 16600000
+chapters: 0
+stream count: 2
+tags: {compatible_brands="iso6dby1mp41" major_brand="mp42" minor_version="0"}
+jellytrim tag: ""
+video #0: codec=hevc profile="Main 10" tag="dvh1" 3840x2160 (2160p) sar=1:1 dar=16:9 fps=23.976 field="progressive" depth=10 pix=yuv420p10le
+  colour: primaries="" transfer="" matrix="" range="pc"
+  bitrate=15800000 rotation=0 lang="" title="" disp=[default]
+  tags: {handler_name="VideoHandler" language="und"}
+  dolby vision: profile=5 level=6 rpu=true el=false bl=true compat=0
+  hdr10+: false
+  first frame: primaries="" transfer="" matrix="" dolby vision rpu=true
+audio #1: codec=eac3 profile="" channels=6 layout="5.1(side)" rate=48000 bitrate=768000 lang="eng" title="" disp=[default] commentary=false
+real video streams: 1, cover art: 0
+video bitrate: 15800000 known=true source="stream" (from the stream)
+main video: #0 resolution=2160p interlaced=false
+hdr: dv (Dolby Vision)
+  fact: Dolby Vision profile 5, base layer compatibility ID 0
+  fact: Dolby Vision profile 5 has no HDR10 base layer

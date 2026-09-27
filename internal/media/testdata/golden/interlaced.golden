@@ -1,0 +1,21 @@
+path: /media/movies/Juliet (2005)/Juliet (2005).mkv
+container: matroska (format matroska,webm)
+size: 1252417
+duration: 2.021s
+bitrate: 4957613
+chapters: 0
+stream count: 2
+tags: {ENCODER="Lavf62.12.102"}
+jellytrim tag: ""
+video #0: codec=h264 profile="High" tag="" 1920x1080 (1080p) sar=1:1 dar=16:9 fps=25.000 field="bt" depth=8 pix=yuv420p
+  colour: primaries="" transfer="" matrix="" range="tv"
+  bitrate=0 rotation=0 lang="" title="" disp=[]
+  tags: {DURATION="00:00:02.000000000" ENCODER="Lavc62.28.102 libx264"}
+  hdr10+: false
+  first frame: primaries="" transfer="" matrix="" dolby vision rpu=false
+audio #1: codec=aac profile="LC" channels=1 layout="mono" rate=48000 bitrate=0 lang="eng" title="" disp=[] commentary=false
+real video streams: 1, cover art: 0
+video bitrate: 4861613 known=true source="container" (estimated from the container bitrate)
+main video: #0 resolution=1080p interlaced=true
+hdr: sdr (SDR)
+  fact: 8-bit video with no transfer characteristics is treated as SDR

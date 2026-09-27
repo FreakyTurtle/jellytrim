@@ -10,7 +10,7 @@ JellyTrim runs ffprobe twice per file, and only when the file's device, inode, s
 
 1. Streams, format and chapters:
    `ffprobe -v error -show_format -show_streams -show_chapters -of json file:<path>`
-2. The first video frame's side data (HDR metadata that is often only in frames):
+2. The first video frame's side data (HDR metadata that is often only in frames). This probes `v:0`; if the main video is not the first video stream, the frame data is missing and PQ content is treated as Unclear:
    `ffprobe -v error -select_streams v:0 -read_intervals %+#1 -show_frames -show_entries frame=color_transfer,color_primaries,color_space,side_data_list -of json file:<path>`
 
 The raw JSON is stored, so parsing improvements apply without probing again.
@@ -30,7 +30,7 @@ The raw JSON is stored, so parsing improvements apply without probing again.
 ### Derived facts
 
 - **Main video stream:** the first video stream that is not an `attached_pic`. If there is more than one non-`attached_pic` video stream, the file is skipped.
-- **Video bitrate:** the stream's `bit_rate`; else its `BPS` tag (MKV); else the format bitrate minus the audio bitrates; else size divided by duration minus audio. If none of these work, the bitrate is unknown and bitrate conditions do not match.
+- **Video bitrate:** the stream's `bit_rate`; else its `BPS` tag (MKV); else the format bitrate minus the audio bitrates; else size divided by duration minus audio. Lossy audio with no stated bitrate (ffmpeg's MKV muxer writes none for AAC or Opus) counts as 96 kbps per channel, capped at 768 kbps: a deliberately high guess, so the video estimate errs low, which can only make a file look already efficient. Lossless or unknown audio without a bitrate makes the video bitrate unknown, and bitrate conditions then do not match. The UI says where the number came from ("from the stream", "estimated from the container bitrate").
 - **Resolution class:** by width *or* height, so letterboxed films count by their width.
 
   | Class | Width at least | or height at least |
@@ -49,13 +49,13 @@ The raw JSON is stored, so parsing improvements apply without probing again.
 
 | Class | Detected by | Default |
 |---|---|---|
-| SDR | Transfer is BT.709, BT.601 (`smpte170m`, `bt470bg`) or unset with an 8-bit source; primaries not BT.2020; no Dolby Vision, HDR10+ or PQ/HLG signals | Transcode |
+| SDR | Transfer is BT.709, BT.601 (`smpte170m`), BT.470 (`gamma22`, `gamma28`) or sRGB; or transfer and primaries both unset with no HDR evidence at all (no mastering or light-level metadata, no Dolby Vision or HDR10+, no BT.2020 matrix), whatever the bit depth; the output then keeps the same unset tags | Transcode |
 | HDR10 | Transfer `smpte2084` (PQ), primaries `bt2020`, no Dolby Vision, no HDR10+ | Transcode, keeping 10-bit, colour tags and static metadata |
 | HLG | Transfer `arib-std-b67` | Transcode, keeping 10-bit and colour tags |
 | HDR10+ | `HDR Dynamic Metadata SMPTE2094-40` in frame side data | Skip unless the policy allows reducing to HDR10 |
-| Dolby Vision with HDR10 base | `DOVI configuration record` with profile 7, or profile 8 with compatibility ID 1 | Skip unless the policy allows reducing to HDR10 |
-| Dolby Vision without a usable base | Profile 5, profile 8 with compatibility ID 0, 2 or 4, codec tag `dvh1`/`dvhe`/`dav1`/`dva1` without a usable base, or any other profile | Always skip |
-| Unclear | 10-bit with unset transfer, BT.2020 primaries with an SDR transfer, contradictions between stream and frame data | Always skip |
+| Dolby Vision with HDR10 base | `DOVI configuration record` with profile 7, or profile 8 with compatibility ID 1, with the base-layer flag set and PQ + BT.2020 on the stream | Skip unless the policy allows reducing to HDR10 |
+| Dolby Vision without a usable base | Profile 5, profile 8 with compatibility ID 0, 2 or 4, or any other profile | Always skip |
+| Unclear | Any of: BT.2020 primaries or matrix with an SDR or unset transfer; PQ on 8-bit video or with non-BT.2020 primaries; PQ with no first-frame probe (HDR10+ cannot be ruled out); stream and first frame disagree; Dolby Vision or HDR10+ metadata without a matching configuration or transfer; mastering metadata on SDR; a Dolby Vision codec tag (`dvh1`, `dvhe`, `dav1`, `dva1`) without a configuration record; an unrecognised transfer (for example `linear`) | Always skip |
 
 "Reducing to HDR10" keeps the HDR10 base picture and drops the dynamic metadata or the Dolby Vision layer. It is a policy option, off by default, shown as "Allow HDR10+ and Dolby Vision to be reduced to HDR10". JellyTrim never tone-maps HDR to SDR.
 

@@ -1,0 +1,27 @@
+path: /media/movies/Oscar (2013)/Oscar (2013).mkv
+container: matroska (format matroska,webm)
+size: 346500000
+duration: 1m40s
+bitrate: 27720000
+chapters: 2
+stream count: 7
+tags: {creation_time="2024-01-01T00:00:00.000000Z" encoder="libebml v1.4.5 + libmatroska v1.7.1" title="Oscar"}
+jellytrim tag: ""
+video #0: codec=h264 profile="High" tag="" 1920x1080 (1080p) sar=1:1 dar=16:9 fps=23.976 field="progressive" depth=8 pix=yuv420p
+  colour: primaries="bt709" transfer="bt709" matrix="bt709" range="tv"
+  bitrate=24000000 rotation=0 lang="" title="" disp=[default]
+  tags: {BPS="24000000" DURATION="00:01:40.000000000" NUMBER_OF_BYTES="300000000" NUMBER_OF_FRAMES="2400" _STATISTICS_TAGS="BPS DURATION NUMBER_OF_FRAMES NUMBER_OF_BYTES" _STATISTICS_WRITING_APP="mkvmerge v88.0 ('All I Know') 64-bit"}
+  hdr10+: false
+  first frame: primaries="bt709" transfer="bt709" matrix="bt709" dolby vision rpu=false
+audio #1: codec=dts profile="DTS-HD MA" channels=6 layout="5.1(side)" rate=48000 bitrate=3500000 lang="eng" title="DTS-HD MA 5.1" disp=[default] commentary=false
+audio #2: codec=ac3 profile="" channels=2 layout="stereo" rate=48000 bitrate=192000 lang="eng" title="Commentary with the director" disp=[comment] commentary=true
+subtitle #3: codec=hdmv_pgs_subtitle lang="eng" title="" disp=[default] bitmap=true
+subtitle #4: codec=hdmv_pgs_subtitle lang="eng" title="Forced" disp=[forced] bitmap=true
+subtitle #5: codec=hdmv_pgs_subtitle lang="eng" title="SDH" disp=[hearing_impaired] bitmap=true
+subtitle #6: codec=hdmv_pgs_subtitle lang="ger" title="" disp=[] bitmap=true
+real video streams: 1, cover art: 0
+video bitrate: 24000000 known=true source="stream" (from the stream)
+main video: #0 resolution=1080p interlaced=false
+hdr: sdr (SDR)
+  fact: transfer is BT.709 (bt709)
+  fact: primaries are BT.709 (bt709)

@@ -1,0 +1,21 @@
+path: /media/movies/Charlie (2021)/Charlie (2021).mkv
+container: matroska (format matroska,webm)
+size: 6762804
+duration: 1s
+bitrate: 54102432
+chapters: 0
+stream count: 2
+tags: {ENCODER="Lavf62.12.102"}
+jellytrim tag: ""
+video #0: codec=h264 profile="Constrained Baseline" tag="" 3840x2160 (2160p) sar=1:1 dar=16:9 fps=24.000 field="progressive" depth=8 pix=yuv420p
+  colour: primaries="" transfer="" matrix="" range="tv"
+  bitrate=0 rotation=0 lang="" title="" disp=[]
+  tags: {DURATION="00:00:01.000000000" ENCODER="Lavc62.28.102 libx264"}
+  hdr10+: false
+  first frame: primaries="" transfer="" matrix="" dolby vision rpu=false
+audio #1: codec=ac3 profile="" channels=6 layout="5.1(side)" rate=48000 bitrate=448000 lang="eng" title="" disp=[] commentary=false
+real video streams: 1, cover art: 0
+video bitrate: 53654432 known=true source="container" (estimated from the container bitrate)
+main video: #0 resolution=2160p interlaced=false
+hdr: sdr (SDR)
+  fact: 8-bit video with no transfer characteristics is treated as SDR

@@ -1,0 +1,28 @@
+path: /media/movies/Kilo (2015)/Kilo (2015).mp4
+container: mp4 (format mov,mp4,m4a,3gp,3g2,mj2)
+size: 1853198
+duration: 2s
+bitrate: 7412792
+chapters: 0
+stream count: 4
+tags: {compatible_brands="isomiso2avc1mp41" encoder="Lavf62.12.102" major_brand="isom" minor_version="512"}
+jellytrim tag: ""
+video #0: codec=h264 profile="High" tag="avc1" 1920x1080 (1080p) sar=1:1 dar=16:9 fps=24.000 field="progressive" depth=8 pix=yuv420p
+  colour: primaries="" transfer="" matrix="" range=""
+  bitrate=7252036 rotation=0 lang="" title="" disp=[default]
+  tags: {encoder="Lavc62.28.102 libx264" handler_name="VideoHandler" language="und"}
+  hdr10+: false
+  first frame: primaries="" transfer="" matrix="" dolby vision rpu=false
+video #3: codec=png profile="" tag="" 320x480 (480p) sar=1:1 dar=2:3 fps=90000.000 field="" depth=8 pix=rgb24
+  colour: primaries="" transfer="" matrix="gbr" range="pc"
+  bitrate=0 rotation=0 lang="" title="" disp=[attached_pic]
+  tags: {}
+  hdr10+: false
+  first frame: none
+audio #1: codec=aac profile="LC" channels=1 layout="mono" rate=48000 bitrate=70064 lang="eng" title="" disp=[default] commentary=false
+subtitle #2: codec=mov_text lang="eng" title="" disp=[default] bitmap=false
+real video streams: 1, cover art: 1
+video bitrate: 7252036 known=true source="stream" (from the stream)
+main video: #0 resolution=1080p interlaced=false
+hdr: sdr (SDR)
+  fact: 8-bit video with no transfer characteristics is treated as SDR

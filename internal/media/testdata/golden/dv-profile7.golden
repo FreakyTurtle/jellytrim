@@ -1,0 +1,29 @@
+path: /media/movies/Romeo (2020)/Romeo (2020).mkv
+container: matroska (format matroska,webm)
+size: 716250000
+duration: 1m40s
+bitrate: 57300000
+chapters: 0
+stream count: 3
+tags: {ENCODER="Lavf62.12.102"}
+jellytrim tag: ""
+video #0: codec=hevc profile="Main 10" tag="" 3840x2160 (2160p) sar=1:1 dar=16:9 fps=23.976 field="progressive" depth=10 pix=yuv420p10le
+  colour: primaries="bt2020" transfer="smpte2084" matrix="bt2020nc" range="tv"
+  bitrate=52000000 rotation=0 lang="" title="" disp=[default]
+  tags: {BPS="52000000" DURATION="00:01:40.000000000" NUMBER_OF_BYTES="650000000" NUMBER_OF_FRAMES="2400" _STATISTICS_TAGS="BPS DURATION NUMBER_OF_FRAMES NUMBER_OF_BYTES" _STATISTICS_WRITING_APP="mkvmerge v88.0 ('All I Know') 64-bit"}
+  dolby vision: profile=7 level=6 rpu=true el=true bl=true compat=6
+  mastering: G(13250,34500)B(7500,3000)R(34000,16000)WP(15635,16450)L(10000000,50)
+  content light: MaxCLL=1000 MaxFALL=400
+  hdr10+: false
+  first frame: primaries="bt2020" transfer="smpte2084" matrix="bt2020nc" dolby vision rpu=true
+audio #1: codec=truehd profile="Dolby TrueHD + Dolby Atmos" channels=8 layout="7.1" rate=48000 bitrate=5100000 lang="eng" title="" disp=[default] commentary=false
+subtitle #2: codec=hdmv_pgs_subtitle lang="eng" title="" disp=[default] bitmap=true
+real video streams: 1, cover art: 0
+video bitrate: 52000000 known=true source="stream" (from the stream)
+main video: #0 resolution=2160p interlaced=false
+hdr: dv-hdr10 (Dolby Vision (HDR10 base))
+  fact: Dolby Vision profile 7, base layer compatibility ID 6
+  fact: transfer is PQ (smpte2084)
+  fact: primaries are BT.2020 (bt2020)
+  fact: the base layer is HDR10
+  fact: mastering display metadata present, MaxCLL 1000, MaxFALL 400

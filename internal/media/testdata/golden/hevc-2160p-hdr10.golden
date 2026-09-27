@@ -1,0 +1,25 @@
+path: /media/movies/Delta (2022)/Delta (2022).mkv
+container: matroska (format matroska,webm)
+size: 2211118
+duration: 1s
+bitrate: 17688944
+chapters: 0
+stream count: 2
+tags: {ENCODER="Lavf62.12.102"}
+jellytrim tag: ""
+video #0: codec=hevc profile="Main 10" tag="" 3840x2160 (2160p) sar=1:1 dar=16:9 fps=24.000 field="progressive" depth=10 pix=yuv420p10le
+  colour: primaries="bt2020" transfer="smpte2084" matrix="bt2020nc" range="tv"
+  bitrate=0 rotation=0 lang="" title="" disp=[]
+  tags: {DURATION="00:00:01.000000000" ENCODER="Lavc62.28.102 libx265"}
+  mastering: G(13250,34500)B(7500,3000)R(34000,16000)WP(15635,16450)L(10000000,50)
+  content light: MaxCLL=1000 MaxFALL=400
+  hdr10+: false
+  first frame: primaries="bt2020" transfer="smpte2084" matrix="bt2020nc" dolby vision rpu=false
+audio #1: codec=eac3 profile="" channels=1 layout="mono" rate=48000 bitrate=384000 lang="eng" title="" disp=[] commentary=false
+real video streams: 1, cover art: 0
+video bitrate: 17304944 known=true source="container" (estimated from the container bitrate)
+main video: #0 resolution=2160p interlaced=false
+hdr: hdr10 (HDR10)
+  fact: transfer is PQ (smpte2084)
+  fact: primaries are BT.2020 (bt2020)
+  fact: mastering display metadata present, MaxCLL 1000, MaxFALL 400

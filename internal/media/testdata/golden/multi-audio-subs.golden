@@ -1,0 +1,26 @@
+path: /media/movies/Golf (2018)/Golf (2018).mkv
+container: matroska (format matroska,webm)
+size: 1965183
+duration: 2.021s
+bitrate: 7779051
+chapters: 0
+stream count: 7
+tags: {ENCODER="Lavf62.12.102"}
+jellytrim tag: ""
+video #0: codec=h264 profile="High" tag="" 1920x1080 (1080p) sar=1:1 dar=16:9 fps=24.000 field="progressive" depth=8 pix=yuv420p
+  colour: primaries="" transfer="" matrix="" range="tv"
+  bitrate=0 rotation=0 lang="" title="" disp=[]
+  tags: {DURATION="00:00:02.000000000" ENCODER="Lavc62.28.102 libx264"}
+  hdr10+: false
+  first frame: primaries="" transfer="" matrix="" dolby vision rpu=false
+audio #1: codec=ac3 profile="" channels=6 layout="5.1(side)" rate=48000 bitrate=448000 lang="eng" title="Surround 5.1" disp=[default] commentary=false
+audio #2: codec=aac profile="LC" channels=1 layout="mono" rate=48000 bitrate=0 lang="eng" title="Director's Commentary" disp=[comment] commentary=true
+audio #3: codec=aac profile="LC" channels=1 layout="mono" rate=48000 bitrate=0 lang="fre" title="" disp=[] commentary=false
+subtitle #4: codec=subrip lang="eng" title="" disp=[] bitmap=false
+subtitle #5: codec=subrip lang="eng" title="Forced" disp=[forced] bitmap=false
+subtitle #6: codec=subrip lang="fre" title="" disp=[] bitmap=false
+real video streams: 1, cover art: 0
+video bitrate: 7139051 known=true source="container" (estimated from the container bitrate)
+main video: #0 resolution=1080p interlaced=false
+hdr: sdr (SDR)
+  fact: 8-bit video with no transfer characteristics is treated as SDR

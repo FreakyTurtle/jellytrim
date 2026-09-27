@@ -1,0 +1,22 @@
+path: /media/movies/Echo (2022)/Echo (2022).mkv
+container: matroska (format matroska,webm)
+size: 1109787
+duration: 2.021s
+bitrate: 4393021
+chapters: 0
+stream count: 2
+tags: {ENCODER="Lavf62.12.102"}
+jellytrim tag: ""
+video #0: codec=hevc profile="Main 10" tag="" 1920x1080 (1080p) sar=1:1 dar=16:9 fps=24.000 field="progressive" depth=10 pix=yuv420p10le
+  colour: primaries="bt2020" transfer="arib-std-b67" matrix="bt2020nc" range="tv"
+  bitrate=0 rotation=0 lang="" title="" disp=[]
+  tags: {DURATION="00:00:02.000000000" ENCODER="Lavc62.28.102 libx265"}
+  hdr10+: false
+  first frame: primaries="bt2020" transfer="arib-std-b67" matrix="bt2020nc" dolby vision rpu=false
+audio #1: codec=aac profile="LC" channels=1 layout="mono" rate=48000 bitrate=0 lang="eng" title="" disp=[] commentary=false
+real video streams: 1, cover art: 0
+video bitrate: 4297021 known=true source="container" (estimated from the container bitrate)
+main video: #0 resolution=1080p interlaced=false
+hdr: hlg (HLG)
+  fact: transfer is HLG (arib-std-b67)
+  fact: primaries are BT.2020 (bt2020)

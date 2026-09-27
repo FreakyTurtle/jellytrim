@@ -1,0 +1,22 @@
+path: /media/movies/Uniform (2020)/Uniform (2020).mp4
+container: mp4 (format mov,mp4,m4a,3gp,3g2,mj2)
+size: 1651904
+duration: 1.001s
+bitrate: 13202029
+chapters: 0
+stream count: 3
+tags: {compatible_brands="isomiso2avc1mp41" encoder="Lavf62.12.102" major_brand="isom" minor_version="512"}
+jellytrim tag: ""
+video #0: codec=h264 profile="Constrained Baseline" tag="avc1" 1920x1080 (1080p) sar=1:1 dar=16:9 fps=23.976 field="progressive" depth=8 pix=yuv420p
+  colour: primaries="" transfer="" matrix="" range=""
+  bitrate=13057798 rotation=0 lang="" title="" disp=[default]
+  tags: {encoder="Lavc62.28.102 libx264" handler_name="VideoHandler" language="und" timecode="01:00:00:00"}
+  hdr10+: false
+  first frame: primaries="" transfer="" matrix="" dolby vision rpu=false
+audio #1: codec=aac profile="LC" channels=1 layout="mono" rate=48000 bitrate=122655 lang="eng" title="" disp=[default] commentary=false
+data #2: codec="" tag="tmcd"
+real video streams: 1, cover art: 0
+video bitrate: 13057798 known=true source="stream" (from the stream)
+main video: #0 resolution=1080p interlaced=false
+hdr: sdr (SDR)
+  fact: 8-bit video with no transfer characteristics is treated as SDR

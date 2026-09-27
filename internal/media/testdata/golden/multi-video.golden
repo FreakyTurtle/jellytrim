@@ -1,0 +1,27 @@
+path: /media/movies/Tango (2018)/Tango (2018).mkv
+container: matroska (format matroska,webm)
+size: 2423894
+duration: 1s
+bitrate: 19391152
+chapters: 0
+stream count: 3
+tags: {ENCODER="Lavf62.12.102"}
+jellytrim tag: ""
+video #0: codec=h264 profile="Constrained Baseline" tag="" 1920x1080 (1080p) sar=1:1 dar=16:9 fps=24.000 field="progressive" depth=8 pix=yuv420p
+  colour: primaries="" transfer="" matrix="" range="tv"
+  bitrate=0 rotation=0 lang="" title="" disp=[default]
+  tags: {DURATION="00:00:01.000000000" ENCODER="Lavc62.28.102 libx264"}
+  hdr10+: false
+  first frame: primaries="" transfer="" matrix="" dolby vision rpu=false
+video #1: codec=h264 profile="Constrained Baseline" tag="" 1280x720 (720p) sar=1:1 dar=16:9 fps=24.000 field="progressive" depth=8 pix=yuv420p
+  colour: primaries="" transfer="" matrix="" range="tv"
+  bitrate=0 rotation=0 lang="" title="Picture in picture" disp=[]
+  tags: {DURATION="00:00:01.000000000" ENCODER="Lavc62.28.102 libx264" title="Picture in picture"}
+  hdr10+: false
+  first frame: none
+audio #2: codec=ac3 profile="" channels=1 layout="mono" rate=48000 bitrate=192000 lang="eng" title="" disp=[] commentary=false
+real video streams: 2, cover art: 0
+video bitrate: 0 known=false source="" (unknown)
+main video: #0 resolution=1080p interlaced=false
+hdr: sdr (SDR)
+  fact: 8-bit video with no transfer characteristics is treated as SDR

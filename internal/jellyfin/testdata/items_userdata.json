@@ -1,0 +1,53 @@
+{
+  "Items": [
+    {
+      "Name": "Alpha (2019)",
+      "ServerId": "3952ac3972a6415bb5d31a97d8e7282c",
+      "Id": "d15b890b81018d54a2b0f65fbee75563",
+      "Container": "mkv",
+      "ChannelId": null,
+      "RunTimeTicks": 30210000,
+      "ProductionYear": 2019,
+      "IsFolder": false,
+      "Type": "Movie",
+      "UserData": {
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 1,
+        "IsFavorite": false,
+        "LastPlayedDate": "2026-09-22T18:17:03.0000000Z",
+        "Played": true,
+        "Key": "d15b890b-8101-8d54-a2b0-f65fbee75563",
+        "ItemId": "d15b890b81018d54a2b0f65fbee75563"
+      },
+      "VideoType": "VideoFile",
+      "ImageBlurHashes": {},
+      "LocationType": "FileSystem",
+      "MediaType": "Video"
+    },
+    {
+      "Name": "Bravo (2020)",
+      "ServerId": "3952ac3972a6415bb5d31a97d8e7282c",
+      "Id": "2fb4a183f1a88abb7f9defd79c21b0f2",
+      "Container": "mkv",
+      "ChannelId": null,
+      "RunTimeTicks": 30210000,
+      "ProductionYear": 2020,
+      "IsFolder": false,
+      "Type": "Movie",
+      "UserData": {
+        "PlaybackPositionTicks": 0,
+        "PlayCount": 0,
+        "IsFavorite": true,
+        "Played": false,
+        "Key": "2fb4a183-f1a8-8abb-7f9d-efd79c21b0f2",
+        "ItemId": "2fb4a183f1a88abb7f9defd79c21b0f2"
+      },
+      "VideoType": "VideoFile",
+      "ImageBlurHashes": {},
+      "LocationType": "FileSystem",
+      "MediaType": "Video"
+    }
+  ],
+  "TotalRecordCount": 12,
+  "StartIndex": 0
+}

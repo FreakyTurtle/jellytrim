@@ -1,0 +1,21 @@
+path: /media/movies/Foxtrot (2023)/Foxtrot (2023).mkv
+container: matroska (format matroska,webm)
+size: 638402
+duration: 2.008s
+bitrate: 2543434
+chapters: 0
+stream count: 2
+tags: {ENCODER="Lavf62.12.102"}
+jellytrim tag: ""
+video #0: codec=av1 profile="Main" tag="" 1920x1080 (1080p) sar=1:1 dar=16:9 fps=24.000 field="progressive" depth=10 pix=yuv420p10le
+  colour: primaries="" transfer="" matrix="" range="tv"
+  bitrate=0 rotation=0 lang="" title="" disp=[]
+  tags: {DURATION="00:00:02.000000000" ENCODER="Lavc62.28.102 libsvtav1"}
+  hdr10+: false
+  first frame: primaries="" transfer="" matrix="" dolby vision rpu=false
+audio #1: codec=opus profile="" channels=1 layout="mono" rate=48000 bitrate=0 lang="eng" title="" disp=[] commentary=false
+real video streams: 1, cover art: 0
+video bitrate: 2447434 known=true source="container" (estimated from the container bitrate)
+main video: #0 resolution=1080p interlaced=false
+hdr: sdr (SDR)
+  fact: 10-bit video without colour tags or HDR metadata; treated as SDR, and the output keeps the same (unset) colour tags

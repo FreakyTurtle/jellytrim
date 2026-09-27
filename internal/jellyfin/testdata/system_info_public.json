@@ -1,0 +1,9 @@
+{
+  "LocalAddress": "http://localhost:8096",
+  "ServerName": "jellytrim-dev",
+  "Version": "12.1.0",
+  "ProductName": "Jellyfin Server",
+  "OperatingSystem": "",
+  "Id": "3952ac3972a6415bb5d31a97d8e7282c",
+  "StartupWizardCompleted": true
+}
