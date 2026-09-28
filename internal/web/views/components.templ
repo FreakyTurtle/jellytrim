@@ -513,6 +513,7 @@ type FieldProps struct {
 	Name        string
 	Label       string
 	Hint        string
+	Note        string // more help, shown below the control
 	Type        string // defaults to "text"
 	Value       string
 	Placeholder string // an example, never the label
@@ -535,6 +536,13 @@ func fieldHintID(f FieldProps) string {
 		return ""
 	}
 	return f.ID + "-hint"
+}
+
+func fieldNoteID(f FieldProps) string {
+	if f.Note == "" {
+		return ""
+	}
+	return f.ID + "-note"
 }
 
 func fieldErrorID(f FieldProps) string {
@@ -567,11 +575,14 @@ templ Field(f FieldProps) {
 			if f.Error != "" {
 				aria-invalid="true"
 			}
-			if d := describedBy(fieldHintID(f), fieldErrorID(f)); d != "" {
+			if d := describedBy(fieldHintID(f), fieldNoteID(f), fieldErrorID(f)); d != "" {
 				aria-describedby={ d }
 			}
 			{ f.Attrs... }
 		/>
+		if f.Note != "" {
+			<p class="field__hint field__note" id={ fieldNoteID(f) }>{ f.Note }</p>
+		}
 		if f.Error != "" {
 			<p class="field__error" id={ fieldErrorID(f) }><span aria-hidden="true">✗</span> { f.Error }</p>
 		}

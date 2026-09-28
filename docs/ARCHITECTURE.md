@@ -64,7 +64,7 @@ JellyTrim is one Go binary. It serves a server-rendered web UI, keeps its state 
 
 ### Evaluation (after each sync, and whenever a policy or setting changes)
 
-1. Build an `policy.Item` snapshot from the store: Jellyfin metadata, user data, parsed `media.File`. An episode's collections are those holding the episode, its series or its season. One gate, shared by evaluation, the policy preview and the pre-job reassessment, decides first: excluded items are protected, items the sync marked unmanageable are skipped, uninspected items stay pending, and an item whose facts could not be checked (for example the optimised-file lookup) is skipped.
+1. Build a `policy.Item` for each item from the store: Jellyfin metadata, user data, and `policy.Facts` taken from the probe summary columns (no ffprobe JSON is parsed at this stage; ADR 0010). Items are processed in batches of 500 so memory stays flat. The full probe is parsed only for items whose winning policy would optimise them, because the plan needs every stream. An episode's collections are those holding the episode, its series or its season. One gate, shared by evaluation, the policy preview and the pre-job reassessment, decides first: excluded items are protected, items the sync marked unmanageable are skipped, uninspected items stay pending, and an item whose facts could not be checked (for example the optimised-file lookup) is skipped.
 2. `policy.Evaluate(policies, item, now)` returns the winning policy, all matching policies, and an explanation for each.
 3. `plan.Decide(item, action, settings, capabilities)` returns an `Optimise` plan with an estimated size range, or `AlreadyOptimal`, `Protected`, `Skipped{reasons}` or `NoPolicy`.
 4. The result is stored in `evaluations` and drives the Library filters, the Dry Run summary and the dashboard.
@@ -93,7 +93,7 @@ See `docs/TRANSCODING.md` for the rules at each step.
 
 ## Data model (SQLite)
 
-Times are Unix seconds (`INTEGER`, UTC) unless named `_ns`. JSON columns are `TEXT`.
+Times are Unix seconds (`INTEGER`, UTC) unless named `_ns`. JSON columns are `TEXT`, except the ffprobe output in `probes` (see below).
 
 | Table | Purpose | Key columns |
 |---|---|---|
@@ -105,11 +105,12 @@ Times are Unix seconds (`INTEGER`, UTC) unless named `_ns`. JSON columns are `TE
 | `items` | Movies and episodes from Jellyfin | `id`, `library_id`, `type`, `name`, `series_id`, `series_name`, `season_id`, `season_name`, `season_number`, `episode_number`, `year`, `jellyfin_path`, `local_path`, `date_added`, `runtime_ticks`, `tags`, `genres`, `sync_skip_reason`, `seen_sync_id` |
 | `item_user_data` | Watch state per user | `item_id`, `user_id`, `played`, `play_count`, `favorite`, `last_played_at` |
 | `collections`, `collection_items` | Jellyfin collections and membership. `collection_items.item_id` is a movie, episode, series or season ID as Jellyfin reports it, so it has no foreign key to `items` | `collection_id`, `item_id` |
-| `probes` | Cached ffprobe output per item | `item_id`, `dev`, `inode`, `size`, `mtime_ns`, `nlink`, `is_symlink`, `probe_json`, `frame_json`, `error`, `probed_at` |
+| `probes` | Cached ffprobe output per item, with parsed summary columns so evaluation and the Library page need not read the JSON. `probe_json` and `frame_json` are stored with white space removed and zlib-compressed with a fixed preset dictionary (`internal/store/probedict_v1.txt`) as a `BLOB`; rows from earlier versions hold JSON text and are read as they are | `item_id`, `dev`, `inode`, `size`, `mtime_ns`, `nlink`, `is_symlink`, `probe_json`, `frame_json`, `error`, `probed_at`, `video_codec`, `width`, `height`, `resolution`, `hdr`, `video_bitrate`, `duration_ms`, `container` |
 | `policies` | User policies | `id`, `name`, `enabled`, `priority`, `scope`, `conditions`, `action` (JSON) |
-| `evaluations` | Latest decision per item | `item_id`, `outcome`, `policy_id`, `explanation`, `plan`, `reasons`, `est_min_bytes`, `est_max_bytes`, `evaluated_at` |
+| `evaluations` | Latest decision per item | `item_id`, `outcome`, `policy_id`, `explanation`, `plan`, `reasons`, `est_min_bytes`, `est_max_bytes`, `evaluated_at`, `run_id` |
+| `evaluation_runs` | One row per whole-library evaluation. Each 500-item batch is upserted with the run's ID; only a run that finishes deletes rows from older runs, so a failed run never leaves items without a decision | `id`, `started_at` |
 | `exclusions` | Items JellyTrim must leave alone regardless of policy, for example after the user restores a job's original. Cleared only by the user | `item_id`, `reason`, `created_at` |
-| `jobs` | Queue and history. At most one active (waiting to replacing) job per item, enforced by the partial unique index `jobs_one_active`. Status `attention` means the job stopped in a state the user must check: not active, but it blocks new jobs for its item and file | `id`, `item_id`, `policy_id`, `status`, `plan`, `source_identity`, `output_identity`, `progress`, `speed`, `eta_seconds`, `encoder`, `source_size`, `output_size`, `summary`, `diagnostics`, `backup_path`, `backup_expires_at`, `restored_at`, timestamps |
+| `jobs` | Queue and history. At most one active (waiting to replacing) job per item, enforced by the partial unique index `jobs_one_active`. Status `attention` means the job stopped in a state the user must check: not active, but it blocks new jobs for its item and file. Waiting jobs run in the order of the `jobs_waiting_order` index: queued by hand first, then the largest `est_saving` (source size minus the largest estimated output), then the oldest | `id`, `item_id`, `policy_id`, `status`, `trigger`, `plan`, `local_path`, `source_identity`, `output_identity`, `progress`, `speed`, `eta_seconds`, `encoder`, `source_size`, `output_size`, `est_min_bytes`, `est_max_bytes`, `est_saving`, `duration_ms`, `summary`, `diagnostics`, `backup_path`, `backup_expires_at`, `restored_at`, timestamps |
 | `journal` | Intent journal of filesystem steps | `id`, `job_id`, `step`, `path`, `created_at`, `completed_at` |
 | `optimised` | Files JellyTrim produced (loop guard) | `dev`, `inode`, `size`, `mtime_ns`, `item_id`, `job_id` |
 | `capabilities` | Hardware probe results | `backend`, `available`, `detail` (JSON), `tested_at` |
@@ -122,6 +123,8 @@ The database is `/config/jellytrim.db`, created with mode 0600. Migrations are i
 - One HTTP server goroutine pool (stdlib).
 - One sync at a time (a mutex in `library`).
 - A worker pool in `queue` with configurable concurrency (default 1). A per-path lock stops two jobs, or a sync and a replace, from working on the same file.
+- Automatic queueing builds every job from one query and inserts them in transactions of 2,000, so it does not hold the write lock for long.
+- The dispatcher takes waiting jobs in queue order but starts one only when its filesystem has room for its largest estimated output, a fifth more and 64 MiB, plus what jobs already running there may still write. A job without room stays waiting (logged once an hour, and reported by `queue.SpaceHold`) while later jobs that do fit may start. The pipeline checks free space again before it encodes.
 - SQLite: one `*sql.DB`; writes serialise through SQLite's lock with a busy timeout. Transactions begin `IMMEDIATE` (`_txlock=immediate`), so a transaction that reads then writes waits for the lock instead of failing with `SQLITE_BUSY`. `synchronous=FULL`, so a journal row is on disk before the step it describes. Long operations (ffmpeg) never hold a transaction.
 - A database written by a newer JellyTrim (a schema version above the newest embedded migration) is refused at start with a clear error.
 - Every goroutine takes a `context.Context` from `app` and stops on shutdown.

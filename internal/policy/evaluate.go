@@ -62,6 +62,7 @@ func Sort(ps []Policy) {
 // conflicts are visible. Policies must already be sorted (see Sort).
 func Evaluate(ps []Policy, it Item, now time.Time) Result {
 	var res Result
+	it.Facts = it.fileFacts() // once, not once per policy
 	for i := range ps {
 		m := Check(ps[i], it, now)
 		res.Matches = append(res.Matches, m)
@@ -84,8 +85,9 @@ func Check(p Policy, it Item, now time.Time) Match {
 	for _, l := range checkScope(p.Scope, it) {
 		add(l)
 	}
+	facts := it.fileFacts()
 	for _, c := range p.Conditions.All {
-		add(checkCondition(c, it, now))
+		add(condition(c, it, facts, now))
 	}
 	return m
 }
@@ -163,7 +165,13 @@ func article(s string) string {
 	return "a " + s
 }
 
+// checkCondition checks one condition against the item.
 func checkCondition(c Condition, it Item, now time.Time) Line {
+	return condition(c, it, it.fileFacts(), now)
+}
+
+// condition checks one condition, reading file conditions from f.
+func condition(c Condition, it Item, f Facts, now time.Time) Line {
 	switch c.Field {
 	case FieldWatched:
 		return checkWatched(c, it)
@@ -181,15 +189,15 @@ func checkCondition(c Condition, it Item, now time.Time) Line {
 		}
 		return checkDays(c, "added", *it.DateAdded, now)
 	case FieldResolution:
-		return checkResolution(c, it)
+		return checkResolution(c, f)
 	case FieldCodec:
-		return checkCodec(c, it)
+		return checkCodec(c, f)
 	case FieldBitrate:
-		return checkBitrate(c, it)
+		return checkBitrate(c, f)
 	case FieldSize:
-		return checkSize(c, it)
+		return checkSize(c, it.Size, f)
 	case FieldHDR:
-		return checkHDR(c, it)
+		return checkHDR(c, f)
 	case FieldTag:
 		return checkList(c, it.Tags, "tag")
 	case FieldGenre:
@@ -293,20 +301,12 @@ func dayText(days int) string {
 	return fmt.Sprintf("%d days ago", days)
 }
 
-func mainVideo(it Item) (media.VideoStream, bool) {
-	if it.File == nil {
-		return media.VideoStream{}, false
-	}
-	return it.File.MainVideo()
-}
-
-func checkResolution(c Condition, it Item) Line {
+func checkResolution(c Condition, f Facts) Line {
 	want, _ := ParseResolution(c.Text)
-	v, ok := mainVideo(it)
-	if !ok || v.Resolution() == 0 {
+	got := f.Resolution()
+	if !f.Probed || got == 0 {
 		return Line{false, "resolution unknown (not inspected yet)"}
 	}
-	got := v.Resolution()
 	switch c.Op {
 	case OpAbove:
 		if got > want {
@@ -333,13 +333,12 @@ func codecLabels(list []string) string {
 	return strings.Join(labels, " or ")
 }
 
-func checkCodec(c Condition, it Item) Line {
-	v, ok := mainVideo(it)
-	if !ok || v.Codec == "" {
+func checkCodec(c Condition, f Facts) Line {
+	if !f.Probed || f.Codec == "" {
 		return Line{false, "codec unknown (not inspected yet)"}
 	}
-	in := contains(c.List, string(v.Codec))
-	label := v.Codec.Label()
+	in := contains(c.List, string(f.Codec))
+	label := f.Codec.Label()
 	if c.Op == OpIsNot {
 		if in {
 			return Line{false, "codec is " + label}
@@ -352,22 +351,23 @@ func checkCodec(c Condition, it Item) Line {
 	return Line{false, "codec is " + label + ", not " + codecLabels(c.List)}
 }
 
-func checkBitrate(c Condition, it Item) Line {
-	if it.File == nil {
+func checkBitrate(c Condition, f Facts) Line {
+	if !f.Probed {
 		return Line{false, "bitrate unknown (not inspected yet)"}
 	}
-	bps, ok := it.File.VideoBitrate()
-	if !ok {
+	if !f.BitrateKnown {
 		return Line{false, "bitrate unknown, so this condition does not match"}
 	}
+	bps := f.VideoBitrate
 	limit := int64(math.Round(c.Number * 1_000_000))
 	return compare(c.Op, bps, limit, "bitrate "+units.Bitrate(bps), units.Bitrate(limit))
 }
 
-func checkSize(c Condition, it Item) Line {
-	size := it.Size
-	if it.File != nil && it.File.Size > 0 {
-		size = it.File.Size
+// checkSize prefers the probed size to the size Jellyfin reported.
+func checkSize(c Condition, jellyfinSize int64, f Facts) Line {
+	size := jellyfinSize
+	if f.Probed && f.Size > 0 {
+		size = f.Size
 	}
 	if size <= 0 {
 		return Line{false, "size unknown"}
@@ -389,11 +389,11 @@ func compare(op string, got, limit int64, gotText, limitText string) Line {
 	return Line{false, gotText + " is not below " + limitText}
 }
 
-func checkHDR(c Condition, it Item) Line {
-	if it.File == nil {
+func checkHDR(c Condition, f Facts) Line {
+	if !f.Probed {
 		return Line{false, "dynamic range unknown (not inspected yet)"}
 	}
-	class := it.File.HDR().Class
+	class := f.HDR
 	in := contains(c.List, string(class))
 	var names []string
 	for _, v := range c.List {

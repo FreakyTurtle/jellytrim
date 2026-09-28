@@ -50,7 +50,7 @@ func (s *Server) queue(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
-	v, err := s.queueLiveView(r.Context(), "")
+	v, err := s.queueLiveView(r.Context(), "", queueWaitingLimit(r.URL.Query().Get("waiting")))
 	if err != nil {
 		s.serverError(w, r, err)
 		return
@@ -58,12 +58,17 @@ func (s *Server) queue(w http.ResponseWriter, r *http.Request) {
 	if n, ok := queueNotices[r.URL.Query().Get("notice")]; ok {
 		v.Notice = &n
 	}
-	s.render(w, r, views.QueuePage(views.QueuePageData{Shell: sh, Live: v}))
+	b, err := s.queueBacklogView(r.Context())
+	if err != nil {
+		s.serverError(w, r, err)
+		return
+	}
+	s.render(w, r, views.QueuePage(views.QueuePageData{Shell: sh, Live: v, Backlog: b}))
 }
 
 // queueLive is the polled fragment: the queue state, running and waiting jobs.
 func (s *Server) queueLive(w http.ResponseWriter, r *http.Request) {
-	v, err := s.queueLiveView(r.Context(), r.URL.Query().Get("was"))
+	v, err := s.queueLiveView(r.Context(), r.URL.Query().Get("was"), queueWaitingLimit(r.URL.Query().Get("waiting")))
 	if err != nil {
 		s.serverError(w, r, err)
 		return
@@ -71,14 +76,43 @@ func (s *Server) queueLive(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, views.QueueLiveFragment(v))
 }
 
+// queueRunningJobs lists jobs in a running stage, oldest first, without
+// loading the waiting jobs, which can number tens of thousands.
+func (s *Server) queueRunningJobs(ctx context.Context) ([]store.Job, error) {
+	// InterruptedJobs is every job in a running stage plus those that need
+	// attention; only the running ones are active.
+	jobs, err := s.Store.InterruptedJobs(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := jobs[:0]
+	for _, j := range jobs {
+		if j.Active() {
+			out = append(out, j)
+		}
+	}
+	return out, nil
+}
+
 // queueLiveView builds the live part of the queue page. was is the running
-// jobs' signature the browser last saw; a change is announced once.
-func (s *Server) queueLiveView(ctx context.Context, was string) (views.QueueLive, error) {
+// jobs' signature the browser last saw; a change is announced once. limit
+// is how many waiting jobs to list. It stays light, because it runs on
+// every 2-second poll: the waiting total is a count, and only the listed
+// jobs are loaded.
+func (s *Server) queueLiveView(ctx context.Context, was string, limit int) (views.QueueLive, error) {
 	st, err := s.Store.Settings(ctx)
 	if err != nil {
 		return views.QueueLive{}, err
 	}
-	jobs, err := s.Store.ActiveJobs(ctx)
+	running, err := s.queueRunningJobs(ctx)
+	if err != nil {
+		return views.QueueLive{}, err
+	}
+	active, err := s.Store.ActiveJobCount(ctx)
+	if err != nil {
+		return views.QueueLive{}, err
+	}
+	waiting, err := s.Store.NextWaitingJobs(ctx, limit)
 	if err != nil {
 		return views.QueueLive{}, err
 	}
@@ -88,21 +122,21 @@ func (s *Server) queueLiveView(ctx context.Context, was string) (views.QueueLive
 		live = s.Queue.Live()
 		paused = s.Queue.Paused()
 	}
-	v := views.QueueLive{DryRun: st.DryRun, Paused: paused}
-	for _, j := range jobs {
-		if j.Status == store.JobWaiting {
-			v.Waiting = append(v.Waiting, queueWaitingRow(j, len(v.Waiting)+1))
-			continue
-		}
+	v := views.QueueLive{DryRun: st.DryRun, Paused: paused, Hold: s.queueHoldView()}
+	for _, j := range running {
 		v.Running = append(v.Running, s.queueRunningView(j, live[j.ID]))
 	}
+	for _, j := range waiting {
+		v.Waiting = append(v.Waiting, queueWaitingRow(j, len(v.Waiting)+1))
+	}
+	queueWaitingPaging(&v, max(active-len(running), len(waiting)), limit)
 	v.Lamp, v.State = s.queueState(ctx, st, paused, len(v.Running))
 	sc, err := s.scheduleNow(ctx)
 	if err != nil {
 		return v, err
 	}
 	v.Schedule = sc.queueLine()
-	v.Poll = len(v.Running) > 0 || (len(v.Waiting) > 0 && !paused && !st.DryRun)
+	v.Poll = len(v.Running) > 0 || (v.WaitingTotal > 0 && !paused && !st.DryRun)
 	sig := queueSignature(v.Running)
 	v.LiveURL = "/queue/live?was=" + url.QueryEscape(sig)
 	if was != "" && was != sig {
@@ -112,6 +146,25 @@ func (s *Server) queueLiveView(ctx context.Context, was string) (views.QueueLive
 		return v, err
 	}
 	return v, nil
+}
+
+// queueWaitingPaging fills the waiting list's count line and its Show more
+// step.
+func queueWaitingPaging(v *views.QueueLive, total, limit int) {
+	v.WaitingTotal = total
+	v.WaitingLimit = limit
+	shown := len(v.Waiting)
+	switch {
+	case total == 0:
+		return
+	case shown >= total:
+		v.WaitingCount = backlogWord(total, "1 job waiting.", libraryCount(total)+" jobs waiting.")
+		return
+	}
+	v.WaitingCount = "Showing the first " + libraryCount(shown) + " of " + libraryCount(total) + " waiting jobs."
+	if limit < queueWaitingMax {
+		v.MoreLimit = min(limit+queueWaitingStep, queueWaitingMax)
+	}
 }
 
 // queueState is the status line at the top of the queue.
@@ -314,8 +367,8 @@ func (s *Server) cancelJob(w http.ResponseWriter, r *http.Request) {
 	s.queueAfterAction(w, r, notice)
 }
 
-// queueAfterAction answers an HTMX request with the live fragment, and a
-// plain form post with a redirect back to the queue.
+// queueAfterAction answers an HTMX request with the live fragment and a
+// fresh backlog, and a plain form post with a redirect back to the queue.
 func (s *Server) queueAfterAction(w http.ResponseWriter, r *http.Request, notice string) {
 	if r.Header.Get("HX-Request") != "true" {
 		to := "/queue"
@@ -325,7 +378,7 @@ func (s *Server) queueAfterAction(w http.ResponseWriter, r *http.Request, notice
 		redirect(w, r, to)
 		return
 	}
-	v, err := s.queueLiveView(r.Context(), "")
+	v, err := s.queueLiveView(r.Context(), "", queueWaitingLimit(r.FormValue("waiting")))
 	if err != nil {
 		s.serverError(w, r, err)
 		return
@@ -334,7 +387,13 @@ func (s *Server) queueAfterAction(w http.ResponseWriter, r *http.Request, notice
 		n.Alert = true
 		v.Notice = &n
 	}
-	s.render(w, r, views.QueueLiveFragment(v))
+	b, err := s.queueBacklogView(r.Context())
+	if err != nil {
+		s.serverError(w, r, err)
+		return
+	}
+	b.OOB = true
+	s.render(w, r, views.QueueActionResult(v, b))
 }
 
 func (s *Server) queueUnavailable(w http.ResponseWriter, _ *http.Request) {
@@ -507,15 +566,12 @@ func (s *Server) itemQueueState(ctx context.Context, r *http.Request, it store.I
 			o.Backup = itemBackupText(st.BackupDays)
 		}
 	}
-	jobs, err := s.Store.ActiveJobs(ctx)
+	// One indexed lookup: the queue can hold tens of thousands of jobs.
+	_, queued, err := s.Store.ActiveJobForItem(ctx, it.ID)
 	if err != nil {
 		return err
 	}
-	for _, j := range jobs {
-		if j.ItemID == it.ID {
-			o.Queued = true
-		}
-	}
+	o.Queued = queued
 	ev, err := s.Store.Evaluation(ctx, it.ID)
 	if err != nil && !errors.Is(err, store.ErrNotFound) {
 		return err

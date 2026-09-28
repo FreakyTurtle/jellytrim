@@ -95,9 +95,11 @@ func (q *Service) Schedule(ctx context.Context) (week timetable.Week, active boo
 func (q *Service) startReady(ctx context.Context) {
 	st, err := q.store.Settings(ctx)
 	if err != nil || st.DryRun || q.Paused() {
+		q.setHold(nil) // nothing would start anyway, so nothing is held for space
 		return
 	}
 	if _, active, _, _ := q.Schedule(ctx); !active {
+		q.setHold(nil)
 		return
 	}
 	for {
@@ -107,8 +109,8 @@ func (q *Service) startReady(ctx context.Context) {
 		if busy >= max(st.Concurrency, 1) {
 			return
 		}
-		j, err := q.store.NextWaitingJob(ctx)
-		if err != nil {
+		j, r, ok := q.nextStartable(ctx)
+		if !ok {
 			return
 		}
 		ok, err := q.store.StartJob(ctx, j.ID, "", "")
@@ -118,6 +120,7 @@ func (q *Service) startReady(ctx context.Context) {
 		jobCtx, cancel := context.WithCancel(ctx)
 		q.mu.Lock()
 		q.running[j.ID] = cancel
+		q.reserved[j.ID] = r
 		q.live[j.ID] = Live{Status: store.JobAnalysing}
 		q.mu.Unlock()
 		q.wg.Add(1)
@@ -127,6 +130,7 @@ func (q *Service) startReady(ctx context.Context) {
 			cancel()
 			q.mu.Lock()
 			delete(q.running, j.ID)
+			delete(q.reserved, j.ID)
 			delete(q.live, j.ID)
 			delete(q.cancelled, j.ID)
 			delete(q.scheduleStopped, j.ID)

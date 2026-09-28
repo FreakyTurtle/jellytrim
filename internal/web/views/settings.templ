@@ -71,6 +71,7 @@ type SettingsView struct {
 
 	MinSaving  string
 	BackupDays string
+	BackupUse  string // "Backups currently hold 1.2 TB in 57 files."; "" without a queue
 
 	Hardware SetupHardwareView
 
@@ -128,6 +129,14 @@ func settingsPresetState(current bool) string {
 		return ", in use"
 	}
 	return ""
+}
+
+// settingsBackupNote is the backup use now, and advice for a first run.
+func settingsBackupNote(v SettingsView) string {
+	if v.BackupUse == "" {
+		return ""
+	}
+	return v.BackupUse + " For a large first run, a short retention (0 or 1 day) frees space sooner."
 }
 
 func settingsErr(v SettingsView, name string) string {
@@ -367,7 +376,7 @@ templ settingsSafety(v SettingsView) {
 			@settingsFeedback(v, "safety")
 			<div class="settings-row">
 				@Field(FieldProps{ID: "settings-min-saving", Name: "min_saving", Label: "Minimum saving (%)", Hint: "Replace a file only if the new one is at least this much smaller. From 0 to 90.", Value: v.MinSaving, Mono: true, Error: settingsErr(v, "min_saving"), Attrs: templ.Attributes{"inputmode": "numeric"}})
-				@Field(FieldProps{ID: "settings-backup-days", Name: "backup_days", Label: "Keep originals for (days)", Hint: "Replaced originals are kept as backups for this many days. From 0 to 90.", Value: v.BackupDays, Mono: true, Error: settingsErr(v, "backup_days"), Attrs: templ.Attributes{"inputmode": "numeric"}})
+				@Field(FieldProps{ID: "settings-backup-days", Name: "backup_days", Label: "Keep originals for (days)", Hint: "Replaced originals are kept as backups for this many days. From 0 to 90.", Value: v.BackupDays, Note: settingsBackupNote(v), Mono: true, Error: settingsErr(v, "backup_days"), Attrs: templ.Attributes{"inputmode": "numeric"}})
 			</div>
 			@settingsSave("Save minimum saving and backups")
 		</form>

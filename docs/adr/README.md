@@ -12,3 +12,5 @@ Short records of decisions that are not obvious from the code. Add one with `/ad
 | [0006](0006-10-bit-hevc-output.md) | Encode HEVC in 10-bit by default | Accepted |
 | [0007](0007-hdr-handling.md) | HDR10 and HLG transcoded; dynamic HDR and Dolby Vision opt-in or skipped | Accepted |
 | [0008](0008-no-built-in-auth.md) | No built-in authentication | Accepted |
+| [0009](0009-probe-compression-dictionary.md) | Stored ffprobe output is compressed with a fixed dictionary | Accepted |
+| [0010](0010-policies-from-probe-summaries.md) | Policies are evaluated from stored probe summaries | Accepted |

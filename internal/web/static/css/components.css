@@ -1039,6 +1039,13 @@ form.htmx-request .btn--primary[type="submit"]::before {
   --callout-tint: var(--bad-tint);
 }
 
+/* Callout text can carry a long folder path with no spaces. It must wrap
+   rather than widen the page on a phone. */
+.callout > p {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
 .callout__title {
   display: flex;
   align-items: center;

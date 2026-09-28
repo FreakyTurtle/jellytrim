@@ -244,18 +244,28 @@ func (s *Server) dashSummary(ctx context.Context, sum library.Summary) views.Das
 
 func (s *Server) dashNow(ctx context.Context, dryRun bool) (views.DashNow, error) {
 	v := views.DashNow{DryRun: dryRun}
-	jobs, err := s.Store.ActiveJobs(ctx)
+	// The running jobs and a count, never the whole waiting list.
+	jobs, err := s.queueRunningJobs(ctx)
 	if err != nil {
 		return v, err
 	}
 	if len(jobs) == 0 {
+		if jobs, err = s.Store.NextWaitingJobs(ctx, 1); err != nil {
+			return v, err
+		}
+	}
+	if len(jobs) == 0 {
 		return v, nil
+	}
+	active, err := s.Store.ActiveJobCount(ctx)
+	if err != nil {
+		return v, err
 	}
 	j := jobs[0]
 	v.Active = true
 	v.Title = j.ItemName
 	v.Change = dashChange(j.SourceSummary, j.TargetSummary)
-	v.Waiting = len(jobs) - 1
+	v.Waiting = max(active-1, 0)
 	v.Percent = -1
 	v.Readout = dashJobStatus(j.Status)
 	if j.Status == store.JobEncoding {
@@ -361,6 +371,11 @@ func (s *Server) dashProblems(ctx context.Context, totals store.OutcomeTotals) (
 			Action: "Choose hours in Settings",
 		})
 	}
+	space, err := s.dashSpaceProblems(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out = append(out, space...)
 	if n := totals.ByOutcome["skipped"]; n > 0 {
 		rows, _, err := s.Store.LibraryList(ctx, store.LibraryFilter{Outcome: "skipped", Limit: 5})
 		if err != nil {
@@ -434,4 +449,36 @@ func libraryCount(n int) string {
 		return "-" + b.String()
 	}
 	return b.String()
+}
+
+// dashSpaceProblems reports a job held back for free space, and each
+// filesystem the waiting jobs may not fit on. The outlook is read once per
+// page load.
+func (s *Server) dashSpaceProblems(ctx context.Context) ([]views.DashProblem, error) {
+	if s.Queue == nil {
+		return nil, nil
+	}
+	var out []views.DashProblem
+	backups := views.DashLink{Href: "/settings#safety", Label: "Change how long backups are kept"}
+	if h, ok := s.Queue.SpaceHold(); ok {
+		out = append(out, views.DashProblem{
+			Lamp: "warn", Text: h.Reason(), Href: "/queue", Action: "Open the queue",
+			More: []views.DashLink{backups},
+		})
+	}
+	outlook, err := s.Queue.SpaceOutlook(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, fs := range outlook.Filesystems {
+		if !fs.AtRisk {
+			continue
+		}
+		out = append(out, views.DashProblem{
+			Lamp: "warn", Text: spaceRiskText(fs, outlook.BackupDays),
+			Href: backups.Href, Action: backups.Label,
+			More: []views.DashLink{{Href: "/queue", Label: "Open the queue"}},
+		})
+	}
+	return out, nil
 }

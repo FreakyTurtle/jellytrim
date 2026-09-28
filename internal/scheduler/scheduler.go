@@ -18,7 +18,13 @@ type Store interface {
 	Settings(ctx context.Context) (store.Settings, error)
 	LastSync(ctx context.Context) (store.SyncRun, error)
 	LastCompleteSync(ctx context.Context) (store.SyncRun, error)
+	// CompressLegacyProbes compresses probe rows written by older versions.
+	CompressLegacyProbes(ctx context.Context, limit int) (int, error)
 }
+
+// legacyBatch is how many old uncompressed probe rows are compressed per
+// idle tick: about 150 ms of work, so 100,000 rows take under two hours.
+const legacyBatch = 1000
 
 // Library starts syncs. Implemented by *library.Service.
 type Library interface {
@@ -51,8 +57,10 @@ type Scheduler struct {
 	// broken database does not start a sync on every tick.
 	lastAttempt    time.Time
 	lastQueuedSync int64
-	lastExpiry     time.Time
-	lastEnqueue    time.Time
+	// legacyDone is set once no uncompressed probe rows remain.
+	legacyDone  bool
+	lastExpiry  time.Time
+	lastEnqueue time.Time
 }
 
 // Run blocks until ctx ends.
@@ -98,6 +106,15 @@ func (s *Scheduler) step(ctx context.Context) {
 	if now.Sub(s.lastExpiry) > time.Hour {
 		s.lastExpiry = now
 		s.Queue.ExpireBackups(ctx)
+	}
+	if !s.legacyDone && !s.Library.Status().Running {
+		n, err := s.Store.CompressLegacyProbes(ctx, legacyBatch)
+		switch {
+		case err != nil:
+			s.Log.Warn("scheduler: compressing old probe data", "err", err)
+		case n == 0:
+			s.legacyDone = true
+		}
 	}
 }
 

@@ -18,6 +18,7 @@ import (
 	"github.com/freakyturtle/jellytrim/internal/media"
 	"github.com/freakyturtle/jellytrim/internal/policy"
 	"github.com/freakyturtle/jellytrim/internal/store"
+	"github.com/freakyturtle/jellytrim/internal/web/views"
 )
 
 // ---------- policyFromForm ----------
@@ -753,5 +754,41 @@ func TestPolicyPreview(t *testing.T) {
 	if res.StatusCode != http.StatusOK || !strings.Contains(body, "Would optimise") || !strings.Contains(body, `href="/library/charlie"`) ||
 		!strings.Contains(body, `hx-swap-oob="innerHTML"`) || !strings.Contains(body, "Estimated saving") {
 		t.Fatalf("preview response %d: %s", res.StatusCode, body)
+	}
+}
+
+func TestPolicyPreviewSampledSaysSo(t *testing.T) {
+	render := func(v views.PolicyPreviewView) string {
+		var b strings.Builder
+		policyMust(t, views.PolicyPreview(v).Render(context.Background(), &b))
+		return b.String()
+	}
+	res := library.Preview{
+		Matches: 14_000, Wins: 12_345, Optimise: 9_000, Optimal: 3_000, Skipped: 345,
+		Current: 90_000_000_000_000, AfterMin: 30_000_000_000_000, AfterMax: 40_000_000_000_000,
+		Sampled: true, SampleSize: 1_000,
+	}
+	var v views.PolicyPreviewView
+	policyPreviewResult(&v, res)
+	body := render(v)
+	for _, want := range []string{
+		"Estimated from 1,000 of 12,345 items.", "Matches and the decided counts are exact.",
+		"14,000", "12,345", "9,000",
+	} {
+		if !strings.Contains(body, templEscape(want)) {
+			t.Errorf("sampled preview: missing %q", want)
+		}
+	}
+	// Every outcome count and the current size carry the estimate mark;
+	// Matches and the decided counts do not.
+	if n := strings.Count(body, `<span class="visually-hidden">About </span>`); n != 7 {
+		t.Errorf("sampled preview: %d estimate marks, want 7 (metric, three counts, three sizes)", n)
+	}
+
+	res.Sampled, res.SampleSize = false, 0
+	v = views.PolicyPreviewView{}
+	policyPreviewResult(&v, res)
+	if body := render(v); strings.Contains(body, "Estimated from") {
+		t.Error("a counted preview says it is estimated from a sample")
 	}
 }

@@ -24,27 +24,22 @@ type Evaluation struct {
 	EvaluatedAt time.Time
 }
 
-// ReplaceEvaluations stores a complete set of evaluations, removing any for
-// items not in the set.
+// ReplaceEvaluations stores a complete set of evaluations in one
+// transaction, removing any for items not in the set. It is a whole run
+// (see BeginEvaluations); evaluating a large library writes in batches
+// instead.
 func (s *Store) ReplaceEvaluations(ctx context.Context, evs []Evaluation) error {
 	return s.tx(ctx, func(tx *sql.Tx) error {
-		if _, err := tx.ExecContext(ctx, `DELETE FROM evaluations`); err != nil {
-			return err
-		}
-		stmt, err := tx.PrepareContext(ctx, `INSERT INTO evaluations (item_id, outcome, policy_id, summary, explanation, reasons,
-			plan, est_min_bytes, est_max_bytes, evaluated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+		now := s.unix()
+		run, err := beginRun(ctx, tx, now)
 		if err != nil {
 			return err
 		}
-		defer func() { _ = stmt.Close() }()
-		now := s.unix()
-		for _, e := range evs {
-			if _, err := stmt.ExecContext(ctx, e.ItemID, e.Outcome, e.PolicyID, e.Summary, e.Explanation, e.Reasons,
-				e.Plan, e.EstMin, e.EstMax, now); err != nil {
-				return fmt.Errorf("saving evaluation for %s: %w", e.ItemID, err)
-			}
+		if err := upsertEvaluations(ctx, tx, run, now, evs); err != nil {
+			return err
 		}
-		return nil
+		_, err = finishRun(ctx, tx, run, now)
+		return err
 	})
 }
 

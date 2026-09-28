@@ -39,3 +39,10 @@ Curate this file: keep it under 150 lines, one fact per bullet, date each entry 
 - 2026-09-28: `time.Local.String()` is always "Local"; name the zone from `TZ` plus `now.Zone()` instead.
 - 2026-09-28: the Playwright MCP may be absent; `require()` the cached playwright under ~/.npm/_npx with `executablePath` set to the installed Google Chrome.
 - 2026-09-28: never write `cat > file` without a heredoc in Bash; it waits on stdin until the call times out.
+- 2026-09-28: keep a heavy panel inside a polled outerHTML fragment with an `hx-preserve` slot (empty in the poll response) and let an inner body poll itself; after actions swap the body out of band (Queue Backlog).
+- 2026-09-28: `hx-vals` on the polled container carries state (waiting list length) into every poll and child action; a child's own `hx-vals` wins (Show more).
+- 2026-09-28: templ puts spaces round an interpolated value next to elements; raw test strings look like `6 <span class="metric__unit">`.
+- 2026-09-28: a long folder path with no spaces widens the page at 390px; `.callout > p` and `.problems__text` now use `overflow-wrap: anywhere`.
+- 2026-09-28: Metric prefixes "Estimate." unless the note already contains "Estimate"; write notes as "Estimate: ..." or "Estimate at ..." to avoid "Estimate. Of ...".
+- 2026-09-28: the store has no running-jobs query; InterruptedJobs filtered by `Active()` avoids ActiveJobs, which loads every waiting job.
+- 2026-09-28: to test SpaceHold, Start a queue with a fake SpaceFS (tiny Free) and Dry Run off; it holds the job without encoding anything.

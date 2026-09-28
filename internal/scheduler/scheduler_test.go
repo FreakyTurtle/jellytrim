@@ -83,12 +83,21 @@ type fakeStore struct {
 	lastErr     error
 	complete    store.SyncRun
 	completeErr error
+	legacyLeft  int // uncompressed probe rows still to do
+	legacyCalls int
 }
 
 func (f *fakeStore) Settings(context.Context) (store.Settings, error) {
 	return f.settings, f.settingsErr
 }
 func (f *fakeStore) LastSync(context.Context) (store.SyncRun, error) { return f.last, f.lastErr }
+
+func (f *fakeStore) CompressLegacyProbes(_ context.Context, limit int) (int, error) {
+	f.legacyCalls++
+	n := min(limit, f.legacyLeft)
+	f.legacyLeft -= n
+	return n, nil
+}
 func (f *fakeStore) LastCompleteSync(context.Context) (store.SyncRun, error) {
 	return f.complete, f.completeErr
 }
@@ -258,5 +267,23 @@ func TestStepRemembersItsOwnAttempts(t *testing.T) {
 	r.step()
 	if r.lib.started != 2 {
 		t.Fatalf("no sync after the interval: %d starts", r.lib.started)
+	}
+}
+
+func TestStepCompressesOldProbesWhenIdle(t *testing.T) {
+	r := newRig()
+	r.synced(1, time.Hour, "complete")
+	r.st.legacyLeft = 2500
+	r.lib.running = true
+	r.step()
+	if r.st.legacyCalls != 0 {
+		t.Fatal("compressed while a sync was running")
+	}
+	r.lib.running = false
+	for i := 0; i < 6; i++ {
+		r.step()
+	}
+	if r.st.legacyLeft != 0 || r.st.legacyCalls != 4 {
+		t.Fatalf("left %d after %d calls; it should stop once a batch finds nothing", r.st.legacyLeft, r.st.legacyCalls)
 	}
 }

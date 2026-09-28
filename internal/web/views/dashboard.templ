@@ -91,6 +91,13 @@ type DashProblem struct {
 	Action string
 	Detail string
 	Items  []DashProblemItem
+	More   []DashLink // further actions after the main one
+}
+
+// DashLink is a link with its text.
+type DashLink struct {
+	Href  string
+	Label string
 }
 
 // DashProblemItem is an example item under a problem.
@@ -304,7 +311,12 @@ templ dashProblems(ps []DashProblem) {
 							</ul>
 						}
 						if p.Href != "" {
-							<p><a class="dash__link" href={ templ.SafeURL(p.Href) }>{ p.Action }</a></p>
+							<p class="problems__links">
+								<a class="dash__link" href={ templ.SafeURL(p.Href) }>{ p.Action }</a>
+								for _, l := range p.More {
+									<a class="dash__link" href={ templ.SafeURL(l.Href) }>{ l.Label }</a>
+								}
+							</p>
 						}
 						if p.Detail != "" {
 							@TechnicalDetails("Technical details", p.Detail)

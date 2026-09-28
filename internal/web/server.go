@@ -121,6 +121,7 @@ func (s *Server) routes() {
 	// Queue and history (queue.go)
 	s.mux.HandleFunc("GET /queue", s.queue)
 	s.mux.HandleFunc("GET /queue/live", s.queueLive)
+	s.mux.HandleFunc("GET /queue/backlog", s.queueBacklog)
 	s.mux.HandleFunc("POST /queue/pause", s.pauseQueue)
 	s.mux.HandleFunc("POST /queue/resume", s.resumeQueue)
 	s.mux.HandleFunc("POST /queue/{id}/cancel", s.cancelJob)

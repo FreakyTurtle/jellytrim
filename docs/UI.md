@@ -496,6 +496,7 @@ A callout reports a problem, a warning or useful information. Errors say what ha
 ```
 
 - Label above the control, in body text weight 500 (not the uppercase label style, which is for read-only data).
+- An optional note (`FieldProps.Note`) sits below the control in the hint style, for context that would push the control out of line with its neighbours, such as current backup use. It is added to `aria-describedby` after the hint.
 - Input: 40px tall (48px below 720px), `--surface` fill, `--border`, `--radius`. Paths, URLs and keys use Plex Mono.
 - Focus: the standard focus ring.
 - Invalid: `aria-invalid="true"`, 2px `--bad` border, the error shown below with a `✗` and added to `aria-describedby`. Validation runs on submit and on blur, not on every key press.
@@ -695,7 +696,8 @@ The title in Plex Sans 500, the rest in Plex Mono. Failed and skipped entries sh
 - "24 files not found under /mnt/media/movies. Check the path mapping." [Path mappings]
 - "2 jobs failed today." [History]
 - "Intel QSV stopped working at the last test. JellyTrim is using software encoding." [Hardware]
-- "Less than 50 GB free on /mnt/media. Encoding is paused until more space is free."
+- "Waiting for free space: Blade Runner 2049 needs about 18.2 GB in /mnt/media/films and 9.1 GB is free. JellyTrim will start it when space is freed, for example when backups expire." when the queue is holding the next job back for space. [Open the queue] [Change how long backups are kept]
+- "The queue needs about 1.2 TB on /mnt/media, but only 800 GB is free while backups are kept for 7 days." for each filesystem the waiting jobs may not fit on (the queue's space outlook, read once per page load). [Change how long backups are kept] links to `/settings#safety`; [Open the queue].
 - "No processing hours are switched on, so nothing will be encoded." [Choose hours in Settings], when the processing schedule has no active hours.
 
 With nothing to report: an ok lamp and "No problems."
@@ -800,6 +802,7 @@ Route: `/policies`. The ordered list of policies, and the editor.
 - "Matches 42 items." Then "36 would be converted, 6 would be skipped (HDR or Dolby Vision)."
 - "6 of these are already decided by a higher policy." with the policy names.
 - "Estimated saving ~ 1.1 TB." with the Estimate label.
+- Above 1,000 items the policy would decide, the outcome counts (would optimise, already optimal, skipped) and the sizes are worked out from a sample of 1,000 and scaled up. They then carry `~`, the Would optimise metric's note says "Estimated from 1,000 of 12,345 items.", and a note under the printout says which numbers are scaled up. Matches and the "decided by this policy" and "decided by a higher policy" counts are always exact and have no note.
 - The first 10 matching items with their change, linking to each item.
 - The preview is a simulation. It never changes anything.
 
@@ -813,6 +816,8 @@ Route: `/queue`. What is running, what is waiting, and control over both.
 
 **Processing schedule line.** When the schedule is not "any time", a strip attached under the status line says "Processing schedule: nights (01:00 to 07:00). Next active: Tuesday 01:00." (or "Active now, until Tuesday 07:00."), with a "Change the schedule" link to `/settings#schedule`. It refreshes with the rest of the polled fragment.
 
+**Waiting for free space.** When the queue is holding the next job back because its drive lacks room, a warn callout under the status line gives the reason in plain words ("Waiting for free space: <title> needs about 18.2 GB in <folder> and 9.1 GB is free. JellyTrim will start it when space is freed, for example when backups expire.") and what to do: free some space on that drive, or keep backups for fewer days, with a "Change how long backups are kept" link to `/settings#safety`. It refreshes with the polled fragment.
+
 **Running job** (`.panel--emphasis`):
 
 - Title and a link to the item.
@@ -824,7 +829,14 @@ Route: `/queue`. What is running, what is waiting, and control over both.
 - The panel refreshes every 2 seconds through HTMX polling (`hx-trigger="every 2s"`), except while a confirmation dialog is open inside it. When nothing is running or waiting, the server leaves out the polling attributes on the next swap, so the browser simply stops asking.
 - A polite live region announces stage changes and completion only, never every percentage.
 
-**Waiting.** A table: position, title, change, estimated saving, policy, and a Cancel button per row. A job that was stopped and queued again shows why under its title in `--ink-2`: "Stopped because the processing schedule ended. It will start again in the next active hour; the original is unchanged." or "Interrupted by a restart; it will run again." Empty: "Nothing waiting." There is no "Cancel all waiting" action; cancel jobs one at a time.
+**Backlog.** Between the running job and the waiting list, a panel with three metrics: WAITING ("1,432 files"), TO SAVE (`~ 1.3 TB`, note "Estimate: 1.2 to 1.5 TB from 4.8 TB of files.") and TIME TO FINISH (`~ 3 weeks`). The time is the encoding time spread over the processing schedule, in the unit a person would use: hours below 2 days, days below 3 weeks, weeks below 12 weeks, then months. Its note is "Estimate at your 42 active hours a week." for a limited schedule (with a "Change the processing schedule" link), "Estimated encoding time. The schedule allows any hour." for any time, and, with no active hours, no number and "No processing hours are switched on, so nothing will run." Under the metrics it always says the estimate is rough: "Rough estimate, based on the speed of recent jobs." or, before any job has finished, "Rough estimate, based on typical speeds, until JellyTrim has finished a few jobs." Files with no known length are named and left out: "12 files have no known length and are not counted."
+
+- Three metrics sit in one row from 720px; below that the third spans both columns.
+- The panel is not shown when nothing is waiting.
+- For each filesystem the waiting jobs may not fit on, a warn callout follows the panel: "The queue may run out of space" with the same sentence as the Dashboard problem, "Jobs wait for space rather than fail, but the queue slows down.", and a link to the backups setting.
+- It totals every waiting job and reads free space, so it is not part of the 2-second poll. It refreshes itself every 60 seconds (`/queue/backlog`) while anything is waiting, and after a Cancel or Pause over HTMX it is swapped out of band. Inside the polled fragment it sits in a slot with `hx-preserve`, so each poll keeps the one already on the page.
+
+**Waiting.** A table: position, title, change, estimated saving, policy, and a Cancel button per row. Above it: "Showing the first 100 of 1,432 waiting jobs." (or "3 jobs waiting." when all are shown) and the run order, "Manual jobs first, then the biggest savings." The list shows the first 100 in run order; "Show more" adds 100 at a time (`/queue?waiting=200`, up to 1,000). Over HTMX it swaps the fragment and pushes the new address; without JavaScript it is a plain link. The length is kept on `#queue-live` through `hx-vals`, so polls and actions keep it. The total is a count query and only the listed jobs are loaded, so the 2-second poll stays light however long the queue is. A job that was stopped and queued again shows why under its title in `--ink-2`: "Stopped because the processing schedule ended. It will start again in the next active hour; the original is unchanged." or "Interrupted by a restart; it will run again." Empty: "Nothing waiting." There is no "Cancel all waiting" action; cancel jobs one at a time.
 
 **Failed in the last hour.** A panel below the waiting table lists jobs that failed in the last hour, each with a "Retry" button and a link to History. It is not shown when nothing has failed recently.
 
@@ -881,7 +893,7 @@ Saving **Libraries**, **Watched state** or **Path mappings** starts a full sync,
   - With no hours on, a warn callout: "No hours are active, so nothing will be encoded." The Dashboard lists the same as a problem, "No processing hours are switched on", linking here.
   - Saving clears the old daily window settings and wakes the queue, so a change applies at once: a running encode stops if its hour is now off.
 - **Concurrency.** Jobs at a time, 1 to 4. Hint: "More than one job at a time is only faster with a hardware encoder."
-- **Saving and backups.** Minimum saving (replace a file only if it saves at least [10] %) and how many days to keep replaced originals as backups ([7] by default), in one section.
+- **Saving and backups.** Minimum saving (replace a file only if it saves at least [10] %) and how many days to keep replaced originals as backups ([7] by default), in one section. Under the backups field, a note gives the space backups hold now, "Backups currently hold 96.4 GB in 57 files." (or "No backups are kept at the moment."), and "For a large first run, a short retention (0 or 1 day) frees space sooner."
 - **Hardware.** The capabilities table from setup step 5, with the device name and ffmpeg version, the time of the last test, and "Test again" (runs with a meter per row).
 - **HDR.** Read-only summary of how JellyTrim treats each HDR type, linking to the policy option "Allow HDR10+ and Dolby Vision to be reduced to HDR10", which is set per policy (off by default).
 - **Processing.** "Queue matching items automatically" toggle (on by default; only applies when Dry Run is off). Validation: "Full decode check" (default) or "Sampled decode check (faster)".

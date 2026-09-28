@@ -72,6 +72,9 @@ type PolicyPreviewView struct {
 	After    string
 	Saving   string
 	Samples  []PolicySampleView
+	// SampleNote is "Estimated from 1,000 of 12,345 items." when the outcome
+	// counts and sizes come from a sample; "" when they are counted.
+	SampleNote string
 }
 
 // PolicySampleView is one example item in the preview.
@@ -523,8 +526,13 @@ templ policyAction(v PolicyEditorView) {
 	}
 }
 
+// policyItoa is a count with thousands separators: "12,345".
 func policyItoa(n int) string {
-	return strconv.Itoa(n)
+	s := strconv.Itoa(n)
+	for i := len(s) - 3; i > 0 && s[i-1] != '-'; i -= 3 {
+		s = s[:i] + "," + s[i:]
+	}
+	return s
 }
 
 func policyItems(n int) string {
@@ -542,6 +550,9 @@ func policyStatusText(v PolicyPreviewView) string {
 		return "Preview waiting for a complete policy."
 	case v.Protect:
 		return "Preview updated. Matches " + policyItoa(v.Matches) + " " + policyItems(v.Matches) + ", would protect " + policyItoa(v.Wins) + "."
+	}
+	if v.SampleNote != "" {
+		return "Preview updated. Matches " + policyItoa(v.Matches) + " " + policyItems(v.Matches) + ", would optimise about " + policyItoa(v.Optimise) + ". " + v.SampleNote
 	}
 	return "Preview updated. Matches " + policyItoa(v.Matches) + " " + policyItems(v.Matches) + ", would optimise " + policyItoa(v.Optimise) + "."
 }
@@ -575,7 +586,7 @@ templ policyPreviewNumbers(v PolicyPreviewView) {
 		if v.Protect {
 			@Metric("Would protect", policyItoa(v.Wins), policyItems(v.Wins), "", false)
 		} else {
-			@Metric("Would optimise", policyItoa(v.Optimise), policyItems(v.Optimise), "", false)
+			@Metric("Would optimise", policyItoa(v.Optimise), policyItems(v.Optimise), v.SampleNote, v.SampleNote != "")
 		}
 	}
 	if v.Matches == 0 {
@@ -585,16 +596,19 @@ templ policyPreviewNumbers(v PolicyPreviewView) {
 			@policyPrintRow("Decided by this policy", policyItoa(v.Wins), false)
 			@policyPrintRow("Decided by a higher policy", policyItoa(v.Higher), false)
 			if !v.Protect {
-				@policyPrintRow("Would optimise", policyItoa(v.Optimise), false)
-				@policyPrintRow("Already optimal", policyItoa(v.Optimal), false)
-				@policyPrintRow("Skipped", policyItoa(v.Skipped), false)
+				@policyPrintRow("Would optimise", policyItoa(v.Optimise), v.SampleNote != "")
+				@policyPrintRow("Already optimal", policyItoa(v.Optimal), v.SampleNote != "")
+				@policyPrintRow("Skipped", policyItoa(v.Skipped), v.SampleNote != "")
 			}
 			if v.Current != "" {
-				@policyPrintRow("Current size", v.Current, false)
+				@policyPrintRow("Current size", v.Current, v.SampleNote != "")
 				@policyPrintRow("Estimated after", v.After, true)
 				@policyPrintRow("Estimated saving", v.Saving, true)
 			}
 		</dl>
+		if v.SampleNote != "" && !v.Protect {
+			<p class="policy-preview__note">{ v.SampleNote } The counts of items to optimise, already optimal and skipped, and the sizes, are scaled up from a sample. Matches and the decided counts are exact.</p>
+		}
 		if v.Current != "" {
 			<p class="policy-preview__note">Estimates are based on each file's bitrate and the chosen quality. Real results vary.</p>
 		}

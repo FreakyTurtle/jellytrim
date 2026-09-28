@@ -44,7 +44,10 @@ func Open(ctx context.Context, dir string) (*Store, error) {
 	q := url.Values{}
 	// synchronous(FULL): the job journal must be on disk before the
 	// filesystem step it describes happens.
-	for _, p := range []string{"foreign_keys(1)", "journal_mode(WAL)", "busy_timeout(5000)", "synchronous(FULL)"} {
+	for _, p := range []string{"foreign_keys(1)", "journal_mode(WAL)", "busy_timeout(5000)", "synchronous(FULL)",
+		// Shrink the WAL file back after large writes (a first sync of a big
+		// library) instead of leaving it at its largest size.
+		"journal_size_limit(8388608)"} {
 		q.Add("_pragma", p)
 	}
 	// Write transactions take the write lock when they begin. A deferred

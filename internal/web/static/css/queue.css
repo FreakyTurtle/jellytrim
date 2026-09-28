@@ -191,6 +191,63 @@
   text-align: end;
 }
 
+/* The waiting list's count and run order, above the table, and the Show
+   more step below it. */
+.queue-waiting__intro {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-4);
+  padding: var(--space-3) var(--space-5);
+  border-block-end: var(--border-soft);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.queue-waiting__intro > p:first-child {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.queue-waiting__more {
+  padding: var(--space-3) var(--space-5);
+  border-block-start: var(--border-soft);
+}
+
+/* Backlog. The slot is not a box of its own, so an empty backlog adds no
+   gap to the queue's grid. */
+.queue-backlog {
+  display: contents;
+}
+
+.queue-backlog__body {
+  display: grid;
+  gap: var(--gutter);
+  min-inline-size: 0;
+}
+
+.queue-backlog__body:empty {
+  display: none;
+}
+
+/* Three metrics: the last spans both phone columns, then one row of three. */
+.metrics.queue-backlog__metrics > .metric:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
+.queue-backlog__notes {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-5);
+  border-block-start: var(--border);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.queue-backlog__notes > p {
+  max-inline-size: none;
+}
+
 /* Recently failed */
 
 .queue-failed {
@@ -401,6 +458,16 @@ html:not(.js) .dialog [data-dialog-close] {
   margin-block-start: 0;
 }
 
+@media (min-width: 720px) {
+  .metrics.queue-backlog__metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .metrics.queue-backlog__metrics > .metric:last-child:nth-child(odd) {
+    grid-column: auto;
+  }
+}
+
 @media (min-width: 1080px) {
   .history-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -427,6 +494,16 @@ html:not(.js) .dialog [data-dialog-close] {
 
   .queue-table__pos {
     inline-size: auto;
+  }
+
+  .queue-waiting__intro,
+  .queue-waiting__more,
+  .queue-backlog__notes {
+    padding-inline: var(--space-4);
+  }
+
+  .queue-waiting__more .btn {
+    inline-size: 100%;
   }
 
   .queue-table__action,

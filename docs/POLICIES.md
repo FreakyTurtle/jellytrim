@@ -115,6 +115,8 @@ Before enabling a policy, the editor shows:
 - the estimated current and resulting size, labelled as estimates;
 - a sample of matching items, each linking to its explanation.
 
+Match counts are exact. When a policy would decide more than 1,000 items, the split into optimise, already optimal and skipped, and the size estimates, are worked out from an evenly spaced sample of 1,000 of them and scaled up; the editor says "Estimated from 1,000 of N items". The Dry Run summary and the Library always use the full evaluation.
+
 The Dry Run summary is the preview of all enabled policies together.
 
 ## Storage

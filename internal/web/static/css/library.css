@@ -183,6 +183,7 @@
   grid-template-columns: auto minmax(0, 1fr);
   gap: var(--space-2);
   align-items: baseline;
+  overflow-wrap: anywhere; /* long folder paths in space warnings */
 }
 
 .problems .problems__examples {
@@ -198,6 +199,13 @@
 
 .problems__reason {
   color: var(--ink-2);
+}
+
+/* A problem's actions: the main one first, then any others. */
+.problems__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
 }
 
 .problems__item > p:not(.problems__text),
@@ -633,7 +641,8 @@
   /* The title link is the row's only way in, so it gets a full touch
      target. The same for the item links on the Dashboard. */
   .table.library-table td.library-table__title > a,
-  .problems__examples > li > a {
+  .problems__examples > li > a,
+  .problems__links > a {
     display: flex;
     align-items: center;
     min-block-size: var(--touch-target);

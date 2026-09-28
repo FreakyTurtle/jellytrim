@@ -33,25 +33,31 @@ var ActiveStatuses = []string{JobWaiting, JobAnalysing, JobEncoding, JobValidati
 
 // Job is one queued or finished optimisation.
 type Job struct {
-	ID              int64
-	ItemID          string
-	ItemName        string
-	LibraryName     string
-	PolicyID        *int64
-	PolicyName      string
-	Status          string
-	Trigger         string
-	Plan            string // JSON plan.Plan
-	LocalPath       string
-	JellyfinPath    string
-	SourceIdentity  string // JSON FileIdentity
-	OutputIdentity  string // JSON FileIdentity of the file the job wrote
-	SourceSummary   string
-	TargetSummary   string
-	SourceSize      *int64
-	OutputSize      *int64
-	EstMin          *int64
-	EstMax          *int64
+	ID             int64
+	ItemID         string
+	ItemName       string
+	LibraryName    string
+	PolicyID       *int64
+	PolicyName     string
+	Status         string
+	Trigger        string
+	Plan           string // JSON plan.Plan
+	LocalPath      string
+	JellyfinPath   string
+	SourceIdentity string // JSON FileIdentity
+	OutputIdentity string // JSON FileIdentity of the file the job wrote
+	SourceSummary  string
+	TargetSummary  string
+	SourceSize     *int64
+	OutputSize     *int64
+	EstMin         *int64
+	EstMax         *int64
+	// EstSaving is the conservative estimated saving: the source size
+	// minus EstMax, never negative. The store sets it; the queue runs the
+	// biggest savings first.
+	EstSaving int64
+	// DurationMs is the source's duration from its probe, 0 when unknown.
+	DurationMs      int64
 	Progress        float64
 	Speed           float64
 	ETASeconds      *int64
@@ -102,11 +108,7 @@ func (s *Store) CreateJob(ctx context.Context, j Job) (int64, bool, error) {
 			id = existing
 			return err
 		}
-		res, err := tx.ExecContext(ctx, `INSERT INTO jobs (item_id, item_name, library_name, policy_id, policy_name, status, trigger,
-			plan, local_path, jellyfin_path, source_summary, target_summary, source_size, est_min_bytes, est_max_bytes, created_at)
-			VALUES (?, ?, ?, ?, ?, 'waiting', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			j.ItemID, j.ItemName, j.LibraryName, j.PolicyID, j.PolicyName, orDefault(j.Trigger, "auto"), j.Plan, j.LocalPath,
-			j.JellyfinPath, j.SourceSummary, j.TargetSummary, j.SourceSize, j.EstMin, j.EstMax, s.unix())
+		res, err := tx.ExecContext(ctx, insertJobSQL, jobInsertArgs(j, s.unix())...)
 		if isUniqueViolation(err) {
 			id, err = blockingJob(ctx, tx, j.ItemID, j.LocalPath)
 			return err
@@ -121,21 +123,43 @@ func (s *Store) CreateJob(ctx context.Context, j Job) (int64, bool, error) {
 	return id, created, err
 }
 
+const insertJobSQL = `INSERT INTO jobs (item_id, item_name, library_name, policy_id, policy_name, status, trigger,
+	plan, local_path, jellyfin_path, source_summary, target_summary, source_size, est_min_bytes, est_max_bytes,
+	est_saving, duration_ms, created_at)
+	VALUES (?, ?, ?, ?, ?, 'waiting', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+
+func jobInsertArgs(j Job, now int64) []any {
+	return []any{j.ItemID, j.ItemName, j.LibraryName, j.PolicyID, j.PolicyName, orDefault(j.Trigger, "auto"), j.Plan,
+		j.LocalPath, j.JellyfinPath, j.SourceSummary, j.TargetSummary, j.SourceSize, j.EstMin, j.EstMax,
+		estSaving(j), max(j.DurationMs, 0), now}
+}
+
+// estSaving is the conservative saving: source size minus the largest
+// estimated output. It is 0 when either is unknown.
+func estSaving(j Job) int64 {
+	if j.SourceSize == nil || j.EstMax == nil {
+		return 0
+	}
+	return max(*j.SourceSize-*j.EstMax, 0)
+}
+
 // blockingJob returns the oldest job that stops a new one for the item or
 // file: an active job, or one that needs attention. It returns 0 when there
-// is none.
+// is none. The two halves use the jobs_item and jobs_local_path indexes; an
+// OR across both columns would scan every job.
 func blockingJob(ctx context.Context, tx *sql.Tx, itemID, localPath string) (int64, error) {
-	var id int64
-	err := tx.QueryRowContext(ctx, `SELECT id FROM jobs
-		WHERE status IN ('waiting', 'analysing', 'encoding', 'validating', 'replacing', 'attention')
-		AND (item_id = ? OR (? != '' AND local_path = ?)) ORDER BY id LIMIT 1`, itemID, localPath, localPath).Scan(&id)
-	if errors.Is(err, sql.ErrNoRows) {
-		return 0, nil
-	}
+	var id sql.NullInt64
+	err := tx.QueryRowContext(ctx, `SELECT MIN(id) FROM (
+		SELECT id FROM jobs WHERE item_id = ?
+			AND status IN ('waiting', 'analysing', 'encoding', 'validating', 'replacing', 'attention')
+		UNION ALL
+		SELECT id FROM jobs WHERE local_path = ? AND local_path != ''
+			AND status IN ('waiting', 'analysing', 'encoding', 'validating', 'replacing', 'attention'))`,
+		itemID, localPath).Scan(&id)
 	if err != nil {
 		return 0, fmt.Errorf("checking for a queued job: %w", err)
 	}
-	return id, nil
+	return id.Int64, nil
 }
 
 func isUniqueViolation(err error) bool {
@@ -165,7 +189,7 @@ func orDefault(s, d string) string {
 
 const jobColumns = `id, item_id, item_name, library_name, policy_id, policy_name, status, trigger, plan, local_path,
 	jellyfin_path, source_identity, output_identity, source_summary, target_summary, source_size, output_size, est_min_bytes, est_max_bytes,
-	progress, speed, eta_seconds, encoder, summary, diagnostics, partial_path, backup_path, backup_expires_at, restored_at,
+	est_saving, duration_ms, progress, speed, eta_seconds, encoder, summary, diagnostics, partial_path, backup_path, backup_expires_at, restored_at,
 	created_at, started_at, finished_at`
 
 func scanJob(r scanner) (Job, error) {
@@ -174,7 +198,7 @@ func scanJob(r scanner) (Job, error) {
 	var created int64
 	err := r.Scan(&j.ID, &j.ItemID, &j.ItemName, &j.LibraryName, &pid, &j.PolicyName, &j.Status, &j.Trigger, &j.Plan,
 		&j.LocalPath, &j.JellyfinPath, &j.SourceIdentity, &j.OutputIdentity, &j.SourceSummary, &j.TargetSummary, &src, &out, &lo, &hi,
-		&j.Progress, &j.Speed, &eta, &j.Encoder, &j.Summary, &j.Diagnostics, &j.PartialPath, &j.BackupPath, &bexp, &rest,
+		&j.EstSaving, &j.DurationMs, &j.Progress, &j.Speed, &eta, &j.Encoder, &j.Summary, &j.Diagnostics, &j.PartialPath, &j.BackupPath, &bexp, &rest,
 		&created, &started, &finished)
 	if err != nil {
 		return j, err
@@ -213,20 +237,36 @@ func (s *Store) jobList(ctx context.Context, q string, args ...any) ([]Job, erro
 	return out, rows.Err()
 }
 
-// ActiveJobs lists waiting and running jobs, running first, then oldest.
+// waitingOrder is the order waiting jobs run in: jobs the user queued by
+// hand first, then the biggest estimated saving, then the oldest. It must
+// match the jobs_waiting_order index expressions.
+const waitingOrder = `(trigger != 'manual'), est_saving DESC, id`
+
+// ActiveJobs lists waiting and running jobs: running first (oldest first),
+// then waiting jobs in the order they will run.
 func (s *Store) ActiveJobs(ctx context.Context) ([]Job, error) {
 	return s.jobList(ctx, `WHERE status IN ('waiting', 'analysing', 'encoding', 'validating', 'replacing')
-		ORDER BY CASE status WHEN 'waiting' THEN 1 ELSE 0 END, id`)
+		ORDER BY status = 'waiting', CASE WHEN status = 'waiting' THEN (trigger != 'manual') END,
+		CASE WHEN status = 'waiting' THEN est_saving END DESC, id`)
 }
 
-// NextWaitingJob returns the oldest waiting job, or ErrNotFound.
+// NextWaitingJob returns the waiting job that should run next, or
+// ErrNotFound.
 func (s *Store) NextWaitingJob(ctx context.Context) (Job, error) {
-	j, err := scanJob(s.db.QueryRowContext(ctx, `SELECT `+jobColumns+` FROM jobs WHERE status = 'waiting'
-		ORDER BY CASE trigger WHEN 'manual' THEN 0 ELSE 1 END, id LIMIT 1`))
-	if errors.Is(err, sql.ErrNoRows) {
-		return j, ErrNotFound
+	jobs, err := s.NextWaitingJobs(ctx, 1)
+	if err != nil {
+		return Job{}, err
 	}
-	return j, err
+	if len(jobs) == 0 {
+		return Job{}, ErrNotFound
+	}
+	return jobs[0], nil
+}
+
+// NextWaitingJobs returns up to limit waiting jobs in the order they should
+// run, so the dispatcher can pass over one that cannot start yet.
+func (s *Store) NextWaitingJobs(ctx context.Context, limit int) ([]Job, error) {
+	return s.jobList(ctx, `WHERE status = 'waiting' ORDER BY `+waitingOrder+` LIMIT ?`, limit) // #nosec G202 -- constant order
 }
 
 // HistoryJobs lists finished jobs, newest first.
@@ -422,7 +462,9 @@ func (s *Store) JobsNeedingAttention(ctx context.Context) ([]Job, error) {
 func (s *Store) ItemsWithRecentJobs(ctx context.Context, since time.Time) (map[string]bool, error) {
 	// Jobs skipped before encoding (no encoder yet, file changing) cost
 	// nothing to retry, so they do not hold an item back.
-	rows, err := s.db.QueryContext(ctx, `SELECT DISTINCT item_id FROM jobs WHERE created_at >= ?
+	// No DISTINCT: it would make SQLite walk jobs_item instead of the
+	// jobs_created range; the map removes duplicates.
+	rows, err := s.db.QueryContext(ctx, `SELECT item_id FROM jobs WHERE created_at >= ?
 		AND NOT (status = 'skipped' AND json_valid(diagnostics) AND json_extract(diagnostics, '$.step') = 'analysing')`, since.UTC().Unix())
 	if err != nil {
 		return nil, err

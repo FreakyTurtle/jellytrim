@@ -111,6 +111,9 @@ func (s *Server) settingsView(r *http.Request) (views.SettingsView, error) {
 		return v, err
 	}
 	settingsFromStore(&v, st)
+	if v.BackupUse, err = s.backupUse(ctx); err != nil {
+		return v, err
+	}
 	sc, err := s.scheduleNow(ctx)
 	if err != nil {
 		return v, err

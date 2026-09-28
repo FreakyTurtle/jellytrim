@@ -40,9 +40,18 @@ type Probe struct {
 	Container    string
 }
 
-// SaveProbe stores or replaces an item's probe.
+// SaveProbe stores or replaces an item's probe. The JSON is compressed
+// (see packJSON).
 func (s *Store) SaveProbe(ctx context.Context, p Probe) error {
-	_, err := s.db.ExecContext(ctx, `INSERT INTO probes (item_id, local_path, dev, inode, size, mtime_ns, nlink, is_symlink,
+	probeJSON, err := packJSON(p.ProbeJSON)
+	if err != nil {
+		return fmt.Errorf("saving probe for %s: %w", p.ItemID, err)
+	}
+	frameJSON, err := packJSON(p.FrameJSON)
+	if err != nil {
+		return fmt.Errorf("saving probe for %s: %w", p.ItemID, err)
+	}
+	_, err = s.db.ExecContext(ctx, `INSERT INTO probes (item_id, local_path, dev, inode, size, mtime_ns, nlink, is_symlink,
 		probe_json, frame_json, error, probed_at, video_codec, width, height, resolution, hdr, video_bitrate, duration_ms, container)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(item_id) DO UPDATE SET local_path = excluded.local_path, dev = excluded.dev, inode = excluded.inode,
@@ -52,7 +61,7 @@ func (s *Store) SaveProbe(ctx context.Context, p Probe) error {
 		height = excluded.height, resolution = excluded.resolution, hdr = excluded.hdr,
 		video_bitrate = excluded.video_bitrate, duration_ms = excluded.duration_ms, container = excluded.container`,
 		p.ItemID, p.LocalPath, int64(p.Dev), int64(p.Inode), p.Size, p.MtimeNs, p.Nlink, p.IsSymlink,
-		p.ProbeJSON, p.FrameJSON, p.Error, s.unix(), p.VideoCodec, p.Width, p.Height, p.Resolution, p.HDR,
+		probeJSON, frameJSON, p.Error, s.unix(), p.VideoCodec, p.Width, p.Height, p.Resolution, p.HDR,
 		p.VideoBitrate, p.DurationMs, p.Container)
 	if err != nil {
 		return fmt.Errorf("saving probe for %s: %w", p.ItemID, err)
@@ -66,12 +75,22 @@ const probeColumns = `item_id, local_path, dev, inode, size, mtime_ns, nlink, is
 func scanProbe(r scanner) (Probe, error) {
 	var p Probe
 	var dev, inode, probed int64
-	err := r.Scan(&p.ItemID, &p.LocalPath, &dev, &inode, &p.Size, &p.MtimeNs, &p.Nlink, &p.IsSymlink, &p.ProbeJSON,
-		&p.FrameJSON, &p.Error, &probed, &p.VideoCodec, &p.Width, &p.Height, &p.Resolution, &p.HDR, &p.VideoBitrate,
+	var probeJSON, frameJSON []byte
+	err := r.Scan(&p.ItemID, &p.LocalPath, &dev, &inode, &p.Size, &p.MtimeNs, &p.Nlink, &p.IsSymlink, &probeJSON,
+		&frameJSON, &p.Error, &probed, &p.VideoCodec, &p.Width, &p.Height, &p.Resolution, &p.HDR, &p.VideoBitrate,
 		&p.DurationMs, &p.Container)
+	if err != nil {
+		return p, err
+	}
 	p.Dev, p.Inode = uint64(dev), uint64(inode)
 	p.ProbedAt = time.Unix(probed, 0).UTC()
-	return p, err
+	if p.ProbeJSON, err = unpackJSON(probeJSON); err != nil {
+		return p, fmt.Errorf("probe for %s: %w", p.ItemID, err)
+	}
+	if p.FrameJSON, err = unpackJSON(frameJSON); err != nil {
+		return p, fmt.Errorf("probe for %s: %w", p.ItemID, err)
+	}
+	return p, nil
 }
 
 // Probe returns an item's cached probe, or ErrNotFound.

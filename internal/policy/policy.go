@@ -179,8 +179,63 @@ type Item struct {
 	DateAdded    *time.Time
 	Users        []UserState // only the users whose watch state counts
 	WatchMode    WatchMode
-	File         *media.File // nil until probed
-	Size         int64       // bytes on disk, when known without a probe
+	// Facts are what the file conditions read. When Facts.Probed is false
+	// they are worked out from File instead, so callers holding a parsed
+	// file need not fill them.
+	Facts Facts
+	File  *media.File // optional: the parsed probe, nil until probed
+	Size  int64       // bytes on disk, when known without a probe
+}
+
+// Facts are the probed file facts the conditions use: the main video
+// stream's codec, frame size and bitrate, the dynamic range and the file
+// size. They can be read from the summary stored with a probe, so a whole
+// library is evaluated without parsing every file's ffprobe output.
+type Facts struct {
+	// Probed is false until the file has been inspected. Every file
+	// condition then fails as "not inspected yet".
+	Probed bool
+	// Codec is the main video codec, or "" when unknown or there is no
+	// video stream.
+	Codec media.Codec
+	// Width and Height are the main video's frame size, or 0 when unknown.
+	Width  int
+	Height int
+	// VideoBitrate is the main video's bits per second, valid when
+	// BitrateKnown is true.
+	VideoBitrate int64
+	BitrateKnown bool
+	// HDR is the main video's dynamic range class; Unclear when there is no
+	// video stream.
+	HDR media.HDRClass
+	// Size is the file size in bytes from the probe, or 0 when unknown.
+	Size int64
+}
+
+// Resolution is the main video's resolution class, or 0 when unknown.
+func (f Facts) Resolution() media.Resolution { return media.ClassOf(f.Width, f.Height) }
+
+// FactsFromFile reads the facts from a parsed probe. A nil file gives facts
+// that are not probed.
+func FactsFromFile(f *media.File) Facts {
+	if f == nil {
+		return Facts{}
+	}
+	out := Facts{Probed: true, HDR: f.HDR().Class, Size: f.Size}
+	out.VideoBitrate, out.BitrateKnown = f.VideoBitrate()
+	if v, ok := f.MainVideo(); ok {
+		out.Codec, out.Width, out.Height = v.Codec, v.Width, v.Height
+	}
+	return out
+}
+
+// fileFacts returns the item's facts, working them out from File when the
+// caller did not supply them.
+func (it Item) fileFacts() Facts {
+	if it.Facts.Probed {
+		return it.Facts
+	}
+	return FactsFromFile(it.File)
 }
 
 // ErrInvalidPolicy is returned by Validate.

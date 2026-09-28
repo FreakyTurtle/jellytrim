@@ -4,8 +4,34 @@ import "strconv"
 
 // QueuePageData is everything the Queue page shows.
 type QueuePageData struct {
-	Shell Shell
-	Live  QueueLive
+	Shell   Shell
+	Live    QueueLive
+	Backlog QueueBacklog
+}
+
+// QueueBacklog is the rough estimate of the waiting work, refreshed once a
+// minute rather than with the 2-second poll.
+type QueueBacklog struct {
+	Show         bool   // false when nothing is waiting
+	Files        string // "1,432"
+	FilesUnit    string // "files"
+	Saving       string // the middle of the saving range, "1.3"
+	SavingUnit   string // "TB"
+	SavingNote   string // "Estimate: 1.2 to 1.5 TB from 4.8 TB of files."
+	TimeValue    string // "3"; "" when there is no estimate
+	TimeUnit     string // "weeks"
+	TimeNote     string // "Estimate at your 42 active hours a week."
+	ScheduleLink bool   // offer the processing schedule setting
+	Speed        string // what the estimate is based on
+	Unknown      string // files left out for want of a length
+	Risks        []string
+	Poll         bool
+	OOB          bool // an out-of-band swap after a queue action
+}
+
+// QueueHold is the dispatcher holding a job back for free space.
+type QueueHold struct {
+	Reason string
 }
 
 // QueueLive is the part of the Queue page that refreshes while jobs run.
@@ -19,9 +45,18 @@ type QueueLive struct {
 	LiveURL  string // the fragment's own URL, carrying what the browser last saw
 	Announce string // stage changes and finished jobs, for the live region
 	Notice   *QueueNotice
+	Hold     *QueueHold
 	Running  []QueueRunning
 	Waiting  []QueueWaiting
 	Failed   []QueueFailed
+	// Backlog is rendered in full on the page load. The polled fragment
+	// leaves it out, and htmx keeps the one already on the page.
+	Backlog *QueueBacklog
+	// The waiting list shows the first WaitingLimit jobs in run order.
+	WaitingTotal int
+	WaitingLimit int
+	WaitingCount string // "Showing the first 100 of 1,432 waiting jobs."
+	MoreLimit    int    // the next page size for Show more; 0 when there is none
 }
 
 // QueueNotice is a callout: the result of an action, or why it did not work.
@@ -90,6 +125,16 @@ func queueHistoryURL(id int64) string {
 	return "/history/" + strconv.FormatInt(id, 10)
 }
 
+// queueWaitingVals keeps the waiting list's length in every request made
+// from inside the live fragment (polls and actions), through hx-vals.
+func queueWaitingVals(limit int) string {
+	return `{"waiting":"` + strconv.Itoa(limit) + `"}`
+}
+
+func queueMoreURL(limit int) string {
+	return "/queue?waiting=" + strconv.Itoa(limit) + "#queue-waiting"
+}
+
 // queuePollTrigger polls every 2 seconds, but not while a confirmation
 // dialog is open inside the fragment, so the swap never closes it.
 const queuePollTrigger = "every 2s [!document.querySelector('#queue-live dialog[open]')]"
@@ -100,7 +145,89 @@ templ QueuePage(v QueuePageData) {
 	@Layout(v.Shell) {
 		@PageHeader("Queue", "Files being optimised now and waiting their turn.")
 		<p id="queue-announce" class="visually-hidden" role="status" aria-live="polite" aria-atomic="true"></p>
-		@QueueLiveFragment(v.Live)
+		@QueueLiveFragment(queueWithBacklog(v))
+	}
+}
+
+func queueWithBacklog(v QueuePageData) QueueLive {
+	live := v.Live
+	live.Backlog = &v.Backlog
+	return live
+}
+
+// QueueActionResult answers a queue action over HTMX: the live fragment,
+// and the backlog swapped out of band, since the action changed it.
+templ QueueActionResult(v QueueLive, b QueueBacklog) {
+	@QueueLiveFragment(v)
+	@QueueBacklogFragment(b)
+}
+
+// queueBacklogSlot holds the backlog inside the polled fragment. hx-preserve
+// keeps the element already on the page when the fragment is swapped, so
+// the 2-second poll never recomputes the estimate.
+templ queueBacklogSlot(b *QueueBacklog) {
+	<div class="queue-backlog" id="queue-backlog" hx-preserve="true">
+		if b != nil {
+			@QueueBacklogFragment(*b)
+		}
+	</div>
+}
+
+// QueueBacklogFragment is the backlog estimate and any space warnings. It
+// refreshes itself once a minute.
+templ QueueBacklogFragment(b QueueBacklog) {
+	<div
+		class="queue-backlog__body"
+		id="queue-backlog-body"
+		if b.Poll {
+			hx-get="/queue/backlog"
+			hx-trigger="every 60s"
+			hx-swap="outerHTML"
+		}
+		if b.OOB {
+			hx-swap-oob="true"
+		}
+	>
+		if b.Show {
+			@queueBacklogPanel(b)
+			for _, r := range b.Risks {
+				@Callout("warn", "The queue may run out of space", r) {
+					<p class="callout__text">Jobs wait for space rather than fail, but the queue slows down. Free some space, or keep backups for fewer days.</p>
+					@CalloutActions() {
+						<a class="btn btn--secondary" href="/settings#safety">Change how long backups are kept</a>
+					}
+				}
+			}
+		}
+	</div>
+}
+
+templ queueBacklogPanel(b QueueBacklog) {
+	@PanelWith(PanelProps{Tab: "Backlog", ID: "queue-backlog-panel", Flush: true}) {
+		<div class="metrics queue-backlog__metrics">
+			@Metric("Waiting", b.Files, b.FilesUnit, "Not started yet.", false)
+			@Metric("To save", b.Saving, b.SavingUnit, b.SavingNote, true)
+			@Metric("Time to finish", b.TimeValue, b.TimeUnit, b.TimeNote, true)
+		</div>
+		<div class="queue-backlog__notes">
+			<p>{ b.Speed }</p>
+			if b.Unknown != "" {
+				<p>{ b.Unknown }</p>
+			}
+			if b.ScheduleLink {
+				<p><a href="/settings#schedule">Change the processing schedule</a></p>
+			}
+		</div>
+	}
+}
+
+// queueHoldCallout explains a job held back for free space.
+templ queueHoldCallout(h QueueHold) {
+	@Callout("warn", "The next job is waiting for free space", h.Reason) {
+		<p class="callout__text">To start sooner, free some space on that drive, or keep backups for fewer days so older ones are removed sooner.</p>
+		@CalloutActions() {
+			<a class="btn btn--secondary" href="/settings#safety">Change how long backups are kept</a>
+		}
 	}
 }
 
@@ -109,6 +236,7 @@ templ QueueLiveFragment(v QueueLive) {
 	<div
 		class="queue"
 		id="queue-live"
+		hx-vals={ queueWaitingVals(v.WaitingLimit) }
 		if v.Poll {
 			hx-get={ v.LiveURL }
 			hx-trigger={ queuePollTrigger }
@@ -132,9 +260,13 @@ templ QueueLiveFragment(v QueueLive) {
 				}
 			}
 		}
+		if v.Hold != nil {
+			@queueHoldCallout(*v.Hold)
+		}
 		for _, r := range v.Running {
 			@queueRunningPanel(r)
 		}
+		@queueBacklogSlot(v.Backlog)
 		@queueWaitingPanel(v)
 		if len(v.Failed) > 0 {
 			@queueFailedPanel(v.Failed)
@@ -276,7 +408,25 @@ templ queueWaitingPanel(v QueueLive) {
 				@EmptyState("0", "No jobs in the queue", "Jobs appear here when Dry Run is off and an enabled policy matches an item after a sync, or when you press Optimise now on an item.", "/policies", "Review policies")
 			}
 		} else {
+			<div class="queue-waiting__intro">
+				<p>{ v.WaitingCount }</p>
+				<p>Manual jobs first, then the biggest savings.</p>
+			</div>
 			@queueWaitingTable(v.Waiting)
+			if v.MoreLimit > 0 {
+				<div class="queue-waiting__more">
+					<a
+						class="btn btn--secondary"
+						id="queue-waiting-more"
+						href={ templ.SafeURL(queueMoreURL(v.MoreLimit)) }
+						hx-get="/queue/live"
+						hx-vals={ queueWaitingVals(v.MoreLimit) }
+						hx-target="#queue-live"
+						hx-swap="outerHTML"
+						hx-push-url={ queueMoreURL(v.MoreLimit) }
+					>Show more</a>
+				</div>
+			}
 		}
 	}
 }

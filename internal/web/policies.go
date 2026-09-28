@@ -894,9 +894,20 @@ func (s *Server) policyPreviewView(ctx context.Context, id int64, f policyForm, 
 		v.Failed = true
 		return v
 	}
+	policyPreviewResult(&v, res)
+	return v
+}
+
+// policyPreviewResult fills the preview's numbers. Matches and the decided
+// counts are always exact; above the sample size the outcome counts and
+// sizes are estimated from a sample, and the view says so.
+func policyPreviewResult(v *views.PolicyPreviewView, res library.Preview) {
 	v.Ready = true
 	v.Matches, v.Wins, v.Higher = res.Matches, res.Wins, res.Matches-res.Wins
 	v.Optimise, v.Optimal, v.Skipped = res.Optimise, res.Optimal, res.Skipped
+	if res.Sampled {
+		v.SampleNote = "Estimated from " + libraryCount(res.SampleSize) + " of " + libraryCount(res.Wins) + " items."
+	}
 	if res.Optimise > 0 {
 		v.Current = units.Bytes(res.Current)
 		v.After = policyRange(res.AfterMin, res.AfterMax)
@@ -908,7 +919,6 @@ func (s *Server) policyPreviewView(ctx context.Context, id int64, f policyForm, 
 			Outcome: sm.Outcome.Label(), Lamp: policyOutcomeLamp(sm.Outcome), Summary: sm.Summary,
 		})
 	}
-	return v
 }
 
 // policyPlace gives the previewed policy its real position: its stored

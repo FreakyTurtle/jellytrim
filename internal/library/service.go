@@ -58,6 +58,9 @@ type Service struct {
 	status Status
 	// evalPending asks for an evaluation after the current run ends.
 	evalPending bool
+	// pageSize is how many items evaluation reads and decides together
+	// (evalBatch); tests make it small to cover many pages.
+	pageSize int
 }
 
 // Options configure a Service.
@@ -72,7 +75,8 @@ type Options struct {
 
 // New builds a Service.
 func New(o Options) *Service {
-	s := &Service{store: o.Store, log: o.Log, prober: o.Prober, encoders: o.Encoders, now: o.Now, newClient: o.NewClient}
+	s := &Service{store: o.Store, log: o.Log, prober: o.Prober, encoders: o.Encoders, now: o.Now, newClient: o.NewClient,
+		pageSize: evalBatch}
 	if s.log == nil {
 		s.log = slog.Default()
 	}

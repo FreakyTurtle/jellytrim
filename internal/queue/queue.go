@@ -56,8 +56,14 @@ type Service struct {
 	// scheduleStopped marks running jobs stopped because the schedule ended.
 	scheduleStopped map[int64]bool
 	wake            chan struct{}
-	wg              sync.WaitGroup
-	base            context.Context
+	// space reads free space; hold is the job held back for space, logged
+	// at holdLogged; reserved is the space each running job may still use.
+	space      SpaceFS
+	hold       *SpaceHold
+	holdLogged time.Time
+	reserved   map[int64]reservation
+	wg         sync.WaitGroup
+	base       context.Context
 }
 
 // Options configure the queue.
@@ -68,6 +74,9 @@ type Options struct {
 	Runner   *ffmpeg.Runner
 	Log      *slog.Logger
 	Now      func() time.Time
+	// Space reads free space and filesystem IDs; nil uses the real
+	// filesystem.
+	Space SpaceFS
 }
 
 // New builds the queue.
@@ -75,8 +84,11 @@ func New(o Options) *Service {
 	q := &Service{
 		store: o.Store, library: o.Library, registry: o.Registry, log: o.Log, now: o.Now,
 		running: map[int64]context.CancelFunc{}, cancelled: map[int64]bool{}, live: map[int64]Live{},
-		scheduleStopped: map[int64]bool{},
-		wake:            make(chan struct{}, 1),
+		scheduleStopped: map[int64]bool{}, reserved: map[int64]reservation{},
+		wake: make(chan struct{}, 1), space: o.Space,
+	}
+	if q.space == nil {
+		q.space = osSpace{}
 	}
 	if q.log == nil {
 		q.log = slog.Default()
@@ -154,53 +166,60 @@ func (q *Service) Enqueue(ctx context.Context, itemID, trigger string) (int64, b
 	if st.DryRun {
 		return 0, false, ErrDryRun
 	}
-	ev, err := q.store.Evaluation(ctx, itemID)
-	if err != nil || ev.Outcome != string(plan.Optimise) {
-		return 0, false, ErrNotOptimise
-	}
-	id, created, err := q.create(ctx, ev, trigger)
+	id, created, err := q.create(ctx, itemID, trigger)
 	if err == nil && created {
 		q.Wake()
 	}
 	return id, created, err
 }
 
-func (q *Service) create(ctx context.Context, ev store.Evaluation, trigger string) (int64, bool, error) {
-	it, err := q.store.Item(ctx, ev.ItemID)
+// create queues one item. The candidate query only returns items whose
+// latest evaluation is optimise.
+func (q *Service) create(ctx context.Context, itemID, trigger string) (int64, bool, error) {
+	c, err := q.store.QueueCandidateFor(ctx, itemID)
+	if errors.Is(err, store.ErrNotFound) {
+		return 0, false, ErrNotOptimise
+	}
 	if err != nil {
 		return 0, false, err
 	}
+	j, err := jobFor(c, trigger)
+	if err != nil {
+		return 0, false, err
+	}
+	return q.store.CreateJob(ctx, j)
+}
+
+// jobFor builds the job row for an item the policies chose.
+func jobFor(c store.QueueCandidate, trigger string) (store.Job, error) {
 	var p plan.Plan
-	if err := json.Unmarshal([]byte(ev.Plan), &p); err != nil {
-		return 0, false, fmt.Errorf("reading the plan: %w", err)
+	if err := json.Unmarshal([]byte(c.Plan), &p); err != nil {
+		return store.Job{}, fmt.Errorf("reading the plan for %s: %w", c.ItemID, err)
 	}
-	name := it.Name
-	if it.SeriesName != "" && !strings.HasPrefix(it.Name, it.SeriesName) {
-		name = it.SeriesName + " · " + it.Name
-	}
-	policyName := ""
-	if ev.PolicyID != nil {
-		if pr, err := q.store.Policy(ctx, *ev.PolicyID); err == nil {
-			policyName = pr.Name
-		}
+	name := c.ItemName
+	if c.SeriesName != "" && !strings.HasPrefix(c.ItemName, c.SeriesName) {
+		name = c.SeriesName + " · " + c.ItemName
 	}
 	size := p.SourceSize
-	return q.store.CreateJob(ctx, store.Job{
-		ItemID: it.ID, ItemName: name, LibraryName: it.LibraryName, PolicyID: ev.PolicyID, PolicyName: policyName,
-		Trigger: trigger, Plan: ev.Plan, LocalPath: it.LocalPath, JellyfinPath: it.JellyfinPath,
-		SourceSummary: p.SourceLabel, TargetSummary: p.TargetLabel, SourceSize: &size, EstMin: ev.EstMin, EstMax: ev.EstMax,
-	})
+	return store.Job{
+		ItemID: c.ItemID, ItemName: name, LibraryName: c.LibraryName, PolicyID: c.PolicyID, PolicyName: c.PolicyName,
+		Trigger: trigger, Plan: c.Plan, LocalPath: c.LocalPath, JellyfinPath: c.JellyfinPath,
+		SourceSummary: p.SourceLabel, TargetSummary: p.TargetLabel, SourceSize: &size, EstMin: c.EstMin, EstMax: c.EstMax,
+		DurationMs: c.DurationMs,
+	}, nil
 }
 
 // EnqueueMatching queues every item the policies chose, except items that
 // had a job recently (so failures are not retried in a loop). It does
-// nothing in Dry Run or when automatic processing is off.
+// nothing in Dry Run or when automatic processing is off. The jobs are
+// built from one query and inserted in batches, so queueing a large library
+// takes seconds rather than minutes.
 func (q *Service) EnqueueMatching(ctx context.Context) (int, error) {
 	st, err := q.store.Settings(ctx)
 	if err != nil || st.DryRun || !st.AutoProcess {
 		return 0, err
 	}
-	evs, err := q.store.ItemsWithOutcome(ctx, string(plan.Optimise))
+	candidates, err := q.store.QueueCandidates(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -208,22 +227,24 @@ func (q *Service) EnqueueMatching(ctx context.Context) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	n := 0
-	for _, ev := range evs {
-		if recent[ev.ItemID] {
+	jobs := make([]store.Job, 0, len(candidates))
+	for _, c := range candidates {
+		if recent[c.ItemID] {
 			continue
 		}
-		if _, created, err := q.create(ctx, ev, "auto"); err != nil {
-			q.log.Warn("queue: could not queue item", "item", ev.ItemID, "err", err)
-		} else if created {
-			n++
+		j, err := jobFor(c, "auto")
+		if err != nil {
+			q.log.Warn("queue: could not queue item", "item", c.ItemID, "err", err)
+			continue
 		}
+		jobs = append(jobs, j)
 	}
+	n, err := q.store.CreateJobs(ctx, jobs)
 	if n > 0 {
 		q.log.Info("queue: queued items", "count", n)
 		q.Wake()
 	}
-	return n, nil
+	return n, err
 }
 
 // Cancel cancels a waiting job, or stops a running one before it replaces

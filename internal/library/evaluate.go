@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"path/filepath"
 
 	"github.com/freakyturtle/jellytrim/internal/media"
@@ -43,13 +42,9 @@ type evalContext struct {
 	roots    []string            // resolved local roots
 	libs     map[string]store.Library
 	env      plan.Env
-}
-
-// snapshot is every managed item with its watch state, collections and
-// parsed probe.
-type snapshot struct {
-	evalContext
-	candidates []Candidate
+	// links, when set, remembers resolved folders across one evaluation
+	// run (see linkCache). Nil resolves every path afresh.
+	links *linkCache
 }
 
 func (s *Service) loadEvalContext(ctx context.Context) (evalContext, error) {
@@ -89,40 +84,6 @@ func (s *Service) loadEvalContext(ctx context.Context) (evalContext, error) {
 	return ec, nil
 }
 
-func (s *Service) loadSnapshot(ctx context.Context) (snapshot, error) {
-	var snap snapshot
-	var err error
-	if snap.evalContext, err = s.loadEvalContext(ctx); err != nil {
-		return snap, err
-	}
-	items, err := s.store.ManagedItems(ctx)
-	if err != nil {
-		return snap, err
-	}
-	userData, err := s.store.AllUserData(ctx)
-	if err != nil {
-		return snap, err
-	}
-	probes, err := s.store.Probes(ctx)
-	if err != nil {
-		return snap, err
-	}
-	optimised, err := s.store.OptimisedIdentities(ctx)
-	if err != nil {
-		return snap, err
-	}
-	isOptimised := func(id store.FileIdentity) (bool, error) { return optimised[id], nil }
-	snap.candidates = make([]Candidate, 0, len(items))
-	for _, it := range items {
-		var p *store.Probe
-		if pr, ok := probes[it.ID]; ok {
-			p = &pr
-		}
-		snap.candidates = append(snap.candidates, snap.candidate(it, p, userData[it.ID], isOptimised))
-	}
-	return snap, nil
-}
-
 // loadCandidate builds the candidate for one item from probe p, without
 // loading the whole library.
 func (s *Service) loadCandidate(ctx context.Context, it store.Item, p *store.Probe) (Candidate, evalContext, error) {
@@ -141,10 +102,17 @@ func (s *Service) loadCandidate(ctx context.Context, it store.Item, p *store.Pro
 	return ec.candidate(it, p, ud, isOptimised), ec, nil
 }
 
-// candidate assembles one item. A probe of a different path than the item's
-// current one describes another file, so the item counts as not inspected.
+// candidate assembles one item from its full probe p, parsing the ffprobe
+// output.
 func (ec *evalContext) candidate(it store.Item, p *store.Probe, ud []store.UserData,
 	isOptimised func(store.FileIdentity) (bool, error)) Candidate {
+	c := ec.baseCandidate(it, ud)
+	c.attachProbe(p, isOptimised)
+	return c
+}
+
+// baseCandidate is the item with its watch state, before any probe.
+func (ec *evalContext) baseCandidate(it store.Item, ud []store.UserData) Candidate {
 	c := Candidate{Item: it}
 	c.Policy = policy.Item{
 		ID: it.ID, Name: it.Name, Type: it.Type, LibraryID: it.LibraryID, LibraryName: ec.libs[it.LibraryID].Name,
@@ -152,35 +120,71 @@ func (ec *evalContext) candidate(it store.Item, p *store.Probe, ud []store.UserD
 		Tags: it.Tags, Genres: it.Genres, DateAdded: it.DateAdded, WatchMode: policy.WatchMode(ec.settings.WatchMode),
 		Size: it.JellyfinSize,
 	}
-	byUser := map[string]store.UserData{}
-	for _, d := range ud {
-		byUser[d.UserID] = d
+	if len(ec.users) > 0 {
+		c.Policy.Users = make([]policy.UserState, 0, len(ec.users))
 	}
 	for _, u := range ec.users {
-		d := byUser[u.ID]
+		var d store.UserData
+		for _, x := range ud {
+			if x.UserID == u.ID {
+				d = x
+				break
+			}
+		}
 		c.Policy.Users = append(c.Policy.Users, policy.UserState{UserID: u.ID, Name: u.Name, Played: d.Played,
 			Favourite: d.Favourite, LastPlayed: d.LastPlayedAt})
 	}
-	if p == nil || p.LocalPath != it.LocalPath {
-		return c
+	return c
+}
+
+// attachProbe sets the candidate's probe, parsing its ffprobe output. A
+// probe of a different path than the item's current one describes another
+// file, so the item counts as not inspected.
+func (c *Candidate) attachProbe(p *store.Probe, isOptimised func(store.FileIdentity) (bool, error)) {
+	c.detachProbe()
+	if p == nil || p.LocalPath != c.Item.LocalPath {
+		return
 	}
 	c.Probe = p
 	c.Facts = plan.FileFacts{Probed: p.Error == "" && p.ProbeJSON != "", ProbeError: p.Error, IsSymlink: p.IsSymlink, Nlink: p.Nlink}
 	if !c.Facts.Probed {
-		return c
+		return
 	}
 	f, err := media.Parse([]byte(p.ProbeJSON), []byte(p.FrameJSON), p.Size)
 	if err != nil {
 		c.Facts.Probed, c.Facts.ProbeError = false, err.Error()
-		return c
+		return
 	}
 	c.File, c.Policy.File = f, f
+	c.Policy.Facts = policy.FactsFromFile(f)
 	opt, err := isOptimised(p.FileIdentity)
 	if err != nil {
 		c.Problem = "JellyTrim could not check whether it already optimised this file: " + err.Error()
 	}
 	c.Facts.Optimised = opt
-	return c
+}
+
+// attachSummary sets the candidate's probe from its summary columns, without
+// parsing the ffprobe output: enough for the policies, but not for a plan
+// (see bulk.withFile).
+func (c *Candidate) attachSummary(p *store.Probe, optimised map[store.FileIdentity]bool) {
+	c.detachProbe()
+	if p.LocalPath != c.Item.LocalPath {
+		return
+	}
+	c.Probe = p
+	c.Facts = plan.FileFacts{Probed: p.Error == "", ProbeError: p.Error, IsSymlink: p.IsSymlink, Nlink: p.Nlink}
+	if !c.Facts.Probed {
+		return
+	}
+	c.Policy.Facts = factsFromSummary(p)
+	c.Facts.Optimised = optimised[p.FileIdentity]
+}
+
+// detachProbe forgets everything the candidate knew from a probe.
+func (c *Candidate) detachProbe() {
+	c.Probe, c.File, c.Facts, c.Problem = nil, nil, plan.FileFacts{}, ""
+	c.Policy.File, c.Policy.Facts = nil, policy.Facts{}
 }
 
 // collectionsFor returns the collections holding the item itself, its
@@ -239,7 +243,11 @@ func gate(c Candidate, excluded map[string]string) (plan.Decision, gateResult) {
 // optimise policy won, the one case that needs it.
 func (ec *evalContext) decide(c *Candidate, res policy.Result) plan.Decision {
 	if res.Winner != nil && res.Winner.Action.Kind != policy.KindProtect {
-		c.Facts.InRoots = inRoots(ec.roots, c.Item.LocalPath)
+		resolve := filepath.EvalSymlinks
+		if ec.links != nil {
+			resolve = ec.links.evalSymlinks
+		}
+		c.Facts.InRoots = inRoots(ec.roots, c.Item.LocalPath, resolve)
 	}
 	return plan.Decide(c.Policy, res, c.Facts, ec.env)
 }
@@ -260,11 +268,11 @@ func resolveRoots(roots []string) []string {
 
 // inRoots checks the file's resolved path against the resolved roots, so a
 // symbolic link cannot lead JellyTrim outside them.
-func inRoots(roots []string, p string) bool {
+func inRoots(roots []string, p string, resolve func(string) (string, error)) bool {
 	if p == "" {
 		return false
 	}
-	resolved, err := filepath.EvalSymlinks(p)
+	resolved, err := resolve(p)
 	if err != nil {
 		return false
 	}
@@ -279,36 +287,6 @@ func (s *Service) Evaluate(ctx context.Context) (int, error) {
 	n, err := s.evaluate(ctx)
 	s.end(err)
 	return n, err
-}
-
-func (s *Service) evaluate(ctx context.Context) (int, error) {
-	snap, err := s.loadSnapshot(ctx)
-	if err != nil {
-		return 0, err
-	}
-	excluded, err := s.store.Exclusions(ctx)
-	if err != nil {
-		return 0, err
-	}
-	now := s.now()
-	evs := make([]store.Evaluation, 0, len(snap.candidates))
-	for i := range snap.candidates {
-		c := &snap.candidates[i]
-		d, g := gate(*c, excluded)
-		switch g {
-		case gatePending:
-			continue // shown as "pending"
-		case gateDecided:
-			evs = append(evs, toEvaluation(c.Item.ID, policy.Result{}, d))
-			continue
-		}
-		res := policy.Evaluate(snap.policies, c.Policy, now)
-		evs = append(evs, toEvaluation(c.Item.ID, res, snap.decide(c, res)))
-	}
-	if err := s.store.ReplaceEvaluations(ctx, evs); err != nil {
-		return 0, fmt.Errorf("saving evaluations: %w", err)
-	}
-	return len(evs), nil
 }
 
 func toEvaluation(itemID string, res policy.Result, d plan.Decision) store.Evaluation {
