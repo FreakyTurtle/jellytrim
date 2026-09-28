@@ -256,9 +256,14 @@ func redirect(w http.ResponseWriter, r *http.Request, to string) {
 var startedAt = strconv.FormatInt(time.Now().Unix(), 36)
 
 // assetVersion is appended to static URLs so browsers refetch after upgrades.
+//
+// It includes the build time, so two builds that share a version name (for
+// example every dev-stack image) never share cached CSS or JavaScript.
+// Builds without a build time (go run) use the process start time.
 func assetVersion() string {
-	if version.Version == "dev" {
-		return "dev-" + startedAt
+	stamp := version.Date
+	if stamp == "" || stamp == "unknown" {
+		stamp = startedAt
 	}
-	return version.Version
+	return version.Version + "-" + strings.NewReplacer(":", "", "-", "").Replace(stamp)
 }

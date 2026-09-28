@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/freakyturtle/jellytrim/internal/store"
+	"github.com/freakyturtle/jellytrim/internal/version"
 )
 
 func newTestServer(t *testing.T) (*Server, *store.Store) {
@@ -97,5 +98,17 @@ func TestStaticAssetsServed(t *testing.T) {
 		if !strings.Contains(res.Header.Get("Cache-Control"), "immutable") {
 			t.Errorf("%s: versioned asset not cached", p)
 		}
+	}
+}
+
+func TestAssetVersionChangesWithEachBuild(t *testing.T) {
+	oldV, oldD := version.Version, version.Date
+	defer func() { version.Version, version.Date = oldV, oldD }()
+	version.Version = "dev-stack"
+	version.Date = "2026-09-28T14:27:42Z"
+	a := assetVersion()
+	version.Date = "2026-09-28T17:42:43Z"
+	if b := assetVersion(); a == b || !strings.HasPrefix(b, "dev-stack-") {
+		t.Fatalf("builds with the same version share a cache key: %q %q", a, b)
 	}
 }
