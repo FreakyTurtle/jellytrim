@@ -167,7 +167,7 @@ templ policyMoveButton(c PolicyCardView, dir, arrow, label string) {
 // policyDeleteDialog confirms a delete. Without JavaScript the trigger link
 // opens it through :target, and "Keep it" links back to backHref.
 templ policyDeleteDialog(dialogID string, id int64, name, backHref string) {
-	@Dialog(dialogID, "Delete this policy?") {
+	@Dialog(dialogID, "Delete \""+name+"\"?") {
 		<form method="post" action={ templ.SafeURL(policyURL(id, "/delete")) }>
 			@DialogBody() {
 				<p>Delete <strong>{ name }</strong>? Items it decides will go to the next policy that matches them, or to none.</p>

@@ -491,6 +491,13 @@ func (s *Server) itemQueueState(ctx context.Context, r *http.Request, it store.I
 		} else if s.Queue == nil {
 			o.Reason = "The queue is not running."
 		}
+		if o.Enabled {
+			st, err := s.Store.Settings(ctx)
+			if err != nil {
+				return err
+			}
+			o.Backup = itemBackupText(st.BackupDays)
+		}
 	}
 	jobs, err := s.Store.ActiveJobs(ctx)
 	if err != nil {
@@ -514,6 +521,17 @@ func (s *Server) itemQueueState(ctx context.Context, r *http.Request, it store.I
 		o.Error = &views.QueueNotice{Variant: "warn", Title: "Nothing to optimise", Text: "JellyTrim no longer plans to change this item. The Policy section explains why."}
 	}
 	return nil
+}
+
+// itemBackupText says how long the original is kept after Optimise now.
+func itemBackupText(days int) string {
+	switch {
+	case days <= 0:
+		return "The original is kept as a backup until Jellyfin has picked up the change."
+	case days == 1:
+		return "The original is kept as a backup for 1 day."
+	}
+	return "The original is kept as a backup for " + strconv.Itoa(days) + " days."
 }
 
 // itemExcluded reports whether the user excluded the item (by restoring it).
@@ -697,6 +715,7 @@ func (s *Server) historyJobView(j store.Job) views.HistoryJobData {
 		}
 	case store.JobFailed, store.JobSkipped, store.JobCancelled:
 		v.CanRetry = true
+		v.RetryPrimary = j.Status == store.JobFailed
 	}
 	v.Kept = historyKept(j)
 	if j.RestoredAt != nil {

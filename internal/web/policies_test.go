@@ -523,7 +523,7 @@ func TestPolicyPagesRender(t *testing.T) {
 		}
 	}
 	_, body := e.do(t, "GET", "/policies", nil, false)
-	for _, want := range []string{"Protect favourites", "In every managed library, when a favourite: never change these files.", "How policies work", `id="policy-list"`} {
+	for _, want := range []string{"Protect favourites", "In every managed library, when a favourite: never change these files.", "How policies work", `id="policy-list"`, templEscape(`Delete "Protect favourites"?`)} {
 		if !strings.Contains(body, want) {
 			t.Errorf("list is missing %q", want)
 		}

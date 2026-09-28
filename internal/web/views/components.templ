@@ -141,6 +141,16 @@ templ StatRow(label, value string, mono bool) {
 	</div>
 }
 
+// ValueOr shows text, or a quiet word such as "Unknown" or "None" when text
+// is empty, so a table cell is never blank.
+templ ValueOr(text, missing string) {
+	if text == "" {
+		<span class="missing">{ missing }</span>
+	} else {
+		{ text }
+	}
+}
+
 // ---------- Lamp and status ----------
 
 // Lamp is a small square LED: ok, warn, bad, info, idle, active (pulsing) or

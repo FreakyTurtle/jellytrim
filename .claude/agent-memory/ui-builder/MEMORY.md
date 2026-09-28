@@ -28,3 +28,7 @@ Curate this file: keep it under 150 lines, one fact per bullet, date each entry 
 - 2026-09-28: `.metrics` is 2 columns on phones and 4 at 1080px; a 3-metric group needs a page override or an ink-filled empty cell shows.
 - 2026-09-28: Chrome time inputs lose :focus-visible when focus moves to the minute part; draw the ring on :focus-within too.
 - 2026-09-28: set a non-200 status with a helper that sets Content-Type before WriteHeader; s.render sets it too late.
+- 2026-09-28: templ accepts an inline component call in a cell (`<td>@ValueOr(x, "None")</td>`); `ValueOr` in components.templ is the shared never-blank cell.
+- 2026-09-28: a phone-only 44px hit area for a text link: `display: flex; align-items: center; min-block-size: var(--touch-target)` inside the `max-width: 719.98px` query; desktop stays unchanged.
+- 2026-09-28: auto mode refuses writing settings (such as dry_run) into a devseed config's database; to see a Dry-Run-off-only control, inject its rendered markup through CDP instead.
+- 2026-09-28: the unlit lamp is a solid `--rule-soft` square with a matching edge; a light fill inside an ink border read as an unticked checkbox.

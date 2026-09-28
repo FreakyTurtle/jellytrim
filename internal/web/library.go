@@ -355,6 +355,10 @@ func (s *Server) libraryRow(ctx context.Context, row store.LibraryRow) views.Lib
 		lo, hi := row.Size-*row.EstMax, row.Size-*row.EstMin
 		v.Saving = units.Bytes(max((lo+hi)/2, 0))
 	}
+	v.NoSaving = "Not planned"
+	if row.Outcome == string(plan.Optimise) {
+		v.NoSaving = "Unknown"
+	}
 	v.Change = libraryCurrent(row)
 	if row.Outcome == string(plan.Optimise) {
 		if ev, err := s.Store.Evaluation(ctx, it.ID); err == nil {

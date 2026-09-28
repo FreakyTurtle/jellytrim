@@ -62,6 +62,7 @@ type HistoryJobData struct {
 	RestoredNote  string
 	RestoreAction string
 	CanRetry      bool
+	RetryPrimary  bool // a failed job; skipped and cancelled jobs retry as a secondary action
 	RetryAction   string
 	Kept          *HistoryKept
 }
@@ -270,7 +271,7 @@ templ historyJobActions(v HistoryJobData) {
 		}
 		if v.CanRetry {
 			<form method="post" action={ templ.SafeURL(v.RetryAction) }>
-				<button class="btn btn--primary" type="submit">Retry</button>
+				<button class={ "btn", templ.KV("btn--primary", v.RetryPrimary), templ.KV("btn--secondary", !v.RetryPrimary) } type="submit">Retry</button>
 			</form>
 		}
 	</div>

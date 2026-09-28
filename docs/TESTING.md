@@ -9,9 +9,9 @@ JellyTrim's tests exist mainly to stop it damaging media. Decision logic and fil
 | Unit | Policy matching, precedence, day boundaries, path mapping, media parsing, plan decisions, encoder argument building, Auto selection, language and disposition handling | Next to the code, table-driven |
 | Golden | ffmpeg arguments, parsed media models, explanations | `testdata/*.golden`, regenerate with `-update` |
 | Store | Every repository against a real SQLite file | `internal/store`, `t.TempDir()` |
-| Jellyfin client | Against `jellyfintest`, a fake server with realistic JSON | `internal/jellyfin` |
+| Jellyfin client | Against `jellyfintest`, a fake server with realistic JSON, plus an opt-in test against a real Jellyfin | `internal/jellyfin` |
 | ffmpeg integration | Real ffprobe on fixtures; real x265 encodes of fixture clips | `internal/ffmpeg`, `internal/pipeline` |
-| Safety suite | Fault injection at every pipeline step, asserting the original is unchanged | `internal/pipeline`, `go test -run Safety` |
+| Safety suite | Fault injection at every pipeline step, asserting the original is unchanged; recovery from every journal state; validation rejecting every kind of loss | `internal/pipeline`, `go test -run Safety` |
 | Web | Handlers return the right status and fragments; the key never appears in output | `internal/web` |
 | Browser | Walkthroughs on the dev stack with Playwright (manual or agent-driven) | `/verify-ui` |
 
@@ -22,6 +22,16 @@ JellyTrim's tests exist mainly to stop it damaging media. Decision logic and fil
 - Cases that ffmpeg cannot synthesise (PGS subtitles, Dolby Vision profiles 5, 7 and 8.1, HDR10+) are hand-written JSON in the shape real ffprobe 8 produces. They are listed in `internal/media/testdata/README.md`.
 
 Fixture set: H.264 1080p; HEVC 1080p; H.264 2160p; HEVC 2160p HDR10 (with mastering display and content light level metadata); HLG; AV1; multi-audio (English 5.1 AC-3, English stereo AAC commentary, French AAC); forced SRT and full SRT subtitles; ASS subtitles with a font attachment; PGS subtitles; 2.39:1 letterboxed 1080p; interlaced; MP4 with `mov_text`; a TV episode tree; cover art; a hard-linked copy.
+
+## The safety suite
+
+`internal/pipeline` has two safety test files. `safety_test.go` covers the pipeline end to end: a failure injected at every step leaves the original byte-for-byte unchanged (`TestSafetyFailureAtEveryStepLeavesOriginal`), a hard-link and a rename fallback (`TestSafetyRenameBackupFallback`, `TestSafetyFinalRenameFailsAfterRenameBackupRestoresOriginal`), preflight skips (`TestSafetyPreflightSkips`), cancelling mid-encode (`TestSafetyCancelDuringEncode`), recovery from every journal state (`TestRecoveryStates`), and restoring a backup (`TestRestoreAndDeleteBackup`). `safety_review_test.go` adds the cases an adversarial review looks for: two failures in a row never claiming the original is unchanged when it might not be (`TestSafetyDoubleFailureNeverClaimsUnchanged`), a rename that actually succeeded still being treated as complete (`TestSafetyRenameThatSucceededIsComplete`), another program replacing the file mid-job (`TestSafetyFileReplacedByAnotherProgramIsLeftAlone`), a clean-exit encoder error (`TestSafetyEncoderErrorsOnCleanExit`), refusing to restore over a newer file (`TestRestoreRefusesANewerFile`), recovery not mistaking an undone replace (`TestRecoveryDoesNotMistakeAnUndoneReplace`), recovery only acting on its own job's names (`TestRecoveryRefusesOtherJobsNames`), and validation rejecting every kind of stream loss (`TestValidateRejectsEveryKindOfLoss`).
+
+`internal/queue`'s `TestRecoveryRequeuesAndCleansUp` covers the same ground from the queue's side: an interrupted job is requeued or moved to Needs attention correctly at start-up. None of this replaces an actual `kill -9` against a running JellyTrim, which has not been done; the unit and recovery tests are the evidence so far.
+
+## An opt-in test against a real Jellyfin
+
+`internal/jellyfin/integration_test.go` can run against a real Jellyfin server instead of the fake one, to catch anything `jellyfintest` gets wrong. It is skipped unless `JELLYTRIM_JELLYFIN_IT=1` is set, together with `JELLYTRIM_IT_URL` (the server's address) and `JELLYTRIM_IT_KEY` (an API key). It is never run in CI.
 
 ## ffmpeg in tests
 

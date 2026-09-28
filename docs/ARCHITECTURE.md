@@ -35,6 +35,8 @@ JellyTrim is one Go binary. It serves a server-rendered web UI, keeps its state 
 | `internal/jellyfin` | API client and types; `jellyfintest` fake server for tests | stdlib |
 | `internal/pathmap` | Maps paths between Jellyfin and JellyTrim; root checks | stdlib (pure) |
 | `internal/media` | Media model (file, streams, colour, HDR class) and ffprobe JSON parsing | stdlib (pure) |
+| `internal/fileid` | A file's identity for safety checks: device, inode, size, mtime, link count, owner, whether it is a symlink | stdlib |
+| `internal/units` | Formats sizes, bitrates and durations for people (decimal units, thousands separators), and parses the few values users type | stdlib (pure) |
 | `internal/ffmpeg` | Runs ffprobe and ffmpeg; progress parsing; version detection | stdlib |
 | `internal/encoder` | Encoder backends (x265, QSV), quality maps, argument building, hardware probe, Auto selection | `media`, `ffmpeg` |
 | `internal/policy` | Policy model, scope and condition evaluation, explanations | `media` (pure) |
@@ -73,7 +75,12 @@ JellyTrim is one Go binary. It serves a server-rendered web UI, keeps its state 
 Waiting ─► Analysing ─► Encoding ─► Validating ─► Replacing ─► Complete
    │           │            │            │             │
    └──────► Skipped      Failed       Failed        Failed (original restored)
+                                                     Attention (needs a person to check)
+
+Any of Waiting, Analysing, Encoding or Validating ─► Cancelled (by the user)
 ```
+
+The user can cancel a job at any point up to Replacing; the original file is unchanged either way. Attention is reached only through recovery after an interruption during Replacing, when the original's usual place is occupied by something else; it does not block the queue, but it blocks new jobs for that item and file until a person resolves it.
 
 1. **Analysing:** re-probe the source, check identity against the job, re-run the plan (the file may have changed), check free space, take the path lock.
 2. **Encoding:** `encoder` builds arguments from the plan; `ffmpeg` runs them, writing `.<name>.jellytrim-<job>.partial` in the source directory. Progress, speed and ETA are stored. Early abort if the projected size is too large.
@@ -100,6 +107,7 @@ Times are Unix seconds (`INTEGER`, UTC) unless named `_ns`. JSON columns are `TE
 | `probes` | Cached ffprobe output per item | `item_id`, `dev`, `inode`, `size`, `mtime_ns`, `nlink`, `is_symlink`, `probe_json`, `frame_json`, `error`, `probed_at` |
 | `policies` | User policies | `id`, `name`, `enabled`, `priority`, `scope`, `conditions`, `action` (JSON) |
 | `evaluations` | Latest decision per item | `item_id`, `outcome`, `policy_id`, `explanation`, `plan`, `reasons`, `est_min_bytes`, `est_max_bytes`, `evaluated_at` |
+| `exclusions` | Items JellyTrim must leave alone regardless of policy, for example after the user restores a job's original. Cleared only by the user | `item_id`, `reason`, `created_at` |
 | `jobs` | Queue and history. At most one active (waiting to replacing) job per item, enforced by the partial unique index `jobs_one_active`. Status `attention` means the job stopped in a state the user must check: not active, but it blocks new jobs for its item and file | `id`, `item_id`, `policy_id`, `status`, `plan`, `source_identity`, `output_identity`, `progress`, `speed`, `eta_seconds`, `encoder`, `source_size`, `output_size`, `summary`, `diagnostics`, `backup_path`, `backup_expires_at`, `restored_at`, timestamps |
 | `journal` | Intent journal of filesystem steps | `id`, `job_id`, `step`, `path`, `created_at`, `completed_at` |
 | `optimised` | Files JellyTrim produced (loop guard) | `dev`, `inode`, `size`, `mtime_ns`, `item_id`, `job_id` |
@@ -116,6 +124,17 @@ The database is `/config/jellytrim.db`, created with mode 0600. Migrations are i
 - SQLite: one `*sql.DB`; writes serialise through SQLite's lock with a busy timeout. Transactions begin `IMMEDIATE` (`_txlock=immediate`), so a transaction that reads then writes waits for the lock instead of failing with `SQLITE_BUSY`. `synchronous=FULL`, so a journal row is on disk before the step it describes. Long operations (ffmpeg) never hold a transaction.
 - A database written by a newer JellyTrim (a schema version above the newest embedded migration) is refused at start with a clear error.
 - Every goroutine takes a `context.Context` from `app` and stops on shutdown.
+
+## Start-up order
+
+The HTTP server and the library's background sync are available as soon as `app` opens the listener; the queue and the scheduler are not started until a background goroutine has, in order:
+
+1. run the hardware test (`hardware.Retest`, using the encoder registry), so plans are made against encoders that actually work here;
+2. evaluated the library once more against the fresh hardware result;
+3. started the queue's workers;
+4. started the scheduler.
+
+This avoids queueing jobs, or letting the scheduler enqueue them, against a plan that assumes no working encoder because the hardware test has not run yet. The web UI itself has no such gate: it is reachable, and shows a first-run or stale hardware result, from the moment the server starts.
 
 ## Shutdown
 

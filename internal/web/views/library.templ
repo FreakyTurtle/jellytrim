@@ -56,6 +56,7 @@ type LibraryRow struct {
 	Change   string
 	Size     string
 	Saving   string
+	NoSaving string // shown instead of Saving when there is no estimate
 	Lamp     string
 	Decision string
 }
@@ -233,17 +234,23 @@ templ libraryTable(r LibraryResults) {
 							}
 						</td>
 						<td role="cell" data-label="Format">
-							<span class="badges">
-								for _, b := range row.Badges {
-									@Badge(b.Text, b.Variant)
-								}
-							</span>
+							if len(row.Badges) == 0 {
+								@ValueOr("", "Unknown")
+							} else {
+								<span class="badges">
+									for _, b := range row.Badges {
+										@Badge(b.Text, b.Variant)
+									}
+								</span>
+							}
 						</td>
-						<td role="cell" data-label="Change" class="mono">{ row.Change }</td>
+						<td role="cell" data-label="Change" class="mono">@ValueOr(row.Change, "Unknown")</td>
 						<td role="cell" data-label="Size" class="num mono">{ row.Size }</td>
 						<td role="cell" data-label="Est. saving" class="num mono">
 							if row.Saving != "" {
 								<span><span aria-hidden="true">~ </span><span class="visually-hidden">About </span>{ row.Saving }</span>
+							} else {
+								@ValueOr("", row.NoSaving)
 							}
 						</td>
 						<td role="cell" data-label="Decision">

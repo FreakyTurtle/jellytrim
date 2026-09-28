@@ -160,7 +160,7 @@ func streamChecks(src, out *media.File) []Check {
 			same := a.Codec == b.Codec && a.Channels == b.Channels && a.Language == b.Language && a.Title == b.Title &&
 				a.Disposition.Default == b.Disposition.Default && a.Disposition.Forced == b.Disposition.Forced &&
 				a.Disposition.Comment == b.Disposition.Comment
-			add(fmt.Sprintf("audio_%d", i+1), same, fmt.Sprintf("audio %d: %s %s %q", i+1, b.Codec, orUnknown(b.Language), b.Title))
+			add(fmt.Sprintf("audio_%d", i+1), same, streamDetail(b.Codec, b.Language, b.Title))
 		}
 	}
 	if len(out.Subtitles) == len(src.Subtitles) {
@@ -169,17 +169,26 @@ func streamChecks(src, out *media.File) []Check {
 			same := s.Codec == b.Codec && s.Language == b.Language && s.Title == b.Title &&
 				s.Disposition.Default == b.Disposition.Default && s.Disposition.Forced == b.Disposition.Forced &&
 				s.Disposition.HearingImpaired == b.Disposition.HearingImpaired
-			add(fmt.Sprintf("subtitle_%d", i+1), same, fmt.Sprintf("subtitle %d: %s %s %q", i+1, b.Codec, orUnknown(b.Language), b.Title))
+			add(fmt.Sprintf("subtitle_%d", i+1), same, streamDetail(b.Codec, b.Language, b.Title))
 		}
 	}
 	if len(out.Attachments) == len(src.Attachments) {
 		for i, a := range src.Attachments {
 			b := out.Attachments[i]
 			add(fmt.Sprintf("attachment_%d", i+1), strings.EqualFold(a.FileName, b.FileName) && strings.EqualFold(a.MimeType, b.MimeType),
-				fmt.Sprintf("attachment %d: %s (%s)", i+1, b.FileName, b.MimeType))
+				fmt.Sprintf("%s (%s)", b.FileName, b.MimeType))
 		}
 	}
 	return cs
+}
+
+// streamDetail describes a kept stream: codec, language and title if any.
+func streamDetail(codec, language, title string) string {
+	d := codec + ", " + orUnknown(language)
+	if title != "" {
+		d += `, "` + title + `"`
+	}
+	return d
 }
 
 func orUnknown(s string) string {

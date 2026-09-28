@@ -630,6 +630,21 @@
     content: none;
   }
 
+  /* The title link is the row's only way in, so it gets a full touch
+     target. The same for the item links on the Dashboard. */
+  .table.library-table td.library-table__title > a,
+  .problems__examples > li > a {
+    display: flex;
+    align-items: center;
+    min-block-size: var(--touch-target);
+  }
+
+  .activity__title {
+    display: inline-flex;
+    align-items: center;
+    min-block-size: var(--touch-target);
+  }
+
   .item-overview {
     gap: var(--space-4);
   }

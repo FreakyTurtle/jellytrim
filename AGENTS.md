@@ -15,7 +15,7 @@ JellyTrim is a Jellyfin-aware media lifecycle optimiser. It keeps media at the q
   - `/dev-stack`, `/fixtures`: the throwaway Jellyfin and synthetic media for testing.
   - `/migration`, `/encoder-profile`, `/adr-new`, `/docs-sync`, `/check-conventions`, `/public-check`.
   - Manual only: `/release`, `/pr`.
-- **Specialist agents** (in `.claude/agents/`; Codex copies in `.codex/agents/`): architect, implementer, ui-builder, media-specialist, jellyfin-specialist, safety-reviewer, code-reviewer, debugger, devops, verifier, conventions-keeper, docs-keeper, spec-aligner, ux-reviewer, adr-scribe. Orchestration happens in the main session; agents do not start other agents.
+- **Specialist agents** (in `.claude/agents/`; Codex copies in `.codex/agents/`): architect, implementer, ui-builder, media-specialist, jellyfin-specialist, safety-reviewer, code-reviewer, debugger, devops, verifier, conventions-keeper, docs-keeper, spec-aligner, ux-reviewer, adr-scribe. Orchestration happens in the main session; agents do not start other agents. A newly added or renamed agent becomes available as a subagent type only in a new session; a session already running does not pick it up.
 - **Agent memory** is in `.claude/agent-memory/<agent>/MEMORY.md`, committed and public. Never write personal paths, hostnames, keys or anything about a real media library there.
 - **"The scratchpad"** means your session's temporary directory. Screenshots, PR bodies and scratch files go there, never in the repo.
 - **Commits** use conventional commits: `feat(policy): ...`, `fix(pipeline): ...`, `docs: ...`, `chore: ...`, `test: ...`, `ci: ...`. Commit only when checks pass. Never push unless asked.
@@ -74,6 +74,8 @@ internal/store/          SQLite, embedded migrations, repositories
 internal/jellyfin/       API client; jellyfintest/ fake server
 internal/pathmap/        Jellyfin path <-> local path mapping (pure)
 internal/media/          media model and ffprobe parsing (pure)
+internal/fileid/         a file's identity for safety checks (dev, inode, size, mtime, ...)
+internal/units/          formats sizes, bitrates and durations for people (pure)
 internal/ffmpeg/         the only package that runs processes
 internal/encoder/        encoder backends, quality maps, hardware probe
 internal/policy/         policy model and evaluation with explanations (pure)
@@ -83,7 +85,8 @@ internal/queue/          jobs and workers
 internal/library/        sync from Jellyfin, probe cache, evaluation
 internal/scheduler/      periodic sync and re-evaluation
 internal/web/            handlers, views/ (templ), static/ (css, js, vendor)
-scripts/                 fixtures, dev bootstrap, public check
+internal/testutil/       shared test helpers (fixture loading, RequireFFmpeg)
+scripts/                 fixtures, dev bootstrap, devseed, public check
 docs/                    product, architecture, transcoding, policies, UI, ADRs
 ```
 
@@ -103,6 +106,7 @@ Domain packages (`media`, `pathmap`, `policy`, `plan`) are pure: no files, netwo
 | `task dev:fixtures` | Generate synthetic media into `dev/media` and ffprobe JSON into testdata |
 | `task dev:stack` | Start Jellyfin 12 and JellyTrim in Docker on the fixtures |
 | `task dev:bootstrap` | Set up the dev Jellyfin (user `dev`/`dev`, libraries, API key in `dev/jellyfin-api-key`) |
+| `go run ./scripts/devseed -config tmp/config` | Seed a config directory against the dev Jellyfin as if setup had been completed, without using the wizard (see `docs/DEVELOPMENT.md`) |
 | `task ai:sync` / `task ai:check` | Regenerate / check the Codex copies of agents and skills |
 
 ## Media-safety invariants

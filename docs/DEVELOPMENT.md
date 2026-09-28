@@ -37,9 +37,37 @@ task dev:stack       # Jellyfin on :8096, JellyTrim (built from the Dockerfile) 
 task dev:bootstrap   # set up Jellyfin: user dev/dev, libraries, some items watched, API key
 ```
 
-Jellyfin sees the media at `/media/movies` and `/media/tv`; JellyTrim sees it at `/mnt/media/movies` and `/mnt/media/tv`, so the path mapping step is exercised for real. The API key is written to `dev/jellyfin-api-key`. Everything under `dev/` is gitignored.
+Jellyfin sees the media at `/media/movies` and `/media/tv`; JellyTrim sees it at `/mnt/media/movies` and `/mnt/media/tv`, so the path mapping step is exercised for real. The API key is written to `dev/jellyfin-api-key`. JellyTrim itself runs on `http://localhost:8097` in the dev stack (the same port as `task dev`; `:8080` is the default only inside the shipped image). Everything under `dev/` is gitignored.
 
 To start again: `task dev:stack:reset`.
+
+### Seeding a config without the wizard
+
+`scripts/devseed` sets up a local config directory as if the setup wizard had been run by hand: it saves the Jellyfin connection, manages every library, selects the dev user, maps the Jellyfin paths to the fixture media, adds the starter policies, and runs a sync. Run it after `task dev:bootstrap`:
+
+```
+go run ./scripts/devseed -config tmp/config
+```
+
+Flags:
+
+| Flag | Default | What it does |
+|---|---|---|
+| `-config` | `tmp/config` | The JellyTrim config directory to prepare |
+| `-jellyfin` | `http://localhost:8096` | The dev Jellyfin's URL |
+| `-key-file` | `dev/jellyfin-api-key` | Where to read the dev API key from |
+| `-media` | `dev/media` | The local folder holding the fixture media |
+| `-enable-all` | `false` | Enable every starter policy, not just Protect favourites |
+| `-assume-x265` | `true` | Treat software x265 as tested, so plans can be made before the hardware test runs |
+| `-live` | `false` | Turn Dry Run off, so JellyTrim will really optimise the fixture files |
+
+Development only; it is not part of the shipped image.
+
+### Never open the database from macOS while a container has it open
+
+Do not open `tmp/config/jellytrim.db` (or any config directory a running container is using) with a SQLite client on macOS while that directory is bind-mounted into a container on Docker Desktop or OrbStack. SQLite's WAL mode needs shared memory between everything that has the file open, and that shared memory does not work across the file-sharing boundary between the macOS host and the Linux VM the container runs in. The usual symptom is corruption or "database disk image is malformed".
+
+If you need to inspect the database while the dev stack is running, do it from inside a container (for example `docker compose exec jellytrim sh` and a SQLite client installed there), not from the host.
 
 ## Configuration
 

@@ -462,6 +462,10 @@
   .policy-cond__line {
     font-size: var(--text-body);
   }
+
+  .policy-cond__remove {
+    min-inline-size: var(--touch-target);
+  }
 }
 
 /* ---------- 720px and above ---------- */

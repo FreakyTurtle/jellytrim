@@ -302,7 +302,7 @@ func TestHistoryJobDetail(t *testing.T) {
 
 	_, body = e.get(t, "/history/"+strconv.FormatInt(failed, 10), false)
 	queueExpect(t, body, "callout--bad", "Failed", "Conversion failed!", "exit status 1")
-	queueExpectRaw(t, body, ">Retry</button>")
+	queueExpectRaw(t, body, `class="btn btn--primary" type="submit">Retry</button>`)
 	queueExpectNot(t, body, "Restore original")
 
 	res, _ = e.get(t, "/history/999", false)
@@ -388,7 +388,10 @@ func TestOptimiseItem(t *testing.T) {
 		t.Fatalf("optimise a protected item: location %q", res.Header.Get("Location"))
 	}
 	_, body = e.get(t, itemPath, false)
-	queueExpectRaw(t, body, `action="`+itemPath+`/optimise"`, `type="submit">Optimise now`)
+	queueExpectRaw(t, body, `action="`+itemPath+`/optimise"`, `type="submit">Optimise now`,
+		`href="#item-optimise" data-dialog-open="item-optimise"`, `<dialog class="dialog" id="item-optimise"`)
+	queueExpect(t, body, "Optimise now?", "JellyTrim will replace the file after checking the result.",
+		"The original is kept as a backup for 7 days.")
 
 	res, _ = e.post(t, itemPath+"/optimise", true)
 	if res.Header.Get("HX-Redirect") != "/queue" {
@@ -498,6 +501,40 @@ func queueExpectRawNot(t *testing.T, body string, notWant ...string) {
 	for _, w := range notWant {
 		if strings.Contains(body, w) {
 			t.Errorf("should not contain markup %q", w)
+		}
+	}
+}
+
+func TestSkippedJobRetryIsSecondary(t *testing.T) {
+	e := newQueueTestEnv(t)
+	id := e.seed(t, queueTestJob{item: "b", name: "Bravo (2020)", status: store.JobSkipped,
+		outcome: store.JobOutcome{Summary: "The new file would save only 3%, below the 10% minimum."}})
+	_, body := e.get(t, "/history/"+strconv.FormatInt(id, 10), false)
+	queueExpectRaw(t, body, `class="btn btn--secondary" type="submit">Retry</button>`)
+	queueExpectRawNot(t, body, `btn--primary" type="submit">Retry`)
+}
+
+func TestItemBackupText(t *testing.T) {
+	for days, want := range map[int]string{
+		0: "The original is kept as a backup until Jellyfin has picked up the change.",
+		1: "The original is kept as a backup for 1 day.",
+		7: "The original is kept as a backup for 7 days.",
+	} {
+		if got := itemBackupText(days); got != want {
+			t.Errorf("%d days: %q, want %q", days, got, want)
+		}
+	}
+}
+
+func TestHistoryCheckText(t *testing.T) {
+	cases := map[string]pipeline.Check{
+		`Audio 1: aac, eng, "Director's Commentary"`: {Name: "audio_1", Detail: `aac, eng, "Director's Commentary"`},
+		"Subtitle 2: subrip, und":                    {Name: "subtitle_2", Detail: "subrip, und"},
+		"Decode":                                     {Name: "decode"},
+	}
+	for want, c := range cases {
+		if got := historyCheckText(c); got != want {
+			t.Errorf("%+v: %q, want %q", c, got, want)
 		}
 	}
 }

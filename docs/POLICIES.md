@@ -56,6 +56,10 @@ The mode applies to watched state only. Two things always use any selected user,
 
 "More than 90 days ago" means the event happened before `now − 90 × 24 hours`. Exactly 90 days is not more than 90 days. All times are UTC.
 
+### Restored items
+
+When a user restores a job's original from History, JellyTrim records an exclusion for that item: it is left alone, whatever the policies say, until the user allows changes again from the item's page. This overrides every policy; it is checked before scope and conditions, alongside the other reasons an item cannot be evaluated (see `docs/ARCHITECTURE.md`, data model, table `exclusions`).
+
 ## Action
 
 | Setting | Options | Default |

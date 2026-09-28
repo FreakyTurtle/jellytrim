@@ -97,9 +97,9 @@ A file is replaced only if the saving is at least 10% (configurable). JellyTrim 
 
 ### Queue and history
 
-The queue shows each job's title, library, current and target format, the policy that chose it, progress, speed, time remaining, estimated saving and encoder. Statuses: Waiting, Analysing, Encoding, Validating, Replacing, Complete, Skipped, Failed. Users can pause and resume the queue, cancel waiting jobs and retry failed ones. One job runs at a time by default.
+The queue shows each job's title, library, current and target format, the policy that chose it, progress, speed, time remaining, estimated saving and encoder. Statuses: Waiting, Analysing, Encoding, Validating, Replacing, Complete, Skipped, Failed, Cancelled and Needs attention (a job that stopped in a state a person must check; the original is safe, but it blocks new jobs for that item until resolved). Users can pause and resume the queue, cancel waiting jobs one at a time and retry failed ones. One job runs at a time by default. "Optimise now" on an item's page adds it to the front of the queue.
 
-History lists every completed, skipped and failed job, with the saving, a plain-English reason for any failure, and expandable technical details (the exact ffmpeg command, its error output, the ffmpeg version and hardware).
+History lists every completed, skipped, cancelled and failed job, with the saving, a plain-English reason for any failure, and technical details (the exact ffmpeg command, its error output and the encoder). A user can restore a completed job's original while its backup exists; a restored item is then left alone until the user chooses to let JellyTrim consider it again.
 
 ### Scheduling
 

@@ -210,6 +210,8 @@ Every page after setup uses the same shell.
 </body>
 ```
 
+The page also declares a favicon (`internal/web/static/img/favicon.svg`).
+
 **Top bar.** 56px tall, `--surface` fill, 2px `--rule` bottom border.
 
 - **Wordmark:** `JELLYTRIM` in Plex Mono 500, uppercase, 0.12em tracking, preceded by a small 10px `--accent` square with an ink border (the "power" lamp).
@@ -300,7 +302,7 @@ A small square LED. It always sits next to a word that says the same thing.
 
 - 10px square (12px in the top bar), `--radius`, 1px `--rule` border.
 - `lamp--ok`: `--ok` fill. `lamp--warn`: `--warn` fill. `lamp--bad`: `--bad` fill.
-- `lamp--idle`: unlit, `--surface-sunk` fill.
+- `lamp--idle`: unlit, a solid `--rule-soft` square with a `--rule-soft` edge, like a dark LED lens. It is never hollow, so it cannot be mistaken for an unticked checkbox.
 - `lamp--active`: `--accent` fill, pulsing between full and 40% opacity every 1.2s (`--dur-slow` easing). Steady under reduced motion.
 - `lamp--active-steady`: `--accent`, not pulsing. Used for the Dry Run lamp.
 - The lamp is decorative (`aria-hidden`). The word carries the meaning.
@@ -574,14 +576,14 @@ Route: `/setup`. Shown on first run, and again if the Jellyfin connection is rem
 
 - A short intro: "JellyTrim tests each encoder with a short encode. It does not just trust what ffmpeg lists."
 - The ffmpeg version, then a table: Encoder (Plex Mono), Codec, Device, Result (lamp and word: Works, Not available, Failed), Notes ("HDR metadata kept", "No /dev/dri device in the container").
-- The test runs when the step opens, with an indeterminate meter per row. "Test again" re-runs it.
+- The test runs when the step opens, with an indeterminate meter per row. "Test again" re-runs it, posting to `/setup/hardware`.
 - Software encoding (x265) always works, so this step never blocks setup.
 
 **6. Default strategy.**
 
 - Quality: segmented control (Maximum, High, Balanced, Space Saver). Default High. The hint describes the choice in viewing terms, never in encoder numbers.
 - Codec: segmented control (HEVC, H.264, AV1 marked "(planned)" and disabled). Default HEVC.
-- Hardware: Auto (default) or a specific working encoder from step 5.
+- Encoder: a second segmented control, "Auto" (default) or "Software only". This is a coarser choice than a specific backend: it says whether JellyTrim may use a working hardware encoder at all, not which one.
 - A note: "Policies can override these. Encoder settings are under Advanced in Settings."
 
 **7. Starter policies.**
@@ -592,7 +594,7 @@ Route: `/setup`. Shown on first run, and again if the Jellyfin connection is rem
   - **Archive watched 4K.** Disabled.
   - **Space-saving television.** Disabled. Includes a library picker, since it needs to know which shows.
 - A note: "Protect favourites is on. The others are created switched off. Turn them on after you have checked the Dry Run."
-- The user can untick any card to not create it at all.
+- Unticking a card does not omit the policy: it is still created, switched off, so it can be turned on later without going back to setup.
 
 **8. Dry Run scan.**
 
@@ -694,7 +696,7 @@ Route: `/library`. Every managed item and what JellyTrim would do with it.
 | Format | Badges: resolution, codec, HDR type |
 | Size | `48.2 GB` (Plex Mono, right-aligned) |
 | Decision | Lamp and word: "Would convert", "Optimal", "Protected", "Skipped" |
-| Est. saving | `~ 34.5 GB`, or blank |
+| Est. saving | `~ 34.5 GB`. Without an estimate: "Unknown" for an item JellyTrim plans to optimise, "Not planned" for any other, in `--ink-2` |
 
 - Sorted by title by default; Size and Est. saving headers sort (links, with `aria-sort` on the active header).
 - 100 rows per page with Previous and Next.
@@ -717,7 +719,7 @@ Sections, as panels in this order (two columns at 1080px and above: Jellyfin and
   | 1 | Audio | eng | truehd | 7.1 | Dolby TrueHD | Default |
   | 5 | Subtitle | eng | subrip | | Forced | Forced |
 
-  Flags are words (Default, Forced, Hearing impaired, Commentary), not icons. Attachments (fonts) and cover art are listed below the table as a count.
+  Flags are words (Default, Forced, Hearing impaired, Commentary), not icons. An empty Title or Flags cell shows "None" in `--ink-2`, and an unknown codec, channel layout or language "Unknown". Attachments (fonts) and cover art are listed below the table as a count.
 
 - **Policy.** The decision as a heading: "Matches Archive watched 4K". Then the explanation list. Then "Also matched: Efficient encoding (lower in the list, so it does not apply)." For a skip, the heading is "Skipped" and the list gives each reason with `✗`, for example "Dolby Vision profile 5 cannot be converted without losing its colour information."
 - **Proposed.** A stat row: resolution ("1080p, from 2160p"), codec (HEVC), quality (High), encoder ("Auto: Intel QSV"), audio ("Keep all 3 tracks"), subtitles ("Keep all 5"), HDR ("Keep HDR10 and its metadata").
@@ -727,7 +729,8 @@ Sections, as panels in this order (two columns at 1080px and above: Jellyfin and
 
 - In Dry Run, the button is disabled and a sentence beside it says why: "Dry Run is on, so JellyTrim will not change files. Turn off Dry Run in Settings to optimise this item."
 - If the item is skipped or protected, the button is absent and the Policy section explains why.
-- Otherwise it adds the item to the front of the queue and shows "Added to the queue" with a link.
+- Otherwise it first opens a dialog: "Optimise <title> now? JellyTrim will replace the file after checking the result. The original is kept as a backup for 7 days." (with 0 backup days: "until Jellyfin has picked up the change"). Buttons: "Not now" (focused) and "Optimise now" (primary). Without JavaScript the button is a link that shows the dialog through `:target`. Confirming adds the item to the front of the queue, ahead of jobs the scheduler queued automatically, and shows "Added to the queue" with a link.
+- If the user restored this item's original from History, the page shows "Left alone at your request" instead of the usual actions, with a secondary "Allow changes again" button that lets JellyTrim consider the item once more.
 
 Below the panels, a short history of jobs for this item, if any.
 
@@ -740,25 +743,25 @@ Route: `/policies`. The ordered list of policies, and the editor.
 - A sentence at the top: "JellyTrim checks policies from top to bottom. The first enabled policy that matches an item decides what happens to it."
 - An ordered list (`<ol>`). Each row:
   - position in Plex Mono (`01`)
-  - name (link to the editor) and a `PROTECT` badge for protect policies
-  - the policy sentence, one line, truncated with the full text on the editor page
-  - match count ("87 items") and estimated saving ("~ 1.1 TB"), both tabular
+  - name (link to the editor) and a `PROTECT` badge for protect policies, plus an `Off` badge when the policy is disabled
+  - the policy sentence, clamped to two lines (`-webkit-line-clamp: 2`), with the full text on the editor page
   - enable toggle
   - Move up and Move down buttons (`aria-label="Move Archive watched 4K up"`); the first row has no Up, the last no Down
+- The list does not show a per-policy match count or estimated saving, and does not warn when a Protect policy sits below a Convert policy that matches the same items (both are planned; for now, check order and match counts through the editor's preview).
 - Reordering and toggling post through HTMX and swap the list. Focus stays on the button that was pressed, and a polite status message says "Archive watched 4K moved to position 2."
 - "New policy" (primary) in the page header.
 
-**Editor:** route `/policies/{id}`. The policy reads as a sentence built from real controls.
+**Editor:** route `/policies/{id}`. The editor is built as three labelled sections, "In", "When" and "Then", rather than the one inline sentence sketched in earlier drafts of this document. Each section holds the same controls the sentence would:
 
-> In [Movies ▾], when [watched ▾] and [last watched ▾] [more than ▾] [90] days ago and [resolution ▾] [above ▾] [1080p ▾] [+ Add condition], convert to [1080p ▾] [HEVC ▾] at [High ▾] quality. Keep all audio and subtitles.
+> **In** [Movies ▾]. **When** [watched ▾] and [last watched ▾] [more than ▾] [90] days ago and [resolution ▾] [above ▾] [1080p ▾] [+ Add condition]. **Then** convert to [1080p ▾] [HEVC ▾] at [High ▾] quality. Keep all audio and subtitles.
 
-- Each bracket is an inline slot (`.field--slot`): a native `<select>` or `<input>` with a visually hidden label ("Scope", "Condition 2", "Days"), so the sentence also reads correctly with a screen reader.
+- Each bracket is an inline slot (`.field--slot`): a native `<select>` or `<input>` with a visually hidden label ("Scope", "Condition 2", "Days"), so each section also reads correctly with a screen reader.
 - Conditions join with "and". Each condition has a remove button (`✗`, `aria-label="Remove condition: last watched"`).
 - "+ Add condition" adds a new condition slot and moves focus to it.
 - Watched conditions follow the watched-state setting ("watched by any of Alice, Sam").
 - The action is a segmented control: "Convert" or "Protect (never change)". Protect replaces the "convert to" part with "never change these items."
-- "More options" (`<details>`): HDR opt-ins for this policy ("Allow HDR10+ to become HDR10", "Allow Dolby Vision profiles 7 and 8 to become HDR10"), both off, each with one sentence on what is lost.
-- Name field above the sentence. Enable toggle, Save (primary) and Delete (danger, with a dialog) below it.
+- "More options" (`<details>`): one combined HDR checkbox, "Allow HDR10+ and Dolby Vision to be reduced to HDR10", off by default, with one sentence on what is lost. There is no separate opt-in per HDR type.
+- Name field above the sections. Enable toggle, Save (primary) and Delete (danger, with a dialog titled with the policy's name: `Delete "Protect favourites"?`) below them. The list's Delete buttons use the same dialog.
 
 **Live preview** (a panel beside the editor at 1080px and above, below it on smaller screens). It updates 300ms after any change, through HTMX:
 
@@ -768,7 +771,7 @@ Route: `/policies`. The ordered list of policies, and the editor.
 - The first 10 matching items with their change, linking to each item.
 - The preview is a simulation. It never changes anything.
 
-**Protect, explained.** A callout on the editor when Protect is chosen: "Protect means JellyTrim never changes matching items. Because the first matching policy wins, put Protect policies at the top of the list." If a protect policy is below a convert policy that matches the same items, the list shows a warning on that row.
+**Protect, explained.** A callout on the editor when Protect is chosen: "Protect means JellyTrim never changes matching items. Because the first matching policy wins, put Protect policies at the top of the list." The list itself does not yet warn when a Protect policy sits below a Convert policy that matches the same items; check the order by eye, or with each policy's preview.
 
 ### Queue
 
@@ -784,10 +787,12 @@ Route: `/queue`. What is running, what is waiting, and control over both.
 - The segmented meter and the readout: `38% · 2.4× · 12 min left`. Elapsed time. Projected size: "~ 13.9 GB (saving ~ 34 GB)".
 - The encoder, named in plain words ("Intel QSV", not the ffmpeg encoder name), and the policy that chose the job.
 - "Cancel" (danger), with a dialog: "Cancel this job? The original file is kept. The partial file is deleted."
-- The panel refreshes every 2 seconds through HTMX polling (`hx-trigger="every 2s"`). The server answers with status 286 to stop polling when nothing is running.
+- The panel refreshes every 2 seconds through HTMX polling (`hx-trigger="every 2s"`), except while a confirmation dialog is open inside it. When nothing is running or waiting, the server leaves out the polling attributes on the next swap, so the browser simply stops asking.
 - A polite live region announces stage changes and completion only, never every percentage.
 
-**Waiting.** A table: position, title, change, estimated saving, policy, and a Cancel button per row. "Cancel all waiting" (danger, with a dialog) above it. Empty: "Nothing waiting."
+**Waiting.** A table: position, title, change, estimated saving, policy, and a Cancel button per row. Empty: "Nothing waiting." There is no "Cancel all waiting" action; cancel jobs one at a time.
+
+**Failed in the last hour.** A panel below the waiting table lists jobs that failed in the last hour, each with a "Retry" button and a link to History. It is not shown when nothing has failed recently.
 
 **Statuses.** Every job status has a lamp and a word:
 
@@ -801,19 +806,24 @@ Route: `/queue`. What is running, what is waiting, and control over both.
 | Complete | ok | Replaced; the saving is recorded |
 | Skipped | warn | Stopped safely without changes; the reason is recorded |
 | Failed | bad | Something went wrong; the original is unchanged |
+| Cancelled | idle | The user cancelled it before it finished; the original is unchanged |
+| Needs attention | warn | Stopped in a state that needs a person to look at it; not active, but it blocks new jobs for its item and file until resolved |
 
-Failed jobs in the last hour show here with "Retry" and a link to History.
+"Optimise now" on an item's page, and any other manually triggered job, is placed at the front of the waiting jobs, ahead of jobs the scheduler queued automatically.
 
 ### History
 
 Route: `/history`. Every finished job.
 
-- Filters: status (All, Complete, Skipped, Failed, Restored), library, and search. GET form, as on the Library page.
+- A "Needs attention" panel at the top lists jobs that stopped in a state a person needs to look at (status Needs attention), when there are any. It says: "These jobs stopped in a state you need to look at. The original is safe; each job says where."
+- Filters: status (All, Complete, Skipped, Failed, Cancelled, Needs attention), library, and search. GET form, as on the Library page.
 - A table: finished (date and time), title, change (Plex Mono), size before → after, saving, status (lamp and word), reason (for skipped and failed: one plain sentence).
-- Each row expands (`<details>` in the last cell, or the whole row on phones) to show:
-  - **Technical details:** the exact ffmpeg command (Plex Mono, wrapped, with a Copy button), the last 50 lines of ffmpeg's error output, the ffmpeg version, the encoder and device, and the time taken by each stage.
-  - **Warnings**, such as "Could not set the file's group to match the original."
-  - **Restore original** (secondary) while the backup exists: "Backup kept until 4 Oct 2026." A dialog confirms: "Restore the original file? The converted file is deleted and Jellyfin is asked to rescan." After a restore the row status reads "Restored".
+- Each row links to a job detail page, which shows:
+  - **Checks and warnings.** The validation checks (pass or fail, as an explanation list), and any warnings such as "Could not set the file's group to match the original."
+  - **Technical details:** the exact ffmpeg command (Plex Mono, wrapped, with a Copy button), the last lines of ffmpeg's error output, and the encoder.
+  - **Skipped jobs** that set an item aside show where: "Kept at `<path>` until `<date>`."
+  - **Restore original** (danger button style, since it deletes the converted file) while the backup exists: "Backup kept until 4 Oct 2026." A dialog confirms: "Restore the original file? The converted file is deleted and Jellyfin is asked to rescan." After a restore the row status reads "Restored".
+  - **Retry**, for a failed, skipped or cancelled job. It is the primary button for a failed job and a secondary one otherwise.
 - The command and error output never include the Jellyfin API key.
 
 ### Settings
@@ -821,6 +831,8 @@ Route: `/history`. Every finished job.
 Route: `/settings`. One page with sections. At 1080px and above an in-page contents list sits on the left and stays in view; each section has an anchor (`#jellyfin`, `#dry-run`).
 
 Each section is its own form and saves on its own. After saving, the section shows an ok lamp and "Saved at 14:02". Unsaved changes show "Not saved yet" in `--warn` beside the Save button.
+
+Saving **Libraries**, **Watched state** or **Path mappings** starts a full sync, because it changes which items or files JellyTrim reads. Saving **Dry Run**, **Saving and backups** or **Advanced** only re-evaluates the existing items against the policies; it does not sync with Jellyfin again.
 
 - **Jellyfin.** Address, and the API key. The key field is always empty. Beside it: "An API key is saved. Enter a new key only to replace it." "Test connection" as in setup. Values set by environment variables are read-only and say which variable set them.
 - **Libraries.** The library checklist from setup.
@@ -830,8 +842,7 @@ Each section is its own form and saves on its own. After saving, the section sho
 - **Schedule.** Sync with Jellyfin: every [6] hours, or daily at [time] (leave the time empty to use the interval). "Sync now" and the time of the last sync.
 - **Processing window.** A toggle "Only encode during a time window", then from [01:00] to [07:00].
 - **Concurrency.** Jobs at a time, 1 to 4. Hint: "More than one job at a time is only faster with a hardware encoder."
-- **Minimum saving.** Replace a file only if it saves at least [10] %.
-- **Backups.** Keep replaced originals for [7] days. Current use: "Backups use 212 GB."
+- **Saving and backups.** Minimum saving (replace a file only if it saves at least [10] %) and how many days to keep replaced originals as backups ([7] by default), in one section.
 - **Hardware.** The capabilities table from setup step 5, with the device name and ffmpeg version, the time of the last test, and "Test again" (runs with a meter per row).
 - **HDR.** Read-only summary of how JellyTrim treats each HDR type, linking to the policy option "Allow HDR10+ and Dolby Vision to be reduced to HDR10", which is set per policy (off by default).
 - **Processing.** "Queue matching items automatically" toggle (on by default; only applies when Dry Run is off). Validation: "Full decode check" (default) or "Sampled decode check (faster)".
@@ -851,7 +862,7 @@ Each section is its own form and saves on its own. After saving, the section sho
 - ARIA only where HTML cannot express it: `role="switch"` on toggles, `aria-current`, `aria-sort`, `aria-describedby`, roles on collapsing tables, and live regions for queue and save status.
 - Status is never shown by colour alone. Lamps sit next to words; explanation lines have `✓` or `✗` and a hidden "Met" or "Not met"; toggles show ON and OFF.
 - HTMX swaps keep focus where the user was, or move it to the new content's heading. Polling never moves focus.
-- Touch targets are at least 44 × 44px below 720px.
+- Touch targets are at least 44 × 44px below 720px. This includes a text link that is the only way into an item (Library titles, Dashboard activity and problem examples): below 720px it becomes a block at least 44px tall.
 - Pages are usable at 200% zoom and at 320px wide without sideways scrolling of the page.
 
 ## Copy

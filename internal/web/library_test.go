@@ -182,7 +182,7 @@ func TestLibraryFilters(t *testing.T) {
 		notWant []string
 	}{
 		{"", []string{"Alpha (2019)", "Mike Show · S01E02", "Showing 1 to 17 of 17"}, []string{"S01E02 · Mike Show", "(2019) (2019)"}},
-		{"?outcome=protected", []string{"Bravo (2020)", "Golf (2018)"}, []string{"Alpha (2019)", "Juliet (2005)"}},
+		{"?outcome=protected", []string{"Bravo (2020)", "Golf (2018)", `<span class="missing">Not planned</span>`}, []string{"Alpha (2019)", "Juliet (2005)"}},
 		{"?outcome=protected&outcome=skipped", []string{"Bravo (2020)", "Juliet (2005)"}, []string{"Alpha (2019)"}},
 		{"?codec=av1", []string{"Foxtrot (2023)", "Showing 1 to 1 of 1"}, []string{"Alpha (2019)"}},
 		{"?res=2160&hdr=1", []string{"Delta (2022)"}, []string{"Charlie (2021)", "Alpha (2019)"}},
@@ -197,7 +197,7 @@ func TestLibraryFilters(t *testing.T) {
 			t.Fatalf("%s: status %d", c.query, res.StatusCode)
 		}
 		for _, w := range c.want {
-			if !strings.Contains(body, templEscape(w)) {
+			if !strings.Contains(body, templEscape(w)) && !strings.Contains(body, w) {
 				t.Errorf("%s: missing %q", c.query, w)
 			}
 		}
@@ -264,6 +264,9 @@ func TestItemDetailMultiAudio(t *testing.T) {
 	}
 	if !strings.Contains(body, `class="mono">fre</td>`) {
 		t.Error("the French audio track is missing")
+	}
+	if !strings.Contains(body, `<span class="missing">None</span>`) {
+		t.Error("an empty stream title or flags cell is blank instead of None")
 	}
 	if !strings.Contains(body, `class="explain__item explain__item--pass"`) {
 		t.Error("the winning policy's explanation is missing")

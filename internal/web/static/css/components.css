@@ -175,6 +175,13 @@
   color: var(--ink-2);
 }
 
+/* A word ("Unknown", "None") standing in for a value that is missing, so a
+   cell is never blank. Words, not mono, even in a technical column. */
+.missing {
+  color: var(--ink-2);
+  font-family: var(--font-sans);
+}
+
 /* ---------- Status lamp ---------- */
 
 .lamp {
@@ -204,8 +211,11 @@
   background: var(--info);
 }
 
+/* Unlit: a solid tonal square with a matching edge, like a dark LED lens.
+   It is never hollow, so it cannot be mistaken for an unticked checkbox. */
 .lamp--idle {
-  background: var(--surface-sunk);
+  background: var(--rule-soft);
+  border-color: var(--rule-soft);
 }
 
 .lamp--active,

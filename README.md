@@ -8,7 +8,7 @@ JellyTrim is a single Go binary with a web interface. It runs in Docker next to 
 
 ## Status
 
-JellyTrim is in early development and has not reached version 1.0. Some features below are still being built; `docs/MILESTONES.md` shows what is finished. Expect breaking changes between releases.
+JellyTrim has not reached version 1.0, but it is feature-complete for its MVP: connecting to Jellyfin, syncing and inspecting a library, policies with previews and explanations, safe encoding with x265 and Intel Quick Sync, a queue with history, scheduling, and the full web UI. `docs/MILESTONES.md` shows the detail. The one significant gap is that Intel Quick Sync has not yet been verified on real Intel hardware; the software encoder (x265) has. Expect breaking changes before 1.0.
 
 **Dry Run is on by default.** Until you turn it off, JellyTrim only reports what it would do. It does not change any files. Keep your own backups of media you care about.
 
@@ -118,8 +118,8 @@ See [SECURITY.md](SECURITY.md) for the threat model and how to report a vulnerab
 
 | Encoder | Platforms | Status |
 |---|---|---|
-| x265 (software HEVC) | amd64, arm64 | Supported |
-| Intel Quick Sync (QSV) HEVC | amd64 with `/dev/dri` passed through | Supported |
+| x265 (software HEVC) | amd64, arm64 | Supported and verified on real hardware |
+| Intel Quick Sync (QSV) HEVC | amd64 with `/dev/dri` passed through | Built and covered by golden argument tests; not yet verified on real Intel hardware |
 | NVIDIA NVENC | | Planned |
 | VAAPI (AMD and Intel) | | Planned |
 | AV1 (SVT-AV1 and hardware) | | Planned |

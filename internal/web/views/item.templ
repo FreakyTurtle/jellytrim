@@ -82,6 +82,7 @@ type ItemOptimise struct {
 	Enabled       bool   // the button works (Dry Run is off)
 	Reason        string // why the button is disabled
 	Action        string // POST target that queues the item
+	Backup        string // how long the original is kept, for the confirmation
 	Queued        bool   // the item already has a waiting or running job
 	Excluded      bool   // the user restored the original, so it is left alone
 	IncludeAction string // POST target that allows changes again
@@ -148,6 +149,29 @@ templ ItemPage(v ItemPageData) {
 				}
 			</div>
 		</div>
+		if v.Optimise.Show && v.Optimise.Enabled && !v.Optimise.Queued {
+			@itemOptimiseDialog(v)
+		}
+	}
+}
+
+const itemOptimiseDialogID = "item-optimise"
+
+// itemOptimiseDialog confirms queueing the item. Without JavaScript the
+// trigger link opens it through :target, and "Not now" links back to the page.
+templ itemOptimiseDialog(v ItemPageData) {
+	@Dialog(itemOptimiseDialogID, "Optimise now?") {
+		<form class="queue-dialog__form" method="post" action={ templ.SafeURL(v.Optimise.Action) }>
+			@DialogBody() {
+				<p>Optimise <strong>{ v.Title }</strong> now? JellyTrim will replace the file after checking the result.</p>
+				<p>{ v.Optimise.Backup }</p>
+			}
+			@DialogActions() {
+				@DialogCancel("Not now")
+				<a class="btn btn--secondary queue-nojs" href="#main">Not now</a>
+				<button class="btn btn--primary" type="submit">Optimise now</button>
+			}
+		</form>
 	}
 }
 
@@ -169,9 +193,9 @@ templ itemActions(v ItemPageData) {
 				<a class="btn btn--secondary" href="/queue">View the queue</a>
 			</div>
 		} else if v.Optimise.Show && v.Optimise.Enabled {
-			<form class="item-actions__optimise" method="post" action={ templ.SafeURL(v.Optimise.Action) }>
-				<button class="btn btn--primary" type="submit">Optimise now</button>
-			</form>
+			<div class="item-actions__optimise">
+				<a class="btn btn--primary" href={ templ.SafeURL("#" + itemOptimiseDialogID) } data-dialog-open={ itemOptimiseDialogID } aria-haspopup="dialog">Optimise now</a>
+			</div>
 		} else if v.Optimise.Show {
 			<div class="item-actions__optimise">
 				<button class="btn btn--primary" type="button" disabled aria-describedby="item-optimise-note">Optimise now</button>
@@ -244,11 +268,11 @@ templ itemStreams(v ItemPageData) {
 						for _, a := range v.Audio {
 							<tr role="row">
 								<td role="cell" data-label="#" class="num mono">{ a.Index }</td>
-								<td role="cell" data-label="Codec" class="mono">{ a.Codec }</td>
-								<td role="cell" data-label="Channels" class="mono">{ a.Channels }</td>
-								<td role="cell" data-label="Language" class="mono">{ a.Language }</td>
-								<td role="cell" data-label="Title">{ a.Title }</td>
-								<td role="cell" data-label="Flags">{ a.Flags }</td>
+								<td role="cell" data-label="Codec" class="mono">@ValueOr(a.Codec, "Unknown")</td>
+								<td role="cell" data-label="Channels" class="mono">@ValueOr(a.Channels, "Unknown")</td>
+								<td role="cell" data-label="Language" class="mono">@ValueOr(a.Language, "Unknown")</td>
+								<td role="cell" data-label="Title">@ValueOr(a.Title, "None")</td>
+								<td role="cell" data-label="Flags">@ValueOr(a.Flags, "None")</td>
 							</tr>
 						}
 					</tbody>
@@ -275,10 +299,10 @@ templ itemStreams(v ItemPageData) {
 						for _, s := range v.Subtitles {
 							<tr role="row">
 								<td role="cell" data-label="#" class="num mono">{ s.Index }</td>
-								<td role="cell" data-label="Codec" class="mono">{ s.Codec }</td>
-								<td role="cell" data-label="Language" class="mono">{ s.Language }</td>
-								<td role="cell" data-label="Title">{ s.Title }</td>
-								<td role="cell" data-label="Flags">{ s.Flags }</td>
+								<td role="cell" data-label="Codec" class="mono">@ValueOr(s.Codec, "Unknown")</td>
+								<td role="cell" data-label="Language" class="mono">@ValueOr(s.Language, "Unknown")</td>
+								<td role="cell" data-label="Title">@ValueOr(s.Title, "None")</td>
+								<td role="cell" data-label="Flags">@ValueOr(s.Flags, "None")</td>
 							</tr>
 						}
 					</tbody>

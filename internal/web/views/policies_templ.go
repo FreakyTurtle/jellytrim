@@ -865,7 +865,7 @@ func policyDeleteDialog(dialogID string, id int64, name, backHref string) templ.
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = Dialog(dialogID, "Delete this policy?").Render(templ.WithChildren(ctx, templ_7745c5c3_Var34), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = Dialog(dialogID, "Delete \""+name+"\"?").Render(templ.WithChildren(ctx, templ_7745c5c3_Var34), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

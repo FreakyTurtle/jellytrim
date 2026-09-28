@@ -36,6 +36,7 @@ func run() error {
 	keyFile := flag.String("key-file", "dev/jellyfin-api-key", "file holding the dev API key")
 	mediaDir := flag.String("media", "dev/media", "local folder holding the fixture media")
 	enableAll := flag.Bool("enable-all", false, "enable every starter policy, not just Protect favourites")
+	live := flag.Bool("live", false, "turn Dry Run off, so JellyTrim will really optimise the fixture files")
 	assumeX265 := flag.Bool("assume-x265", true, "treat software x265 as tested, so plans can be made before the hardware test runs")
 	flag.Parse()
 
@@ -80,6 +81,11 @@ func run() error {
 		rows, _ := st.Policies(ctx)
 		for _, p := range rows {
 			_ = st.SetPolicyEnabled(ctx, p.ID, true)
+		}
+	}
+	if *live {
+		if err := st.SetSetting(ctx, store.KeyDryRun, "false"); err != nil {
+			return err
 		}
 	}
 	if err := st.SetSetting(ctx, store.KeySetupComplete, "true"); err != nil {
