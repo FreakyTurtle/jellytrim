@@ -46,3 +46,4 @@ Curate this file: keep it under 150 lines, one fact per bullet, date each entry 
 - 2026-09-28: Metric prefixes "Estimate." unless the note already contains "Estimate"; write notes as "Estimate: ..." or "Estimate at ..." to avoid "Estimate. Of ...".
 - 2026-09-28: the store has no running-jobs query; InterruptedJobs filtered by `Active()` avoids ActiveJobs, which loads every waiting job.
 - 2026-09-28: to test SpaceHold, Start a queue with a fake SpaceFS (tiny Free) and Dry Run off; it holds the job without encoding anything.
+- 2026-09-28: never put throwaway Go programs (seeders, harnesses) under the repo's tmp/ or dev/: `./...` includes them and lint fails. Put them in the session scratchpad, outside the module.

@@ -84,6 +84,10 @@ linters:
         # by what ffprobe and the filesystem report.
         - G115
   exclusions:
+    # Local, gitignored scratch folders are not part of the project.
+    paths:
+      - tmp
+      - dev
     rules:
       - path: _test\.go$
         linters: [funlen, gosec, gocyclo, noctx, bodyclose]

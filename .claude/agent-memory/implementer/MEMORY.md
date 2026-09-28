@@ -26,3 +26,4 @@ Curate this file: keep it under 150 lines, one fact per bullet, date each entry 
 - 2026-09-28: For fast 100k experiments, build the scale database once into the scratchpad (config dir plus sparse files, ~2.5 min) with a throwaway test, then time Evaluate against it; a full scale run takes ~7.5 min because of the fake Jellyfin's sort.
 - 2026-09-28: SQLite `INSERT ... SELECT ... ON CONFLICT` needs a WHERE clause on the SELECT (parsing ambiguity); `WHERE EXISTS (SELECT 1 FROM items WHERE id = ?)` doubles as a guard against FK failures.
 - 2026-09-28: Paging items by `i.id > ? ORDER BY i.id LIMIT ?` needs `items i CROSS JOIN libraries l` so SQLite walks the primary key instead of sorting; a test asserts the plan has no TEMP B-TREE.
+- 2026-09-28: never put throwaway Go programs under the repo's tmp/ or dev/: `go vet ./...`, `go test ./...` and lint all pick them up. Use the session scratchpad instead (outside the module), or a `_`-prefixed folder, which Go ignores.
