@@ -1,0 +1,294 @@
+package views
+
+import "strconv"
+
+// LibraryPageData is everything the Library page shows.
+type LibraryPageData struct {
+	Shell   Shell
+	Filters LibraryFilters
+	Results LibraryResults
+}
+
+// LibraryFilters is the toolbar state: the chosen filters and their options.
+type LibraryFilters struct {
+	Search         string
+	Library        string
+	Libraries      []Option
+	KnownLibrary   bool
+	Outcomes       []string
+	Res            []string
+	Codecs         []string
+	HDR            bool
+	Watched        []string
+	Sort           string
+	Active         int // how many filters are set
+	OutcomeOptions []Option
+	ResOptions     []Option
+	CodecOptions   []Option
+	WatchedOptions []Option
+	SortOptions    []Option
+}
+
+// LibraryResults is one page of the results table.
+type LibraryResults struct {
+	Rows      []LibraryRow
+	Total     string
+	From      string
+	To        string
+	PrevHref  string
+	NextHref  string
+	Sort      string
+	SortHrefs map[string]string
+	Filtered  bool
+	Synced    bool // any managed item exists
+}
+
+// LibraryRow is one item in the results table.
+type LibraryRow struct {
+	ID       string
+	Href     string
+	Title    string
+	Library  string
+	HasImage bool
+	ImgSrc   string
+	Initial  string
+	Badges   []LibraryBadge
+	Change   string
+	Size     string
+	Saving   string
+	Lamp     string
+	Decision string
+}
+
+// LibraryBadge is one format badge: resolution, codec or HDR type.
+type LibraryBadge struct {
+	Text    string
+	Variant string
+}
+
+func libraryHDRSelected(on bool) []string {
+	if on {
+		return []string{"1"}
+	}
+	return nil
+}
+
+func libraryFilterCount(n int) string {
+	if n == 0 {
+		return ""
+	}
+	return "(" + strconv.Itoa(n) + ")"
+}
+
+// librarySortState is the aria-sort value for a column header.
+func librarySortState(current, column string) string {
+	if current != column {
+		return ""
+	}
+	if column == "name" {
+		return "ascending"
+	}
+	return "descending"
+}
+
+// LibraryPage is the Library.
+templ LibraryPage(d LibraryPageData) {
+	@Layout(d.Shell) {
+		@PageHeader("Library", "Every managed item and what JellyTrim would do with it.")
+		@libraryToolbar(d.Filters)
+		@LibraryResultsView(d.Results)
+	}
+}
+
+templ libraryToolbar(f LibraryFilters) {
+	<form
+		class="library-toolbar"
+		id="library-filters"
+		method="get"
+		action="/library"
+		role="search"
+		aria-label="Library filters"
+		hx-get="/library"
+		hx-target="#library-results"
+		hx-swap="outerHTML"
+		hx-push-url="true"
+		hx-trigger="change, input changed delay:300ms from:#library-q, submit"
+	>
+		<div class="library-toolbar__top">
+			<div class="field library-toolbar__search">
+				<label class="field__label" for="library-q">Search titles and series</label>
+				<input class="field__input" id="library-q" name="q" type="search" value={ f.Search } autocomplete="off"/>
+			</div>
+			<div class="field">
+				<label class="field__label" for="library-lib">Library</label>
+				<select class="field__input" id="library-lib" name="library">
+					<option value="">All libraries</option>
+					for _, l := range f.Libraries {
+						<option value={ l.Value } selected?={ l.Value == f.Library }>{ l.Label }</option>
+					}
+				</select>
+			</div>
+			<div class="field">
+				<label class="field__label" for="library-sort">Sort by</label>
+				<select class="field__input" id="library-sort" name="sort">
+					for _, o := range f.SortOptions {
+						<option value={ o.Value } selected?={ o.Value == f.Sort }>{ o.Label }</option>
+					}
+				</select>
+			</div>
+		</div>
+		<details class="library-filters">
+			<summary class="library-filters__summary">
+				Filters
+				<span id="library-filter-count">{ libraryFilterCount(f.Active) }</span>
+			</summary>
+			<div class="library-filters__groups">
+				@Chips("outcome", "Decision", f.OutcomeOptions, f.Outcomes)
+				@Chips("res", "Resolution", f.ResOptions, f.Res)
+				@Chips("codec", "Codec", f.CodecOptions, f.Codecs)
+				@Chips("hdr", "Dynamic range", []Option{{Value: "1", Label: "HDR"}}, libraryHDRSelected(f.HDR))
+				@Chips("watched", "Watched", f.WatchedOptions, f.Watched)
+			</div>
+		</details>
+		<div class="library-toolbar__apply">
+			<button class="btn btn--secondary" type="submit">Apply filters</button>
+		</div>
+	</form>
+}
+
+// LibraryResultsSwap is the HTMX response to a filter change: the results,
+// and the filter count in the toolbar out of band.
+templ LibraryResultsSwap(r LibraryResults, active int) {
+	@LibraryResultsView(r)
+	<span id="library-filter-count" hx-swap-oob="true">{ libraryFilterCount(active) }</span>
+}
+
+templ libraryCountBar(r LibraryResults) {
+	if r.From != "" {
+		<p class="library-count">Showing { r.From } to { r.To } of { r.Total }</p>
+	} else {
+		<p class="library-count">{ r.Total } items</p>
+	}
+	if r.Filtered {
+		<a class="btn btn--secondary btn--small" href="/library">Clear filters</a>
+	}
+}
+
+// LibraryResultsView is the results panel, the target of filter changes.
+templ LibraryResultsView(r LibraryResults) {
+	@PanelWith(PanelProps{Tab: "Items", ID: "library-results", Flush: true, Actions: libraryCountBar(r)}) {
+		if !r.Synced {
+			<div class="library-results__empty">
+				@EmptyState("0", "Nothing synced yet", "Press Sync now on the Dashboard to read your libraries from Jellyfin.", "/", "Go to the Dashboard")
+			</div>
+		} else if len(r.Rows) == 0 {
+			<div class="library-results__empty">
+				@EmptyState("0", "No items match these filters.", "Try fewer filters or a different search.", "/library", "Clear filters")
+			</div>
+		} else {
+			@libraryTable(r)
+			@libraryPager(r)
+		}
+	}
+}
+
+templ librarySortHeader(r LibraryResults, column, label, class string) {
+	<th
+		scope="col"
+		role="columnheader"
+		class={ class }
+		if s := librarySortState(r.Sort, column); s != "" {
+			aria-sort={ s }
+		}
+	>
+		<a class="table__sort" href={ templ.SafeURL(r.SortHrefs[column]) }>{ label }</a>
+	</th>
+}
+
+templ libraryTable(r LibraryResults) {
+	<div class="table-wrap">
+		<table class="table library-table" role="table">
+			<caption class="visually-hidden">Library items</caption>
+			<thead role="rowgroup">
+				<tr role="row">
+					<th scope="col" role="columnheader" class="library-table__art"><span class="visually-hidden">Artwork</span></th>
+					@librarySortHeader(r, "name", "Title", "")
+					<th scope="col" role="columnheader">Format</th>
+					<th scope="col" role="columnheader">Change</th>
+					@librarySortHeader(r, "size", "Size", "num")
+					@librarySortHeader(r, "saving", "Est. saving", "num")
+					<th scope="col" role="columnheader">Decision</th>
+				</tr>
+			</thead>
+			<tbody role="rowgroup">
+				for _, row := range r.Rows {
+					<tr role="row">
+						<td role="cell" class="library-table__art">
+							@LibraryArt(row.HasImage, row.ImgSrc, row.Initial, false)
+						</td>
+						<td role="cell" data-label="Title" class="library-table__title">
+							<a href={ templ.SafeURL(row.Href) }>{ row.Title }</a>
+							if row.Library != "" {
+								<span class="library-table__lib">{ row.Library }</span>
+							}
+						</td>
+						<td role="cell" data-label="Format">
+							<span class="badges">
+								for _, b := range row.Badges {
+									@Badge(b.Text, b.Variant)
+								}
+							</span>
+						</td>
+						<td role="cell" data-label="Change" class="mono">{ row.Change }</td>
+						<td role="cell" data-label="Size" class="num mono">{ row.Size }</td>
+						<td role="cell" data-label="Est. saving" class="num mono">
+							if row.Saving != "" {
+								<span><span aria-hidden="true">~ </span><span class="visually-hidden">About </span>{ row.Saving }</span>
+							}
+						</td>
+						<td role="cell" data-label="Decision">
+							@Status(row.Lamp, row.Decision)
+						</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+	</div>
+}
+
+// LibraryArt is an item's poster through /img, or a sunk box with the
+// title's first letter when there is no artwork.
+templ LibraryArt(hasImage bool, src, initial string, large bool) {
+	if hasImage {
+		<img
+			class={ "art", templ.KV("art--large", large) }
+			src={ src }
+			alt=""
+			loading="lazy"
+			decoding="async"
+			if large {
+				width="120"
+				height="180"
+			} else {
+				width="40"
+				height="60"
+			}
+		/>
+	} else {
+		<span class={ "art", "art--none", templ.KV("art--large", large) } aria-hidden="true">{ initial }</span>
+	}
+}
+
+templ libraryPager(r LibraryResults) {
+	if r.PrevHref != "" || r.NextHref != "" {
+		<nav class="pager" aria-label="Pages">
+			if r.PrevHref != "" {
+				<a class="btn btn--secondary btn--small" href={ templ.SafeURL(r.PrevHref) } hx-get={ r.PrevHref } hx-target="#library-results" hx-swap="outerHTML" hx-push-url="true">Previous</a>
+			}
+			<p class="pager__text">{ r.From } to { r.To } of { r.Total }</p>
+			if r.NextHref != "" {
+				<a class="btn btn--secondary btn--small" href={ templ.SafeURL(r.NextHref) } hx-get={ r.NextHref } hx-target="#library-results" hx-swap="outerHTML" hx-push-url="true">Next</a>
+			}
+		</nav>
+	}
+}

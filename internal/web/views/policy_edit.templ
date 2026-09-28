@@ -1,0 +1,631 @@
+package views
+
+import (
+	"sort"
+	"strconv"
+)
+
+// PolicyEditorView is everything the policy editor draws. Values are as the
+// user typed them, so a re-render after an error keeps their input.
+type PolicyEditorView struct {
+	ID                  int64  // 0 for a new policy
+	Action              string // where the form posts
+	Name                string
+	Enabled             bool
+	Libraries           []Option
+	LibrariesSelected   []string
+	Type                string // "both", "Movie" or "Episode"
+	ShowSeries          bool
+	Series              []Option
+	SeriesSelected      []string
+	ShowSeasons         bool
+	SeasonsOf           string // the one chosen series, for the seasons label
+	Seasons             string
+	Collections         []Option
+	CollectionsSelected []string
+	Fields              []Option // condition fields
+	Conds               []PolicyCondView
+	Kind                string
+	MaxRes              string
+	Codec               string
+	Quality             string
+	Encoder             string
+	AllowHDR            bool
+	Errors              map[string]string
+	Focus               string // id of the element that takes focus
+	Fragment            bool   // drawn alone for an HTMX swap
+}
+
+// PolicyCondView is one condition row.
+type PolicyCondView struct {
+	Index      int
+	Field      string
+	FieldLabel string
+	Kind       string // bool, days, resolution, codec, mbps, gb, hdr, words
+	Ops        []Option
+	Op         string
+	Bool       string
+	Number     string
+	Unit       string // text after the value, such as "days ago"
+	Text       string
+	Choices    []Option
+	List       []string
+	Words      string
+	Error      string
+}
+
+// PolicyPreviewView is the live preview beside the editor.
+type PolicyPreviewView struct {
+	Sentence string
+	Enabled  bool
+	Protect  bool
+	Problem  string // why there is no preview yet
+	Failed   bool
+	Ready    bool
+	Matches  int
+	Wins     int
+	Higher   int // matched, but a higher policy decides
+	Optimise int
+	Optimal  int
+	Skipped  int
+	Current  string // sizes are empty when nothing would be optimised
+	After    string
+	Saving   string
+	Samples  []PolicySampleView
+}
+
+// PolicySampleView is one example item in the preview.
+type PolicySampleView struct {
+	Href    string
+	Name    string
+	Outcome string
+	Lamp    string
+	Summary string
+}
+
+// PolicyAddConditionID is the id of the "Add condition" button.
+const PolicyAddConditionID = "policy-add-condition"
+
+// PolicyCondFieldID is the id of a condition row's field select.
+func PolicyCondFieldID(i int) string {
+	return policyCondID(i) + "-field"
+}
+
+func policyCondID(i int) string {
+	return "c" + strconv.Itoa(i)
+}
+
+func policyCondName(i int, part string) string {
+	return "c" + strconv.Itoa(i) + "." + part
+}
+
+func policyCondLabel(i int) string {
+	return "Condition " + strconv.Itoa(i+1)
+}
+
+var policyTypeOptions = []Option{
+	{Value: "both", Label: "Films and episodes"},
+	{Value: "Movie", Label: "Films"},
+	{Value: "Episode", Label: "Episodes"},
+}
+
+var policyKindOptions = []Option{
+	{Value: "optimise", Label: "Optimise", Hint: "Convert matching files to save space, within the limits below."},
+	{Value: "protect", Label: "Protect (never change)"},
+}
+
+var policyMaxResOptions = []Option{
+	{Value: "keep", Label: "Keep original"},
+	{Value: "2160p", Label: "2160p"},
+	{Value: "1080p", Label: "1080p"},
+	{Value: "720p", Label: "720p"},
+	{Value: "480p", Label: "480p"},
+}
+
+var policyCodecOptions = []Option{
+	{Value: "keep", Label: "Keep existing"},
+	{Value: "hevc", Label: "HEVC"},
+	{Value: "h264", Label: "H.264"},
+	{Value: "av1", Label: "AV1", Disabled: true},
+}
+
+var policyQualityOptions = []Option{
+	{Value: "maximum", Label: "Maximum", Hint: "As close to the original as JellyTrim can make it. Saves the least space."},
+	{Value: "high", Label: "High", Hint: "Hard to tell apart from the original on a large screen."},
+	{Value: "balanced", Label: "Balanced", Hint: "Looks good on a TV. Saves a good amount of space."},
+	{Value: "space_saver", Label: "Space Saver", Hint: "Fine for phones and tablets. Saves the most space."},
+}
+
+var policyEncoderOptions = []Option{
+	{Value: "auto", Label: "Auto"},
+}
+
+func policyEditTitle(v PolicyEditorView) string {
+	if v.ID == 0 {
+		return "New policy"
+	}
+	return "Edit policy"
+}
+
+// policyErrorKeys are shown in this order in the summary.
+var policyErrorOrder = map[string]int{"name": 0, "type": 1, "seasons": 2, "kind": 90, "max_resolution": 91, "codec": 92, "quality": 93, "action": 94, "encoder": 95, "form": 99}
+
+func policyErrorSummary(errs map[string]string) []string {
+	keys := make([]string, 0, len(errs))
+	for k := range errs {
+		keys = append(keys, k)
+	}
+	rank := func(k string) int {
+		if r, ok := policyErrorOrder[k]; ok {
+			return r
+		}
+		n, _ := strconv.Atoi(k[1:]) // condition rows: c0, c1 ...
+		return 10 + n
+	}
+	sort.Slice(keys, func(i, j int) bool { return rank(keys[i]) < rank(keys[j]) })
+	out := make([]string, 0, len(keys))
+	for _, k := range keys {
+		msg := errs[k]
+		if k[0] == 'c' && k != "codec" {
+			n, _ := strconv.Atoi(k[1:])
+			msg = policyCondLabel(n) + ": " + msg
+		}
+		out = append(out, msg)
+	}
+	return out
+}
+
+func policyPreviewTrigger(v PolicyEditorView) string {
+	if v.Fragment {
+		// A swapped-in form has new choices; preview them straight away.
+		return "load, input delay:500ms"
+	}
+	return "input delay:500ms"
+}
+
+const policyRefreshVals = `{"op":"refresh"}`
+
+func policyErrID(key string) string {
+	return "policy-" + key + "-error"
+}
+
+// PolicyEditPage is the editor with its live preview.
+templ PolicyEditPage(sh Shell, v PolicyEditorView, pv PolicyPreviewView) {
+	@Layout(sh) {
+		@PageHeader(policyEditTitle(v), "A policy reads as a sentence: in these items, when these conditions hold, then do this.") {
+			<a class="btn btn--secondary" href="/policies">All policies</a>
+		}
+		<div class="policy-editor">
+			<div class="policy-editor__main">
+				@PolicyEditorForm(v)
+				if v.ID != 0 {
+					<div class="policy-editor__delete">
+						<a class="btn btn--danger" href="#policy-delete" data-dialog-open="policy-delete" aria-haspopup="dialog">Delete policy</a>
+						@policyDeleteDialog("policy-delete", v.ID, v.Name, "#policy-form")
+					</div>
+				}
+			</div>
+			<div class="policy-editor__side">
+				@PanelWith(PanelProps{Tab: "Preview", ID: "policy-preview-panel", Variant: "emphasis"}) {
+					<div id="policy-preview" class="policy-preview">
+						@PolicyPreview(pv)
+					</div>
+				}
+				<p id="policy-preview-status" class="visually-hidden" role="status"></p>
+			</div>
+		</div>
+	}
+}
+
+// PolicyEditorForm is the form alone. The add, remove and refresh buttons
+// swap it in place through HTMX, and post normally without JavaScript.
+templ PolicyEditorForm(v PolicyEditorView) {
+	<form
+		id="policy-form"
+		class="policy-form"
+		method="post"
+		action={ templ.SafeURL(v.Action) }
+		novalidate
+		hx-post="/policies/preview"
+		hx-trigger={ policyPreviewTrigger(v) }
+		hx-target="#policy-preview"
+		hx-swap="innerHTML"
+	>
+		<!-- Enter in a text field presses the first submit button: make it Save. -->
+		<button class="visually-hidden" type="submit" name="op" value="save" tabindex="-1" aria-hidden="true">Save policy</button>
+		if len(v.Errors) > 0 {
+			@CalloutWith(CalloutProps{Variant: "bad", Title: "The policy was not saved", Alert: true}) {
+				<ul class="policy-errors">
+					for _, msg := range policyErrorSummary(v.Errors) {
+						<li>{ msg }</li>
+					}
+				</ul>
+			}
+		}
+		if v.ID != 0 {
+			<input type="hidden" name="id" value={ strconv.FormatInt(v.ID, 10) }/>
+		}
+		@Field(FieldProps{ID: "policy-name", Name: "name", Label: "Name", Value: v.Name, Placeholder: "Archive watched films", Error: v.Errors["name"], Required: true, Attrs: templ.Attributes{"maxlength": "100", "autocomplete": "off"}})
+		@policyScope(v)
+		@policyConditions(v)
+		@policyAction(v)
+		<div class="policy-form__footer">
+			@ToggleWith(ToggleProps{Name: "enabled", Label: "Enabled", Checked: v.Enabled, NoteID: "policy-enabled-note", Note: "A policy that is off is kept but never applied. Its preview still works.", Attrs: templ.Attributes{"id": "policy-enabled"}})
+			<div class="actions">
+				<button class="btn btn--primary" type="submit" name="op" value="save">Save policy</button>
+				<a class="btn btn--secondary" href="/policies">Cancel</a>
+				<button class="btn btn--secondary policy-nojs" type="submit" name="op" value="refresh">Update preview</button>
+			</div>
+		</div>
+	</form>
+}
+
+// policyRefresh redraws the form when a choice changes which controls
+// show. "consume" stops the same input also asking for a preview: the
+// redrawn form asks for one when it loads.
+templ policyRefresh(v PolicyEditorView) {
+	<div class="policy-refresh" hx-post={ v.Action } hx-vals={ policyRefreshVals } hx-trigger="input consume" hx-target="#policy-form" hx-swap="outerHTML">
+		{ children... }
+	</div>
+}
+
+templ policyPart(id, label string) {
+	<section class="policy-part" aria-labelledby={ id }>
+		<h2 class="policy-part__label" id={ id }>{ label }</h2>
+		<div class="policy-part__body">
+			{ children... }
+		</div>
+	</section>
+}
+
+templ policyScope(v PolicyEditorView) {
+	@policyPart("policy-in", "In") {
+		if len(v.Libraries) > 0 {
+			<div class="policy-group">
+				@Chips("library", "Libraries", v.Libraries, v.LibrariesSelected)
+				<p class="field__hint">Tick none for every managed library.</p>
+			</div>
+		} else {
+			<p class="field__hint">No managed libraries yet. The policy applies to every library you manage later.</p>
+		}
+		@policyRefresh(v) {
+			@Segmented("type", "Items", policyTypeOptions, v.Type, "")
+			@policyErr("type", v.Errors["type"])
+		}
+		if v.ShowSeries && len(v.Series) > 0 {
+			@policyRefresh(v) {
+				@policyChecklist("series", "Series", "Tick none for every series.", v.Series, v.SeriesSelected)
+			}
+		}
+		if v.ShowSeasons {
+			@Field(FieldProps{ID: "policy-seasons", Name: "seasons", Label: "Seasons of " + v.SeasonsOf, Hint: "Season numbers such as 1, 2 or 1-3. Leave empty for every season.", Value: v.Seasons, Placeholder: "1, 2", Mono: true, Error: v.Errors["seasons"], Attrs: templ.Attributes{"autocomplete": "off"}})
+		}
+		if len(v.Collections) > 0 {
+			@policyChecklist("collection", "Collections", "Tick none to ignore collections.", v.Collections, v.CollectionsSelected)
+		}
+	}
+}
+
+// policyChecklist is a scrolling list of checkboxes, for choices that can
+// run to hundreds (series, collections).
+templ policyChecklist(name, legend, hint string, options []Option, selected []string) {
+	<fieldset class="policy-checklist" aria-describedby={ name + "-list-hint" }>
+		<legend class="chips__legend">{ legend }</legend>
+		<p class="field__hint" id={ name + "-list-hint" }>{ hint }</p>
+		<div class="policy-checklist__items">
+			for _, o := range options {
+				<label class="check">
+					<input type="checkbox" id={ optionID(name, o.Value) } name={ name } value={ o.Value } checked?={ isSelected(o.Value, selected) }/>
+					<span>{ o.Label }</span>
+				</label>
+			}
+		</div>
+	</fieldset>
+}
+
+templ policyErr(key, msg string) {
+	if msg != "" {
+		<p class="field__error" id={ policyErrID(key) }><span aria-hidden="true">✗</span> { msg }</p>
+	}
+}
+
+templ policyConditions(v PolicyEditorView) {
+	@policyPart("policy-when", "When") {
+		if len(v.Conds) == 0 {
+			<p class="policy-part__empty">No conditions yet, so the policy applies to everything in its scope.</p>
+		} else {
+			<ol class="policy-conds">
+				for _, c := range v.Conds {
+					@policyCondRow(v, c)
+				}
+			</ol>
+		}
+		<p>
+			<button
+				class="btn btn--secondary btn--small"
+				id={ PolicyAddConditionID }
+				type="submit"
+				name="op"
+				value="add"
+				hx-post={ v.Action }
+				hx-target="#policy-form"
+				hx-swap="outerHTML"
+				autofocus?={ v.Focus == PolicyAddConditionID }
+			><span aria-hidden="true">+</span> Add condition</button>
+		</p>
+	}
+}
+
+func policyCondDescribedBy(c PolicyCondView) string {
+	if c.Error == "" {
+		return ""
+	}
+	return policyCondID(c.Index) + "-error"
+}
+
+templ policyCondRow(v PolicyEditorView, c PolicyCondView) {
+	<li class={ "policy-cond", templ.KV("policy-cond--invalid", c.Error != "") } id={ policyCondID(c.Index) }>
+		<div class="policy-cond__line">
+			if c.Index > 0 {
+				<span class="policy-cond__join">and</span>
+			}
+			<span class="field field--slot">
+				<label class="visually-hidden" for={ PolicyCondFieldID(c.Index) }>{ policyCondLabel(c.Index) }</label>
+				<select
+					class="field__input"
+					id={ PolicyCondFieldID(c.Index) }
+					name={ policyCondName(c.Index, "field") }
+					hx-post={ v.Action }
+					hx-vals={ policyRefreshVals }
+					hx-trigger="input consume"
+					hx-target="#policy-form"
+					hx-swap="outerHTML"
+					autofocus?={ v.Focus == PolicyCondFieldID(c.Index) }
+				>
+					for _, f := range v.Fields {
+						<option value={ f.Value } selected?={ f.Value == c.Field }>{ f.Label }</option>
+					}
+				</select>
+			</span>
+			<input type="hidden" name={ policyCondName(c.Index, "prev") } value={ c.Field }/>
+			if c.Kind == "bool" {
+				<input type="hidden" name={ policyCondName(c.Index, "op") } value="is"/>
+				@policySlotSelect(c, "bool", "value", policyCondLabel(c.Index)+": yes or no", c.Choices, c.Bool, true)
+			} else {
+				@policySlotSelect(c, "op", "op", policyCondLabel(c.Index)+": comparison", c.Ops, c.Op, false)
+				@policyCondValue(c)
+			}
+			<button
+				class="btn btn--secondary btn--small policy-cond__remove"
+				type="submit"
+				name="op"
+				value={ "remove-" + strconv.Itoa(c.Index) }
+				aria-label={ "Remove condition: " + c.FieldLabel }
+				hx-post={ v.Action }
+				hx-target="#policy-form"
+				hx-swap="outerHTML"
+			><span aria-hidden="true">✗</span></button>
+		</div>
+		if c.Error != "" {
+			<p class="field__error" id={ policyCondID(c.Index) + "-error" }><span aria-hidden="true">✗</span> { c.Error }</p>
+		}
+	</li>
+}
+
+// policySlotSelect is an inline select in the sentence. invalid marks it
+// when the row has an error and this select holds the value.
+templ policySlotSelect(c PolicyCondView, part, idPart, label string, options []Option, selected string, invalid bool) {
+	<span class="field field--slot">
+		<label class="visually-hidden" for={ policyCondID(c.Index) + "-" + idPart }>{ label }</label>
+		<select
+			class="field__input"
+			id={ policyCondID(c.Index) + "-" + idPart }
+			name={ policyCondName(c.Index, part) }
+			if invalid && c.Error != "" {
+				aria-invalid="true"
+				aria-describedby={ policyCondDescribedBy(c) }
+			}
+		>
+			for _, o := range options {
+				<option value={ o.Value } selected?={ o.Value == selected }>{ o.Label }</option>
+			}
+		</select>
+	</span>
+}
+
+templ policySlotInput(c PolicyCondView, part, label, value, inputmode string, wide bool) {
+	<span class={ "field", "field--slot", templ.KV("policy-slot--wide", wide) }>
+		<label class="visually-hidden" for={ policyCondID(c.Index) + "-value" }>{ label }</label>
+		<input
+			class={ "field__input", templ.KV("mono", !wide) }
+			id={ policyCondID(c.Index) + "-value" }
+			name={ policyCondName(c.Index, part) }
+			type="text"
+			value={ value }
+			autocomplete="off"
+			if inputmode != "" {
+				inputmode={ inputmode }
+			}
+			if c.Error != "" {
+				aria-invalid="true"
+				aria-describedby={ policyCondDescribedBy(c) }
+			}
+		/>
+	</span>
+}
+
+templ policyCondValue(c PolicyCondView) {
+	switch c.Kind {
+		case "days":
+			@policySlotInput(c, "number", policyCondLabel(c.Index)+": days", c.Number, "numeric", false)
+			<span class="policy-cond__unit">{ c.Unit }</span>
+		case "mbps", "gb":
+			@policySlotInput(c, "number", policyCondLabel(c.Index)+": "+c.Unit, c.Number, "decimal", false)
+			<span class="policy-cond__unit">{ c.Unit }</span>
+		case "resolution":
+			@policySlotSelect(c, "text", "value", policyCondLabel(c.Index)+": resolution", c.Choices, c.Text, true)
+		case "codec", "hdr":
+			@policyPicks(c)
+		case "words":
+			@policySlotInput(c, "words", policyCondLabel(c.Index)+": "+c.FieldLabel+"s, separated by commas", c.Words, "", true)
+	}
+}
+
+// policyPicks is a set of checkbox chips inside the sentence, for codecs and
+// dynamic ranges.
+templ policyPicks(c PolicyCondView) {
+	<fieldset
+		class="policy-picks"
+		if c.Error != "" {
+			aria-describedby={ policyCondDescribedBy(c) }
+		}
+	>
+		<legend class="visually-hidden">{ policyCondLabel(c.Index) + ": " + c.FieldLabel }</legend>
+		for _, o := range c.Choices {
+			<input class="chips__input" type="checkbox" id={ optionID(policyCondID(c.Index)+"-list", o.Value) } name={ policyCondName(c.Index, "list") } value={ o.Value } checked?={ isSelected(o.Value, c.List) }/>
+			<label class="chips__option" for={ optionID(policyCondID(c.Index)+"-list", o.Value) }>{ o.Label }</label>
+		}
+	</fieldset>
+}
+
+templ policyAction(v PolicyEditorView) {
+	@policyPart("policy-then", "Then") {
+		@Segmented("kind", "Action", policyKindOptions, v.Kind, "")
+		@policyErr("kind", v.Errors["kind"])
+		<div class="policy-protect-note">
+			@Callout("info", "Protect means never change", "JellyTrim never changes items this policy matches. Because the first matching policy wins, put Protect policies at the top of the list.")
+		</div>
+		<div class="policy-convert">
+			@Segmented("max_resolution", "Maximum resolution", policyMaxResOptions, v.MaxRes, "Files already at or below this resolution keep theirs.")
+			@policyErr("max_resolution", v.Errors["max_resolution"])
+			@Segmented("codec", "Video codec", policyCodecOptions, v.Codec, "")
+			@policyErr("codec", v.Errors["codec"])
+			@Segmented("quality", "Quality", policyQualityOptions, v.Quality, "")
+			@policyErr("quality", v.Errors["quality"])
+			@policyErr("action", v.Errors["action"])
+			<div class="policy-group">
+				<label class="check">
+					<input type="checkbox" id="policy-allow-hdr" name="allow_hdr_reduction" checked?={ v.AllowHDR } aria-describedby="policy-allow-hdr-note"/>
+					<span>Allow HDR10+ and Dolby Vision to be reduced to HDR10</span>
+				</label>
+				<p class="field__hint" id="policy-allow-hdr-note">The picture stays HDR10, but the extra scene-by-scene brightness data some TVs use is removed. While this is off, those files are skipped.</p>
+			</div>
+			@Stats() {
+				@StatRow("Audio", "Preserve: every track kept as it is", false)
+				@StatRow("Subtitles", "Preserve: every track kept as it is", false)
+			}
+			<details class="policy-advanced" open?={ v.Errors["encoder"] != "" }>
+				<summary>Advanced</summary>
+				@Segmented("encoder", "Encoder", policyEncoderOptions, v.Encoder, "Auto uses the best encoder that passed the hardware test. Choosing one for a policy is planned.")
+				@policyErr("encoder", v.Errors["encoder"])
+			</details>
+		</div>
+	}
+}
+
+func policyItoa(n int) string {
+	return strconv.Itoa(n)
+}
+
+func policyItems(n int) string {
+	if n == 1 {
+		return "item"
+	}
+	return "items"
+}
+
+func policyStatusText(v PolicyPreviewView) string {
+	switch {
+	case v.Failed:
+		return "Preview failed."
+	case !v.Ready:
+		return "Preview waiting for a complete policy."
+	case v.Protect:
+		return "Preview updated. Matches " + policyItoa(v.Matches) + " " + policyItems(v.Matches) + ", would protect " + policyItoa(v.Wins) + "."
+	}
+	return "Preview updated. Matches " + policyItoa(v.Matches) + " " + policyItems(v.Matches) + ", would optimise " + policyItoa(v.Optimise) + "."
+}
+
+// PolicyPreviewUpdate is the preview for an HTMX swap, with the short
+// status line screen readers announce.
+templ PolicyPreviewUpdate(v PolicyPreviewView) {
+	@PolicyPreview(v)
+	@policyStatusOOB("policy-preview-status", policyStatusText(v))
+}
+
+// PolicyPreview is the policy as a sentence and what it would do now.
+templ PolicyPreview(v PolicyPreviewView) {
+	<p class="policy-preview__sentence">{ v.Sentence }</p>
+	if !v.Enabled {
+		<p class="policy-preview__note">This policy is off. The preview shows what it would do if it were on.</p>
+	}
+	if v.Failed {
+		@Callout("bad", "No preview", "The preview could not be worked out. The details are in JellyTrim's log.")
+	} else if !v.Ready {
+		@Callout("warn", "Preview waiting", v.Problem)
+	} else {
+		@policyPreviewNumbers(v)
+	}
+	<p class="policy-preview__note">The preview is a simulation. It never changes anything.</p>
+}
+
+templ policyPreviewNumbers(v PolicyPreviewView) {
+	@Metrics() {
+		@Metric("Matches", policyItoa(v.Matches), policyItems(v.Matches), "", false)
+		if v.Protect {
+			@Metric("Would protect", policyItoa(v.Wins), policyItems(v.Wins), "", false)
+		} else {
+			@Metric("Would optimise", policyItoa(v.Optimise), policyItems(v.Optimise), "", false)
+		}
+	}
+	if v.Matches == 0 {
+		<p class="policy-preview__note">No inspected item matches right now. Items appear here once JellyTrim has inspected their files.</p>
+	} else {
+		<dl class="policy-printout">
+			@policyPrintRow("Decided by this policy", policyItoa(v.Wins), false)
+			@policyPrintRow("Decided by a higher policy", policyItoa(v.Higher), false)
+			if !v.Protect {
+				@policyPrintRow("Would optimise", policyItoa(v.Optimise), false)
+				@policyPrintRow("Already optimal", policyItoa(v.Optimal), false)
+				@policyPrintRow("Skipped", policyItoa(v.Skipped), false)
+			}
+			if v.Current != "" {
+				@policyPrintRow("Current size", v.Current, false)
+				@policyPrintRow("Estimated after", v.After, true)
+				@policyPrintRow("Estimated saving", v.Saving, true)
+			}
+		</dl>
+		if v.Current != "" {
+			<p class="policy-preview__note">Estimates are based on each file's bitrate and the chosen quality. Real results vary.</p>
+		}
+		if v.Higher > 0 {
+			<p class="policy-preview__note">{ policyItoa(v.Higher) } matching { policyItems(v.Higher) } already go to a policy higher in the list, so this one would not decide them.</p>
+		}
+	}
+	if len(v.Samples) > 0 {
+		<h3 class="policy-preview__heading">Examples</h3>
+		<ul class="policy-samples">
+			for _, s := range v.Samples {
+				<li class="policy-samples__item">
+					<a class="policy-samples__name" href={ templ.SafeURL(s.Href) }>{ s.Name }</a>
+					@Status(s.Lamp, s.Outcome)
+					if s.Summary != "" {
+						<p class="policy-samples__summary">{ s.Summary }</p>
+					}
+				</li>
+			}
+		</ul>
+	}
+}
+
+templ policyPrintRow(label, value string, estimate bool) {
+	<div class="policy-printout__row">
+		<dt>{ label }</dt>
+		<dd>
+			if estimate {
+				<span aria-hidden="true">~ </span><span class="visually-hidden">About </span>
+			}
+			{ value }
+		</dd>
+	</div>
+}

@@ -1,0 +1,216 @@
+package views
+
+import "strconv"
+
+// PoliciesListView is the Policies page: the ordered cards and an optional
+// notice after a save or delete.
+type PoliciesListView struct {
+	Cards      []PolicyCardView
+	Notice     string // callout title, such as "Saved Archive watched 4K"
+	NoticeText string
+}
+
+// PolicyCardView is one policy in the list.
+type PolicyCardView struct {
+	ID       int64
+	Position int // 1-based
+	Name     string
+	Sentence string
+	Enabled  bool
+	Protect  bool
+	First    bool
+	Last     bool
+	Focus    string // id of the control that takes focus after a swap
+}
+
+// PolicyCardID is the list item's id, also used as a fragment target.
+func PolicyCardID(id int64) string {
+	return "policy-" + strconv.FormatInt(id, 10)
+}
+
+// PolicyMoveID is the id of a card's Move up ("up") or Move down ("down")
+// button.
+func PolicyMoveID(id int64, dir string) string {
+	return PolicyCardID(id) + "-" + dir
+}
+
+func policyURL(id int64, suffix string) string {
+	return "/policies/" + strconv.FormatInt(id, 10) + suffix
+}
+
+func policyDialogID(id int64) string {
+	return PolicyCardID(id) + "-delete"
+}
+
+// PoliciesPage is the ordered list of policies with an explanation of how
+// they combine.
+templ PoliciesPage(sh Shell, v PoliciesListView) {
+	@Layout(sh) {
+		@PageHeader("Policies", "JellyTrim checks policies from top to bottom. The first enabled policy that matches an item decides what happens to it.") {
+			<a class="btn btn--primary" href="/policies/new">New policy</a>
+		}
+		if v.Notice != "" {
+			@Callout("ok", v.Notice, v.NoticeText)
+		}
+		<div class="policies">
+			<div class="policies__main">
+				if len(v.Cards) == 0 {
+					@Panel("Policies", "policies-empty") {
+						@EmptyState("00", "No policies yet", "A policy says which files to change and how. Without one, JellyTrim leaves every file alone.", "/policies/new", "New policy")
+					}
+				} else {
+					@PolicyList(v)
+				}
+				<p id="policy-status" class="visually-hidden" role="status"></p>
+			</div>
+			<div class="policies__side">
+				@policiesHowItWorks()
+			</div>
+		</div>
+	}
+}
+
+// PolicyList is the ordered list, swapped whole after a move.
+templ PolicyList(v PoliciesListView) {
+	<ol class="policy-list" id="policy-list">
+		for _, c := range v.Cards {
+			@PolicyCard(c)
+		}
+	</ol>
+}
+
+// PolicyListUpdate is the list after a move, with the status message.
+templ PolicyListUpdate(v PoliciesListView, status string) {
+	@PolicyList(v)
+	@policyStatusOOB("policy-status", status)
+}
+
+// PolicyCardUpdate is one card after a toggle, with the status message.
+templ PolicyCardUpdate(c PolicyCardView, status string) {
+	@PolicyCard(c)
+	@policyStatusOOB("policy-status", status)
+}
+
+// policyStatusOOB replaces the text of a live region that stays in the page,
+// so screen readers announce the change.
+templ policyStatusOOB(id, text string) {
+	<p id={ id } hx-swap-oob="innerHTML">{ text }</p>
+}
+
+// PolicyCard is one row of the list: position, name, sentence and controls.
+templ PolicyCard(c PolicyCardView) {
+	<li class={ "policy-card", templ.KV("policy-card--off", !c.Enabled) } id={ PolicyCardID(c.ID) }>
+		<p class="policy-card__pos" aria-hidden="true">{ twoDigits(c.Position) }</p>
+		<div class="policy-card__main">
+			<h2 class="policy-card__name">
+				<a href={ templ.SafeURL(policyURL(c.ID, "")) }>{ c.Name }</a>
+			</h2>
+			if c.Protect || !c.Enabled {
+				<p class="badges">
+					if c.Protect {
+						@Badge("Protect", "")
+					}
+					if !c.Enabled {
+						@Badge("Off", "muted")
+					}
+				</p>
+			}
+			<p class="policy-card__sentence">{ c.Sentence }</p>
+		</div>
+		<div class="policy-card__controls">
+			<form class="policy-card__toggle" method="post" action={ templ.SafeURL(policyURL(c.ID, "/toggle")) }>
+				@Toggle("enabled", "Enabled", c.Enabled, templ.Attributes{
+					"id":         PolicyCardID(c.ID) + "-enabled",
+					"aria-label": "Enabled: " + c.Name,
+					"hx-post":    policyURL(c.ID, "/toggle"),
+					"hx-trigger": "change",
+					"hx-target":  "#" + PolicyCardID(c.ID),
+					"hx-swap":    "outerHTML",
+				})
+				<button class="btn btn--secondary btn--small policy-nojs" type="submit">Apply</button>
+			</form>
+			if !(c.First && c.Last) {
+				<form class="policy-card__move" method="post" action={ templ.SafeURL(policyURL(c.ID, "/move")) }>
+					if !c.First {
+						@policyMoveButton(c, "up", "↑", "Up")
+					}
+					if !c.Last {
+						@policyMoveButton(c, "down", "↓", "Down")
+					}
+				</form>
+			}
+			<a class="btn btn--secondary btn--small" href={ templ.SafeURL(policyURL(c.ID, "")) }>Edit<span class="visually-hidden">{ " " + c.Name }</span></a>
+			<a class="btn btn--danger btn--small" href={ templ.SafeURL("#" + policyDialogID(c.ID)) } data-dialog-open={ policyDialogID(c.ID) } aria-haspopup="dialog">Delete<span class="visually-hidden">{ " " + c.Name }</span></a>
+		</div>
+		@policyDeleteDialog(policyDialogID(c.ID), c.ID, c.Name, "#"+PolicyCardID(c.ID))
+	</li>
+}
+
+templ policyMoveButton(c PolicyCardView, dir, arrow, label string) {
+	<button
+		class="btn btn--secondary btn--small"
+		type="submit"
+		name="dir"
+		value={ dir }
+		id={ PolicyMoveID(c.ID, dir) }
+		aria-label={ "Move " + c.Name + " " + dir }
+		hx-post={ policyURL(c.ID, "/move") }
+		hx-target="#policy-list"
+		hx-swap="outerHTML"
+		autofocus?={ c.Focus == PolicyMoveID(c.ID, dir) }
+	>
+		<span aria-hidden="true">{ arrow }</span>
+		{ label }
+	</button>
+}
+
+// policyDeleteDialog confirms a delete. Without JavaScript the trigger link
+// opens it through :target, and "Keep it" links back to backHref.
+templ policyDeleteDialog(dialogID string, id int64, name, backHref string) {
+	@Dialog(dialogID, "Delete this policy?") {
+		<form method="post" action={ templ.SafeURL(policyURL(id, "/delete")) }>
+			@DialogBody() {
+				<p>Delete <strong>{ name }</strong>? Items it decides will go to the next policy that matches them, or to none.</p>
+				<p>Files that were already converted stay as they are.</p>
+			}
+			@DialogActions() {
+				@DialogCancel("Keep it")
+				<a class="btn btn--secondary policy-nojs" href={ templ.SafeURL(backHref) }>Keep it</a>
+				<button class="btn btn--danger" type="submit">Delete policy</button>
+			}
+		</form>
+	}
+}
+
+templ policiesHowItWorks() {
+	@PanelWith(PanelProps{Tab: "How policies work", ID: "policies-how", Variant: "sunk"}) {
+		<dl class="policies-how">
+			<div class="policies-how__item">
+				<dt>First match wins</dt>
+				<dd>For each item, JellyTrim checks the enabled policies from the top. The first one whose scope and conditions all match decides what happens. Policies below it do not apply to that item.</dd>
+			</div>
+			<div class="policies-how__item">
+				<dt>Protect means never change</dt>
+				<dd>A Protect policy that matches keeps the item exactly as it is. Put Protect policies at the top, so no other policy can win first.</dd>
+			</div>
+			<div class="policies-how__item">
+				<dt>Order matters</dt>
+				<dd>When two policies match the same item, the higher one wins and the other is only listed as "also matched". Use Move up and Move down to change the order.</dd>
+			</div>
+			<div class="policies-how__item">
+				<dt>Nothing changes by surprise</dt>
+				<dd>Saving, moving or switching a policy re-checks the library. While Dry Run is on, JellyTrim only shows what it would do.</dd>
+			</div>
+		</dl>
+	}
+}
+
+// PolicyMissingPage is shown for a policy ID that does not exist.
+templ PolicyMissingPage(sh Shell) {
+	@Layout(sh) {
+		@PageHeader("Policy not found", "")
+		@Panel("Not found", "policy-missing") {
+			@EmptyState("--", "This policy does not exist", "It may have been deleted.", "/policies", "All policies")
+		}
+	}
+}

@@ -1,0 +1,317 @@
+package views
+
+import "strconv"
+
+// DashPageData is everything the Dashboard shows.
+type DashPageData struct {
+	Shell Shell
+	Live  DashLive
+	Sync  DashSync
+}
+
+// DashSync is the library sync state and its Sync now control.
+type DashSync struct {
+	Available bool // a library service is running
+	Running   bool
+	Phase     string // "Reading Jellyfin", "Inspecting files", "Evaluating"
+	Percent   int    // negative when the total is not known yet
+	Readout   string // "3 of 17"
+	State     string // as SyncStatus.State
+	Text      string // "Synced 12 min ago"
+	Error     string // the last run's error, for technical details
+}
+
+// DashMetric is one big number. An empty Value shows the unknown state.
+type DashMetric struct {
+	Value string
+	Unit  string
+	Note  string
+}
+
+// DashLive is the part of the Dashboard that reloads after a sync.
+type DashLive struct {
+	HasItems    bool
+	DryRun      bool
+	Storage     DashMetric
+	Saved       DashMetric
+	Optimisable DashMetric
+	Queued      DashMetric
+	Summary     DashSummary
+	Now         DashNow
+	Recent      []DashActivity
+	Problems    []DashProblem
+}
+
+// DashSummary is the Dry Run printout.
+type DashSummary struct {
+	Evaluated string
+	Lines     []DashLine
+	Current   string
+	After     string
+	Saving    string
+	LastRun   string
+}
+
+// DashLine is one counted line of the printout, linking to the Library.
+type DashLine struct {
+	Count string
+	Text  string
+	Lamp  string
+	Href  string
+}
+
+// DashNow is the running job in compact form.
+type DashNow struct {
+	DryRun  bool
+	Active  bool
+	Title   string
+	Change  string
+	Percent int
+	Readout string
+	Encoder string
+	Waiting int
+}
+
+// DashActivity is one finished job.
+type DashActivity struct {
+	Title  string
+	Href   string
+	Change string
+	Sizes  string
+	Lamp   string
+	Status string
+	When   string
+}
+
+// DashProblem is one thing that needs attention.
+type DashProblem struct {
+	Lamp   string
+	Text   string
+	Href   string
+	Action string
+	Detail string
+	Items  []DashProblemItem
+}
+
+// DashProblemItem is an example item under a problem.
+type DashProblemItem struct {
+	Title  string
+	Reason string
+	Href   string
+}
+
+func dashSummaryTab(dryRun bool) string {
+	if dryRun {
+		return "Dry Run"
+	}
+	return "Plan"
+}
+
+func dashMoreWaiting(n int) string {
+	if n == 1 {
+		return "1 more waiting"
+	}
+	return strconv.Itoa(n) + " more waiting"
+}
+
+// DashPage is the Dashboard.
+templ DashPage(d DashPageData) {
+	@Layout(d.Shell) {
+		@PageHeader("Dashboard", "") {
+			<div class="dash-sync" id="dash-sync" role="status">
+				@DashSyncView(d.Sync)
+			</div>
+		}
+		@DashLiveView(d.Live)
+	}
+}
+
+// DashSyncView is the sync status and the Sync now button. While a sync
+// runs it polls itself; once idle it has no trigger, so polling stops.
+templ DashSyncView(v DashSync) {
+	if v.Running {
+		<div class="dash-sync__row" hx-get="/sync/status?was=running" hx-trigger="every 2s" hx-target="#dash-sync" hx-swap="innerHTML">
+			@Status("active", v.Phase)
+			@Meter("dash-sync-meter", v.Percent, v.Readout)
+		</div>
+	} else {
+		<div class="dash-sync__row">
+			@Status(syncLamp(v.State), syncText(SyncStatus{State: v.State, Text: v.Text}))
+			if v.Available {
+				<form class="dash-sync__form" method="post" action="/sync" hx-post="/sync" hx-target="#dash-sync" hx-swap="innerHTML" hx-disabled-elt="find button">
+					<button class="btn btn--secondary btn--small" type="submit">Sync now</button>
+				</form>
+			}
+		</div>
+	}
+}
+
+// DashLiveView is the metrics and panels. It reloads itself when a sync the
+// page was watching finishes.
+templ DashLiveView(v DashLive) {
+	<div class="dash" id="dash-live" hx-get="/dashboard/live" hx-trigger="dash-refresh from:body" hx-swap="outerHTML">
+		<div class="dash__metrics">
+			@PanelWith(PanelProps{Tab: "Readout", ID: "dash-metrics", Flush: true}) {
+				@Metrics() {
+					@Metric("Media storage", v.Storage.Value, v.Storage.Unit, v.Storage.Note, false)
+					@Metric("JellyTrim saved", v.Saved.Value, v.Saved.Unit, v.Saved.Note, false)
+					@Metric("Optimisable", v.Optimisable.Value, v.Optimisable.Unit, v.Optimisable.Note, v.Optimisable.Value != "" && v.Optimisable.Value != "0")
+					@Metric("Queued", v.Queued.Value, v.Queued.Unit, v.Queued.Note, false)
+				}
+			}
+		</div>
+		if len(v.Problems) > 0 {
+			<div class="dash__problems">
+				@dashProblems(v.Problems)
+			</div>
+		}
+		<div class="dash__now">
+			@dashNow(v.Now)
+		</div>
+		<div class="dash__summary">
+			if v.HasItems {
+				@dashSummary(v.Summary, v.DryRun)
+			} else {
+				@Panel(dashSummaryTab(v.DryRun), "dash-summary") {
+					@EmptyState("0", "No items yet", "Choose the libraries JellyTrim manages in Settings, then press Sync now above.", "/settings#libraries", "Open Settings")
+				}
+			}
+		</div>
+		<div class="dash__recent">
+			@dashRecent(v.Recent)
+		</div>
+		if len(v.Problems) == 0 {
+			<div class="dash__problems">
+				@dashProblems(v.Problems)
+			</div>
+		}
+	</div>
+}
+
+templ dashSummary(s DashSummary, dryRun bool) {
+	@Panel(dashSummaryTab(dryRun), "dash-summary") {
+		<div class="printout">
+			<p class="printout__head"><span class="printout__num">{ s.Evaluated }</span>{ " items evaluated" }</p>
+			<ul class="printout__lines">
+				for _, l := range s.Lines {
+					<li>
+						<a class="printout__line" href={ templ.SafeURL(l.Href) }>
+							<span class="printout__num">{ l.Count }</span>
+							@Lamp(l.Lamp)
+							<span class="printout__text">{ l.Text }</span>
+						</a>
+					</li>
+				}
+			</ul>
+			<dl class="printout__totals">
+				<div class="printout__total">
+					<dt>Current size</dt>
+					<dd>{ s.Current }</dd>
+				</div>
+				<div class="printout__total">
+					<dt>Estimated after</dt>
+					<dd><span aria-hidden="true">~ </span><span class="visually-hidden">About </span>{ s.After }</dd>
+				</div>
+				<div class="printout__total printout__total--strong">
+					<dt>Estimated saving</dt>
+					<dd><span aria-hidden="true">~ </span><span class="visually-hidden">About </span>{ s.Saving }</dd>
+				</div>
+			</dl>
+		</div>
+		<p class="dash__note">Estimates are based on each file's bitrate and the chosen quality. Real results vary.</p>
+		if s.LastRun != "" {
+			<p class="dash__note">{ s.LastRun }</p>
+		}
+	}
+}
+
+templ dashNow(n DashNow) {
+	@Panel("Now processing", "dash-now") {
+		if n.Active {
+			<div class="dash-job">
+				<p class="dash-job__title">{ n.Title }</p>
+				if n.Change != "" {
+					<p class="mono dash-job__change">{ n.Change }</p>
+				}
+				@Meter("dash-now-meter", n.Percent, n.Readout)
+				if n.Encoder != "" {
+					<p class="dash__note">{ "Encoder: " }<span class="mono">{ n.Encoder }</span></p>
+				}
+				if n.Waiting > 0 {
+					<p class="dash__note"><a href="/queue">{ dashMoreWaiting(n.Waiting) }</a></p>
+				}
+			</div>
+		} else if n.DryRun {
+			<p class="dash-now__dry">
+				@Status("active-steady", "Dry Run is on. Nothing will be processed.")
+			</p>
+			<p><a class="dash__link" href="/settings#dry-run">Dry Run setting</a></p>
+		} else {
+			@EmptyState("0", "Nothing is being processed", "Jobs appear here when an enabled policy matches an item.", "/queue", "Open the queue")
+		}
+	}
+}
+
+templ dashRecent(items []DashActivity) {
+	@Panel("Recent activity", "dash-recent") {
+		if len(items) == 0 {
+			@EmptyState("0", "No files optimised yet", "Finished jobs appear here, newest first.", "", "")
+		} else {
+			<ol class="activity">
+				for _, a := range items {
+					<li class="activity__item">
+						<p class="activity__top">
+							<a class="activity__title" href={ templ.SafeURL(a.Href) }>{ a.Title }</a>
+							<span class="activity__when">{ a.When }</span>
+						</p>
+						if a.Change != "" {
+							<p class="mono activity__change">{ a.Change }</p>
+						}
+						<p class="activity__bottom">
+							<span class="mono">{ a.Sizes }</span>
+							@Status(a.Lamp, a.Status)
+						</p>
+					</li>
+				}
+			</ol>
+			<p><a class="dash__link" href="/history">All history</a></p>
+		}
+	}
+}
+
+templ dashProblems(ps []DashProblem) {
+	@Panel("Problems", "dash-problems") {
+		if len(ps) == 0 {
+			<p>
+				@Status("ok", "No problems.")
+			</p>
+		} else {
+			<ul class="problems">
+				for _, p := range ps {
+					<li class="problems__item">
+						<p class="problems__text">
+							@Lamp(p.Lamp)
+							<span>{ p.Text }</span>
+						</p>
+						if len(p.Items) > 0 {
+							<ul class="problems__examples">
+								for _, it := range p.Items {
+									<li>
+										<a href={ templ.SafeURL(it.Href) }>{ it.Title }</a>
+										<span class="problems__reason">{ it.Reason }</span>
+									</li>
+								}
+							</ul>
+						}
+						if p.Href != "" {
+							<p><a class="dash__link" href={ templ.SafeURL(p.Href) }>{ p.Action }</a></p>
+						}
+						if p.Detail != "" {
+							@TechnicalDetails("Technical details", p.Detail)
+						}
+					</li>
+				}
+			</ul>
+		}
+	}
+}

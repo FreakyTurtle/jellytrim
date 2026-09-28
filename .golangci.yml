@@ -23,6 +23,15 @@ linters:
       # API use American spellings in names we cannot change.
       locale: UK
       ignore-rules: [color, colors, favorite, favorites]
+    staticcheck:
+      checks:
+        - all
+        # Error strings may start with a proper noun ("Jellyfin ...",
+        # "JellyTrim ..."), which ST1005 cannot tell from a capitalised word.
+        - -ST1005
+        # Package comments are required only where they add something.
+        - -ST1000
+        - -ST1003
     gocyclo:
       min-complexity: 20
     funlen:

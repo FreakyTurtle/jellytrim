@@ -1,0 +1,530 @@
+/*
+  Page styles for the setup wizard and Settings. They share the connection
+  form, checklists, path rows and the hardware table. Tokens are in
+  tokens.css; shared components live in components.css.
+*/
+
+/* ---------- Setup steps ---------- */
+
+.setup-step,
+.setup-fields,
+.settings-form {
+  display: grid;
+  gap: var(--space-5);
+  min-inline-size: 0;
+}
+
+.setup-step {
+  gap: var(--gutter);
+}
+
+.setup-note {
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  max-inline-size: var(--measure);
+}
+
+.setup-muted {
+  color: var(--ink-2);
+}
+
+.setup-result:empty,
+.setup-results:empty {
+  display: none;
+}
+
+/* Welcome: three lettered points, like the inputs on a device. */
+.setup-points {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.setup-points__item {
+  display: grid;
+  grid-template-columns: var(--space-7) minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+  padding-block: var(--space-4);
+  border-block-end: var(--border-soft);
+}
+
+.setup-points__item:first-child {
+  padding-block-start: 0;
+}
+
+.setup-points__item:last-child {
+  padding-block-end: 0;
+  border-block-end: 0;
+}
+
+.setup-points__item p {
+  max-inline-size: var(--measure);
+}
+
+.setup-points__num {
+  display: grid;
+  place-items: center;
+  inline-size: var(--space-7);
+  block-size: var(--space-7);
+  background: var(--surface-sunk);
+  border: var(--border-strong);
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-size: var(--text-lg);
+  font-weight: 500;
+}
+
+/* ---------- Checklists (libraries, users, show libraries) ---------- */
+
+.setup-checklist {
+  display: grid;
+  gap: var(--space-2);
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.setup-checklist__legend {
+  margin-block-end: var(--space-1);
+  padding: 0;
+  font-weight: 500;
+}
+
+.setup-checklist__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-block-start: var(--border-soft);
+}
+
+.setup-checklist__item {
+  border-block-end: var(--border-soft);
+}
+
+.setup-checklist__item .check {
+  display: flex;
+}
+
+.setup-checklist__list--inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-5);
+  border: 0;
+}
+
+.setup-checklist__list--inline .setup-checklist__item {
+  border: 0;
+}
+
+.setup-checklist__text {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+  min-inline-size: 0;
+}
+
+.setup-checklist__name {
+  font-weight: 500;
+}
+
+.setup-checklist__path,
+.setup-checklist__reason {
+  flex-basis: 100%;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.setup-checklist__item--off .setup-checklist__name {
+  color: var(--ink-2);
+}
+
+/* ---------- Path mapping rows ---------- */
+
+.setup-paths {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Number, Jellyfin path, arrow, JellyTrim path, Remove. The small cells
+   line up with the inputs, below the field labels. */
+.setup-paths__row {
+  --setup-input-top: calc(var(--text-body) * var(--leading-body) + var(--space-1) * 2);
+
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-3);
+  padding-block-end: var(--space-4);
+  border-block-end: var(--border-soft);
+}
+
+.setup-paths__num,
+.setup-paths__arrow {
+  display: grid;
+  place-items: center;
+  block-size: var(--control-height);
+  margin-block-start: var(--setup-input-top);
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+}
+
+.setup-paths__num {
+  font-size: var(--text-sm);
+}
+
+.setup-paths__remove {
+  margin-block-start: calc(var(--setup-input-top) + (var(--control-height) - var(--control-height-small)) / 2);
+}
+
+/* ---------- Check results ---------- */
+
+.setup-results__list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.setup-results__item {
+  --result-colour: var(--info);
+
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface);
+  border: var(--border);
+  border-inline-start: 4px solid var(--result-colour);
+}
+
+.setup-results__item--ok {
+  --result-colour: var(--ok);
+}
+
+.setup-results__item--warn {
+  --result-colour: var(--warn);
+}
+
+.setup-results__item--bad {
+  --result-colour: var(--bad);
+}
+
+.setup-results__paths {
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.setup-results__text {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  max-inline-size: var(--measure);
+}
+
+.setup-results__missing {
+  margin: 0;
+  padding-inline-start: var(--space-5);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Hardware ---------- */
+
+.setup-hardware {
+  display: grid;
+  gap: var(--space-4);
+  min-inline-size: 0;
+}
+
+.setup-hardware__backend {
+  display: block;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.setup-verdict {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.setup-verdict__mark {
+  font-family: var(--font-mono);
+}
+
+.setup-verdict--works {
+  color: var(--ok);
+}
+
+.setup-verdict--failed {
+  color: var(--bad);
+}
+
+.setup-verdict--unavailable {
+  color: var(--ink-2);
+}
+
+/* ---------- Starter policies ---------- */
+
+.setup-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  gap: var(--gutter);
+}
+
+.setup-card {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.setup-card__sentence {
+  font-size: var(--text-lg);
+  line-height: var(--leading-lg);
+  max-inline-size: var(--measure);
+}
+
+/* ---------- Scan ---------- */
+
+.setup-scan {
+  display: grid;
+  gap: var(--space-5);
+  min-inline-size: 0;
+}
+
+.setup-scan > p {
+  max-inline-size: var(--measure);
+}
+
+.setup-scan__phase {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-lg);
+  font-weight: 500;
+  line-height: var(--leading-lg);
+}
+
+.setup-scan__lines {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-block-start: var(--border-soft);
+}
+
+.setup-scan__lines li {
+  display: flex;
+  gap: var(--space-3);
+  padding-block: var(--space-2);
+  border-block-end: var(--border-soft);
+}
+
+.setup-scan__count {
+  flex: none;
+  min-inline-size: 6ch;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+
+/* ---------- Settings ---------- */
+
+.settings {
+  display: grid;
+  gap: var(--gutter);
+  min-inline-size: 0;
+}
+
+.settings__nav {
+  display: none;
+}
+
+.settings__sections {
+  display: grid;
+  gap: var(--gutter);
+  min-inline-size: 0;
+}
+
+.settings__saved {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--ok);
+  font-weight: 500;
+}
+
+.settings-group {
+  display: grid;
+  gap: var(--space-3);
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.settings-group__legend {
+  margin-block-end: var(--space-1);
+  padding: 0;
+  font-weight: 700;
+}
+
+.settings-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  align-items: start;
+  gap: var(--space-4);
+  max-inline-size: 40rem;
+}
+
+.settings-sync {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin-block-start: var(--space-5);
+  padding-block-start: var(--space-4);
+  border-block-start: var(--border-soft);
+}
+
+/* While Dry Run is on, the section carries the accent bar like the lamp. */
+.settings-dryrun {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.settings-dryrun--on {
+  padding-inline-start: var(--space-4);
+  border-inline-start: 4px solid var(--accent);
+}
+
+/* Chrome moves focus into a time input's hour and minute parts; on the
+   minute part the input itself no longer matches :focus-visible, so the
+   ring is drawn with :focus and :focus-within as well. */
+.field__input[type="time"]:focus,
+.field__input[type="time"]:focus-within {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+.settings-quality {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr));
+  gap: var(--space-3);
+  max-inline-size: 40rem;
+}
+
+.settings-advanced__summary {
+  display: flex;
+  align-items: center;
+  min-block-size: var(--touch-target);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.settings-advanced[open] > .settings-form {
+  margin-block-start: var(--space-4);
+}
+
+/* ---------- Phones ---------- */
+
+@media (max-width: 719.98px) {
+  .setup-paths__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "num remove"
+      "jf jf"
+      "local local";
+    gap: var(--space-2);
+  }
+
+  .setup-paths__num {
+    grid-area: num;
+    justify-self: start;
+    margin: 0;
+  }
+
+  .setup-paths__remove {
+    grid-area: remove;
+    margin: 0;
+  }
+
+  .setup-paths__row > .field:nth-of-type(1) {
+    grid-area: jf;
+  }
+
+  .setup-paths__row > .field:nth-of-type(2) {
+    grid-area: local;
+  }
+
+  .setup-paths__arrow {
+    display: none;
+  }
+
+  .setup-points__item {
+    grid-template-columns: var(--space-6) minmax(0, 1fr);
+    gap: var(--space-3);
+  }
+
+  .setup-points__num {
+    inline-size: var(--space-6);
+    block-size: var(--space-6);
+    font-size: var(--text-body);
+  }
+}
+
+/* ---------- Wide screens: a contents list beside the settings ---------- */
+
+@media (min-width: 1080px) {
+  .settings {
+    grid-template-columns: 12rem minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .settings__nav {
+    position: sticky;
+    inset-block-start: calc(var(--topbar-height) + var(--space-5));
+    display: block;
+  }
+
+  .settings__navlist {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-inline-start: var(--border-strong);
+  }
+
+  .settings__navlist a {
+    display: block;
+    padding: var(--space-1) var(--space-3);
+    color: var(--ink);
+    text-decoration: none;
+  }
+
+  .settings__navlist a:hover {
+    background: var(--surface-sunk);
+  }
+}
+
+/* The scan summary has three read-outs, not the dashboard's four. */
+@media (min-width: 1080px) {
+  .setup-scan .metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1079.98px) {
+  .setup-scan .metrics > .metric:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+}

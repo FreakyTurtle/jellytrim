@@ -1,0 +1,294 @@
+package views
+
+import "strconv"
+
+// HistoryPageData is one page of finished jobs.
+type HistoryPageData struct {
+	Shell      Shell
+	Status     string // the status filter, "" for all
+	Filters    []HistoryFilter
+	Total      string // "JellyTrim has saved 34.5 GB across 3 files."
+	SavedValue string
+	SavedUnit  string
+	SavedFiles int
+	Rows       []HistoryRow
+	Attention  []HistoryRow // jobs the user needs to look at, listed first
+	Page       int
+	PrevHref   string
+	NextHref   string
+}
+
+// HistoryFilter is one status filter link.
+type HistoryFilter struct {
+	Label   string
+	Href    string
+	Current bool
+}
+
+// HistoryRow is one finished job.
+type HistoryRow struct {
+	ID       int64
+	When     string // "12 min ago"
+	WhenFull string // "4 Oct 2026 14:02"
+	WhenISO  string
+	Title    string
+	Href     string
+	Change   string
+	Lamp     string
+	Status   string
+	Result   string // sizes and saving, or the plain-English summary
+	ViewHref string
+}
+
+// HistoryJobData is everything the job detail page shows.
+type HistoryJobData struct {
+	Shell         Shell
+	ID            int64
+	Title         string
+	Subtitle      string
+	ItemHref      string
+	Summary       QueueNotice
+	Problem       *QueueNotice // an action that did not work
+	JustRestored  bool
+	Active        bool
+	Facts         []ItemStat
+	Checks        []ExplainLine
+	Warnings      []string
+	Command       string
+	Stderr        string
+	Error         string
+	CanRestore    bool
+	BackupNote    string
+	RestoredNote  string
+	RestoreAction string
+	CanRetry      bool
+	RetryAction   string
+	Kept          *HistoryKept
+}
+
+// HistoryKept names a file JellyTrim set aside: "Kept at <path> until <date>."
+type HistoryKept struct {
+	Prefix string
+	Path   string
+	Suffix string
+}
+
+func historyFilesText(n int) string {
+	if n == 1 {
+		return "Across 1 file. Files you restored are not counted."
+	}
+	return "Across " + strconv.Itoa(n) + " files. Files you restored are not counted."
+}
+
+// HistoryPage lists every finished job.
+templ HistoryPage(v HistoryPageData) {
+	@Layout(v.Shell) {
+		@PageHeader("History", v.Total)
+		if v.SavedFiles > 0 {
+			<div class="history-total">
+				@Metric("Space saved", v.SavedValue, v.SavedUnit, historyFilesText(v.SavedFiles), false)
+			</div>
+		}
+		if len(v.Attention) > 0 {
+			@PanelWith(PanelProps{Tab: "Needs attention", ID: "history-attention", Variant: "emphasis", Flush: true}) {
+				<p class="history-attention__intro">These jobs stopped in a state you need to look at. The original is safe; each job says where.</p>
+				@historyTable(v.Attention)
+			}
+		}
+		<nav class="history-filter" aria-label="Filter by result">
+			<ul class="history-filter__list">
+				for _, f := range v.Filters {
+					<li>
+						<a
+							class="history-filter__link"
+							href={ templ.SafeURL(f.Href) }
+							if f.Current {
+								aria-current="page"
+							}
+						>{ f.Label }</a>
+					</li>
+				}
+			</ul>
+		</nav>
+		@PanelWith(PanelProps{Tab: "Finished jobs", ID: "history-jobs", Flush: len(v.Rows) > 0}) {
+			if len(v.Rows) == 0 {
+				if v.Status == "" && v.Page == 1 {
+					@EmptyState("0", "Nothing has finished yet", "Jobs appear here once they complete, are skipped, fail or are cancelled.", "/queue", "Go to the queue")
+				} else {
+					@EmptyState("0", "No jobs match this filter", "Try another filter, or show all jobs.", "/history", "Show all")
+				}
+			} else {
+				@historyTable(v.Rows)
+			}
+		}
+		if v.PrevHref != "" || v.NextHref != "" {
+			<nav class="pager" aria-label="Pages">
+				if v.PrevHref != "" {
+					<a class="btn btn--secondary btn--small" href={ templ.SafeURL(v.PrevHref) }>Newer</a>
+				}
+				<p class="pager__text">Page { strconv.Itoa(v.Page) }</p>
+				if v.NextHref != "" {
+					<a class="btn btn--secondary btn--small" href={ templ.SafeURL(v.NextHref) }>Older</a>
+				}
+			</nav>
+		}
+	}
+}
+
+templ historyTable(rows []HistoryRow) {
+	<div class="table-wrap">
+		<table class="table history-table" role="table">
+			<caption class="visually-hidden">Finished jobs, newest first</caption>
+			<thead role="rowgroup">
+				<tr role="row">
+					<th scope="col" role="columnheader">Finished</th>
+					<th scope="col" role="columnheader">Title</th>
+					<th scope="col" role="columnheader">Change</th>
+					<th scope="col" role="columnheader">Result</th>
+					<th scope="col" role="columnheader">Outcome</th>
+					<th scope="col" role="columnheader"><span class="visually-hidden">Details</span></th>
+				</tr>
+			</thead>
+			<tbody role="rowgroup">
+				for _, row := range rows {
+					<tr role="row">
+						<td role="cell" data-label="Finished" class="history-table__when">
+							if row.WhenISO != "" {
+								<time datetime={ row.WhenISO } title={ row.WhenFull }>{ row.When }</time>
+							}
+						</td>
+						<td role="cell" data-label="Title" class="history-table__title">
+							<a href={ templ.SafeURL(row.Href) }>{ row.Title }</a>
+						</td>
+						<td role="cell" data-label="Change" class="mono">{ row.Change }</td>
+						<td role="cell" data-label="Result">
+							@Status(row.Lamp, row.Status)
+						</td>
+						<td role="cell" data-label="Outcome" class="history-table__outcome">{ row.Result }</td>
+						<td role="cell" class="history-table__view">
+							<a class="btn btn--secondary btn--small" href={ templ.SafeURL(row.ViewHref) }>View<span class="visually-hidden">{ " " + row.Title }</span></a>
+						</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+	</div>
+}
+
+// HistoryJobPage is one job: what happened, the checks, and the technical
+// details behind them.
+templ HistoryJobPage(v HistoryJobData) {
+	@Layout(v.Shell) {
+		<p class="item-back"><a href="/history">History</a></p>
+		@PageHeader(v.Title, v.Subtitle) {
+			@historyJobActions(v)
+		}
+		if v.Problem != nil {
+			@QueueNoticeCallout(*v.Problem)
+		}
+		@CalloutWith(CalloutProps{Variant: v.Summary.Variant, Title: v.Summary.Title, Text: v.Summary.Text, Alert: v.JustRestored}) {
+			if v.Kept != nil {
+				<p class="callout__text history-kept">
+					{ v.Kept.Prefix + " " }<code class="mono history-kept__path">{ v.Kept.Path }</code>
+					if v.Kept.Suffix != "" {
+						{ " " + v.Kept.Suffix }
+					}
+				</p>
+			}
+			if v.Active {
+				@CalloutActions() {
+					<a class="btn btn--secondary" href="/queue">Go to the queue</a>
+				}
+			} else if v.RestoredNote != "" {
+				@CalloutActions() {
+					<a class="btn btn--secondary" href={ templ.SafeURL(v.ItemHref) }>Go to the item</a>
+				}
+			}
+		}
+		<div class="history-grid">
+			<div class="history-grid__col">
+				@Panel("Job", "history-job") {
+					<dl class="stats">
+						@StatRow("Item", v.Title, false)
+						for _, f := range v.Facts {
+							@StatRow(f.Label, f.Value, f.Mono)
+						}
+					</dl>
+					<p class="history-job__item"><a href={ templ.SafeURL(v.ItemHref) }>Open the item page</a></p>
+				}
+			</div>
+			<div class="history-grid__col">
+				if len(v.Checks) > 0 {
+					@Panel("Checks on the new file", "history-checks") {
+						@Explain(v.Checks)
+					}
+				}
+				if len(v.Warnings) > 0 {
+					@Panel("Warnings", "history-warnings") {
+						<ul class="history-warnings">
+							for _, w := range v.Warnings {
+								<li>{ w }</li>
+							}
+						</ul>
+					}
+				}
+				if v.Command != "" || v.Stderr != "" || v.Error != "" {
+					@PanelWith(PanelProps{Tab: "Technical details", ID: "history-technical", Variant: "sunk"}) {
+						<div class="history-technical">
+							if v.Command != "" {
+								@TechnicalDetails("The exact ffmpeg command", v.Command)
+							}
+							if v.Stderr != "" {
+								@TechnicalDetails("ffmpeg's error output", v.Stderr)
+							}
+							if v.Error != "" {
+								@TechnicalDetails("Error", v.Error)
+							}
+						</div>
+					}
+				}
+			</div>
+		</div>
+		if v.CanRestore {
+			@historyRestoreDialog(v)
+		}
+	}
+}
+
+templ historyJobActions(v HistoryJobData) {
+	<div class="history-actions">
+		if v.CanRestore {
+			<div class="history-actions__item">
+				<a class="btn btn--danger" id="history-restore-open" href="#history-restore" data-dialog-open="history-restore" aria-haspopup="dialog" aria-describedby="history-backup-note">Restore original</a>
+				<p class="actions__note" id="history-backup-note">{ v.BackupNote }</p>
+			</div>
+		}
+		if v.RestoredNote != "" {
+			<p class="actions__note">
+				@Status("info", v.RestoredNote)
+			</p>
+		}
+		if v.CanRetry {
+			<form method="post" action={ templ.SafeURL(v.RetryAction) }>
+				<button class="btn btn--primary" type="submit">Retry</button>
+			</form>
+		}
+	</div>
+}
+
+// historyRestoreDialog confirms putting the original back. Without
+// JavaScript the trigger link opens it through :target.
+templ historyRestoreDialog(v HistoryJobData) {
+	@Dialog("history-restore", "Put the original back?") {
+		<form class="queue-dialog__form" method="post" action={ templ.SafeURL(v.RestoreAction) }>
+			@DialogBody() {
+				<p>Put the original back? The optimised file will be deleted and JellyTrim will leave this item alone until you allow it again.</p>
+			}
+			@DialogActions() {
+				@DialogCancel("Keep the optimised file")
+				<a class="btn btn--secondary queue-nojs" href="#main">Keep the optimised file</a>
+				<button class="btn btn--danger" type="submit">Restore original</button>
+			}
+		</form>
+	}
+}

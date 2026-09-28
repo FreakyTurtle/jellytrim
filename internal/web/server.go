@@ -16,6 +16,8 @@ import (
 
 	"github.com/a-h/templ"
 
+	"github.com/freakyturtle/jellytrim/internal/library"
+	"github.com/freakyturtle/jellytrim/internal/queue"
 	"github.com/freakyturtle/jellytrim/internal/store"
 	"github.com/freakyturtle/jellytrim/internal/version"
 )
@@ -25,8 +27,37 @@ var staticFS embed.FS
 
 // Deps are the services the web layer calls.
 type Deps struct {
-	Store *store.Store
-	Log   *slog.Logger
+	Store    *store.Store
+	Library  *library.Service
+	Hardware Hardware
+	Queue    *queue.Service
+	Log      *slog.Logger
+	// Now is the clock for "3 days ago" style text; time.Now when nil.
+	Now func() time.Time
+}
+
+// Hardware reports and re-tests encoder capabilities. The app adapts
+// internal/encoder to it, so the web layer does not depend on encoder types.
+type Hardware interface {
+	Capabilities() []Capability
+	// Retest runs the hardware test again. It may take a few seconds.
+	Retest(ctx context.Context) error
+}
+
+// Capability is one encoder backend's test result, for display.
+type Capability struct {
+	Backend        string
+	Label          string
+	Codec          string
+	Hardware       bool
+	Available      bool
+	HDR            bool
+	Device         string
+	Detail         string
+	Error          string
+	FFmpegVersion  string
+	TestedAt       time.Time
+	HardwareDecode []string // source codecs the hardware can decode
 }
 
 // Server holds the HTTP handlers.
@@ -39,6 +70,9 @@ type Server struct {
 func New(d Deps) *Server {
 	if d.Log == nil {
 		d.Log = slog.Default()
+	}
+	if d.Now == nil {
+		d.Now = time.Now
 	}
 	s := &Server{Deps: d, mux: http.NewServeMux()}
 	s.routes()
@@ -55,17 +89,57 @@ func (s *Server) Handler() http.Handler {
 func (s *Server) routes() {
 	static, _ := fs.Sub(staticFS, "static")
 	s.mux.Handle("GET /static/", http.StripPrefix("/static/", cacheStatic(http.FileServerFS(static))))
+	s.mux.HandleFunc("GET /favicon.ico", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/static/img/favicon.svg", http.StatusMovedPermanently)
+	})
 	s.mux.HandleFunc("GET /healthz", s.healthz)
 	s.mux.HandleFunc("GET /readyz", s.readyz)
 
-	s.mux.HandleFunc("GET /{$}", s.dashboard)
-	s.mux.HandleFunc("GET /library", s.library)
-	s.mux.HandleFunc("GET /policies", s.policies)
-	s.mux.HandleFunc("GET /queue", s.queue)
-	s.mux.HandleFunc("GET /history", s.history)
-	s.mux.HandleFunc("GET /settings", s.settings)
-	s.mux.HandleFunc("GET /setup", s.setup)
 	s.mux.HandleFunc("GET /styleguide", s.styleguide)
+
+	// Dashboard and library (library.go, dashboard.go)
+	s.mux.HandleFunc("GET /{$}", s.dashboard)
+	s.mux.HandleFunc("GET /dashboard/live", s.dashboardLive)
+	s.mux.HandleFunc("POST /sync", s.startSync)
+	s.mux.HandleFunc("GET /sync/status", s.syncStatus)
+	s.mux.HandleFunc("GET /library", s.library)
+	s.mux.HandleFunc("GET /library/{id}", s.item)
+	s.mux.HandleFunc("POST /library/{id}/reprobe", s.reprobeItem)
+	s.mux.HandleFunc("GET /img/{id}", s.image)
+
+	// Policies (policies.go)
+	s.mux.HandleFunc("GET /policies", s.policies)
+	s.mux.HandleFunc("GET /policies/new", s.newPolicy)
+	s.mux.HandleFunc("GET /policies/{id}", s.editPolicy)
+	s.mux.HandleFunc("POST /policies", s.savePolicy)
+	s.mux.HandleFunc("POST /policies/{id}", s.savePolicy)
+	s.mux.HandleFunc("POST /policies/preview", s.previewPolicy)
+	s.mux.HandleFunc("POST /policies/{id}/toggle", s.togglePolicy)
+	s.mux.HandleFunc("POST /policies/{id}/move", s.movePolicy)
+	s.mux.HandleFunc("POST /policies/{id}/delete", s.deletePolicy)
+
+	// Queue and history (queue.go)
+	s.mux.HandleFunc("GET /queue", s.queue)
+	s.mux.HandleFunc("GET /queue/live", s.queueLive)
+	s.mux.HandleFunc("POST /queue/pause", s.pauseQueue)
+	s.mux.HandleFunc("POST /queue/resume", s.resumeQueue)
+	s.mux.HandleFunc("POST /queue/{id}/cancel", s.cancelJob)
+	s.mux.HandleFunc("POST /queue/{id}/retry", s.retryJob)
+	s.mux.HandleFunc("GET /history", s.history)
+	s.mux.HandleFunc("GET /history/{id}", s.historyJob)
+	s.mux.HandleFunc("POST /history/{id}/restore", s.restoreJob)
+	s.mux.HandleFunc("POST /library/{id}/optimise", s.optimiseItem)
+	s.mux.HandleFunc("POST /library/{id}/include", s.includeItem)
+
+	// Setup and settings (setup.go, settings.go)
+	s.mux.HandleFunc("GET /setup", s.setupStart)
+	s.mux.HandleFunc("GET /setup/{step}", s.setupStep)
+	s.mux.HandleFunc("POST /setup/{step}", s.setupSubmit)
+	s.mux.HandleFunc("POST /setup/jellyfin/test", s.testConnection)
+	s.mux.HandleFunc("POST /setup/paths/check", s.checkPaths)
+	s.mux.HandleFunc("GET /settings", s.settings)
+	s.mux.HandleFunc("POST /settings/{section}", s.saveSettings)
+	s.mux.HandleFunc("POST /settings/hardware/test", s.retestHardware)
 }
 
 func (s *Server) healthz(w http.ResponseWriter, _ *http.Request) {
@@ -88,7 +162,7 @@ func (s *Server) readyz(w http.ResponseWriter, r *http.Request) {
 func (s *Server) requireSetup(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		p := r.URL.Path
-		if p == "/healthz" || p == "/readyz" || strings.HasPrefix(p, "/static/") || strings.HasPrefix(p, "/setup") || p == "/styleguide" {
+		if p == "/healthz" || p == "/readyz" || p == "/favicon.ico" || strings.HasPrefix(p, "/static/") || strings.HasPrefix(p, "/setup") || p == "/styleguide" {
 			next.ServeHTTP(w, r)
 			return
 		}

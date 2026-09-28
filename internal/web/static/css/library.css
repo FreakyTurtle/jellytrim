@@ -1,0 +1,651 @@
+/*
+  Dashboard, Library and item detail pages. Uses the tokens in tokens.css;
+  shared components live in components.css.
+*/
+
+/* ---------- Dashboard ---------- */
+
+.dash {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--gutter);
+  align-items: start;
+}
+
+.dash > div {
+  display: grid;
+  min-inline-size: 0;
+}
+
+.dash__note {
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.dash__link {
+  font-weight: 500;
+}
+
+/* The sync status and button, in the page header. */
+.dash-sync {
+  min-inline-size: 0;
+}
+
+.dash-sync__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+}
+
+.dash-sync__row .meter {
+  flex: 1 1 14rem;
+  min-inline-size: 12rem;
+}
+
+/* The Dry Run printout: fixed count column, like a receipt. */
+.printout {
+  display: grid;
+  gap: var(--space-4);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.printout__head {
+  font-weight: 500;
+}
+
+.printout__lines {
+  display: grid;
+  border-block: var(--border-soft);
+}
+
+.printout__line {
+  display: grid;
+  grid-template-columns: 5ch auto minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: center;
+  min-block-size: var(--control-height-small);
+  padding-block: var(--space-1);
+  padding-inline-end: var(--space-2);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.printout__line:hover {
+  background: var(--surface-sunk);
+}
+
+.printout__line:hover .printout__text {
+  text-decoration-line: underline;
+}
+
+.printout__line .printout__num {
+  text-align: end;
+  font-weight: 500;
+}
+
+.printout__totals {
+  display: grid;
+  max-inline-size: 30rem;
+}
+
+.printout__total {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-4);
+  padding-block: var(--space-1);
+}
+
+.printout__total > dd {
+  margin: 0;
+  text-align: end;
+}
+
+.printout__total--strong {
+  border-block-start: var(--border);
+  padding-block-start: var(--space-2);
+  font-weight: 700;
+}
+
+/* The running job, compact. */
+.dash-job {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.dash-job__title {
+  font-weight: 500;
+}
+
+.dash-job__change {
+  font-size: var(--text-sm);
+}
+
+/* Recent activity: a printed log. */
+.activity {
+  display: grid;
+}
+
+.activity__item {
+  display: grid;
+  gap: var(--space-1);
+  padding-block: var(--space-3);
+  border-block-end: var(--border-soft);
+}
+
+.activity__item:first-child {
+  padding-block-start: 0;
+}
+
+.activity__top,
+.activity__bottom {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+  max-inline-size: none;
+}
+
+.activity__title {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.activity__when,
+.activity__change,
+.activity__bottom .mono {
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+/* Problems: a lamp, a sentence and one action each. */
+.problems {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.problems__item {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.problems__item + .problems__item {
+  padding-block-start: var(--space-4);
+  border-block-start: var(--border-soft);
+}
+
+.problems__text {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-2);
+  align-items: baseline;
+}
+
+.problems .problems__examples {
+  display: grid;
+  gap: var(--space-2);
+  padding-inline-start: calc(var(--lamp-size) + var(--space-2));
+  font-size: var(--text-sm);
+}
+
+.problems__examples > li {
+  display: grid;
+}
+
+.problems__reason {
+  color: var(--ink-2);
+}
+
+.problems__item > p:not(.problems__text),
+.problems__item > .callout__details {
+  margin-inline-start: calc(var(--lamp-size) + var(--space-2));
+}
+
+/* ---------- Library toolbar ---------- */
+
+.library-toolbar {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  background: var(--surface);
+  border: var(--border);
+}
+
+.library-toolbar__top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+.library-toolbar .field__input {
+  max-inline-size: none;
+}
+
+.library-filters__summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: var(--touch-target);
+  font-weight: 500;
+  list-style: none;
+}
+
+.library-filters__summary::-webkit-details-marker {
+  display: none;
+}
+
+.library-filters__summary::before {
+  content: "[+]";
+  font-family: var(--font-mono);
+  font-weight: 400;
+}
+
+.library-filters[open] > .library-filters__summary::before {
+  content: "[-]";
+}
+
+.library-filters__groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4) var(--space-6);
+  padding-block-start: var(--space-2);
+}
+
+/* With JavaScript the results follow each change, so Apply is not needed. */
+.js .library-toolbar__apply {
+  display: none;
+}
+
+/* ---------- Library results ---------- */
+
+.library-count {
+  font-variant-numeric: tabular-nums;
+}
+
+.library-results__empty {
+  padding: var(--space-4) var(--space-5);
+}
+
+.library-table th.library-table__art,
+.library-table td.library-table__art {
+  inline-size: calc(40px + 2 * var(--space-3));
+  padding-block: var(--space-1);
+}
+
+.library-table__lib {
+  display: block;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.library-table td.num,
+.library-table td[data-label="Change"],
+.library-table .status {
+  white-space: nowrap;
+}
+
+/* Artwork: a poster, or a sunk box with the first letter. */
+.art {
+  display: block;
+  flex: none;
+  inline-size: 40px;
+  block-size: 60px;
+  object-fit: cover;
+  background: var(--surface-sunk);
+  border: var(--border);
+}
+
+.art--none {
+  display: grid;
+  place-items: center;
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-weight: 500;
+}
+
+.art--large {
+  inline-size: 120px;
+  block-size: 180px;
+  font-size: var(--text-3xl);
+}
+
+.pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-block-start: var(--border-strong);
+}
+
+.pager__text {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Item detail ---------- */
+
+.item-back {
+  font-size: var(--text-sm);
+}
+
+.item-back a::before {
+  content: "\2190  ";
+  font-family: var(--font-mono);
+}
+
+.item-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.item-actions__optimise {
+  display: grid;
+  gap: var(--space-1);
+  max-inline-size: 22rem;
+}
+
+.item-overview {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-5);
+}
+
+.item-overview__text {
+  display: grid;
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+
+.item-overview__status {
+  font-size: var(--text-lg);
+  font-weight: 500;
+}
+
+.item-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--gutter);
+  align-items: start;
+}
+
+.item-grid__col {
+  display: grid;
+  gap: var(--gutter);
+  align-content: start;
+  min-inline-size: 0;
+}
+
+.item-subhead,
+.item-facts__label {
+  color: var(--ink-2);
+  font-size: var(--text-label);
+  font-weight: 500;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
+.item-note {
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.item-facts,
+.item-policy__group {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.item-facts {
+  padding-block-start: var(--space-3);
+  border-block-start: var(--border-soft);
+}
+
+.item-policy__heading {
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+
+.item-list {
+  display: grid;
+  gap: var(--space-1);
+  padding-inline-start: var(--space-5);
+  list-style: square;
+}
+
+.item-policy__name {
+  font-weight: 500;
+}
+
+.item-policy__off {
+  color: var(--ink-2);
+  font-weight: 400;
+}
+
+.item-details {
+  border-block-start: var(--border-soft);
+  padding-block-start: var(--space-2);
+}
+
+.item-details > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: var(--touch-target);
+  font-weight: 500;
+  list-style: none;
+}
+
+.item-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.item-details > summary::before {
+  content: "[+]";
+  font-family: var(--font-mono);
+  font-weight: 400;
+}
+
+.item-details[open] > summary::before {
+  content: "[-]";
+}
+
+.item-details__body {
+  display: grid;
+  gap: var(--space-4);
+  padding-block-start: var(--space-2);
+}
+
+/* Estimated size: a big read-out and a bar against the current size. */
+.item-estimate__range {
+  font-size: var(--text-3xl);
+  font-weight: 700;
+  line-height: var(--leading-3xl);
+  letter-spacing: var(--tracking-metric);
+  font-variant-numeric: tabular-nums;
+}
+
+.item-estimate__approx {
+  margin-inline-end: 0.1em;
+  color: var(--ink-2);
+  font-weight: 400;
+}
+
+.size-bar {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.size-bar__row {
+  display: grid;
+  grid-template-columns: 4rem minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.size-bar__label {
+  color: var(--ink-2);
+  font-size: var(--text-label);
+  font-weight: 500;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
+.size-bar__track {
+  position: relative;
+  display: block;
+  block-size: 16px;
+  background: var(--surface-sunk);
+  border: var(--border);
+}
+
+.size-bar__now {
+  position: absolute;
+  inset: 0;
+  background: var(--ink);
+}
+
+/* Solid up to the low estimate, hatched across the uncertain range. */
+.size-bar__est {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  inline-size: var(--est-hi, 0%);
+  background: repeating-linear-gradient(135deg, var(--accent) 0 3px, transparent 3px 6px);
+}
+
+.size-bar__track--est::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  z-index: 1;
+  inline-size: var(--est-lo, 0%);
+  background: var(--accent);
+}
+
+/* ---------- 720px and above ---------- */
+
+@media (min-width: 720px) {
+  .library-toolbar__top {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
+    align-items: end;
+  }
+
+  /* The filters are always open here; the summary only serves phones. */
+  .library-filters > .library-filters__summary {
+    display: none;
+  }
+
+  .library-filters::details-content {
+    content-visibility: visible;
+    block-size: auto;
+  }
+
+  .library-filters__groups {
+    padding-block-start: 0;
+  }
+}
+
+/* ---------- 1080px and above ---------- */
+
+@media (min-width: 1080px) {
+  .dash {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    grid-template-areas:
+      "metrics metrics metrics metrics metrics metrics metrics metrics metrics metrics metrics metrics"
+      "summary summary summary summary summary summary summary now now now now now"
+      "recent recent recent recent recent recent recent problems problems problems problems problems";
+  }
+
+  .dash__metrics {
+    grid-area: metrics;
+  }
+
+  .dash__summary {
+    grid-area: summary;
+  }
+
+  .dash__now {
+    grid-area: now;
+  }
+
+  .dash__recent {
+    grid-area: recent;
+  }
+
+  .dash__problems {
+    grid-area: problems;
+  }
+
+  .item-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ---------- Below 720px ---------- */
+
+@media (max-width: 719.98px) {
+  .library-toolbar {
+    padding: var(--space-3) var(--space-4);
+  }
+
+  /* Each result is a card: artwork beside the title, then the facts. */
+  .table.library-table tr {
+    display: grid;
+    grid-template-columns: calc(40px + 2 * var(--space-2)) minmax(0, 1fr);
+  }
+
+  .table.library-table td {
+    grid-column: 1 / -1;
+  }
+
+  .table.library-table td[data-label="Change"] {
+    white-space: normal;
+  }
+
+  .table.library-table td.library-table__art {
+    grid-column: 1;
+    grid-row: 1;
+    inline-size: auto;
+    padding: var(--space-2);
+  }
+
+  .table.library-table td.library-table__title {
+    grid-column: 2;
+    grid-row: 1;
+    grid-template-columns: minmax(0, 1fr);
+    align-content: center;
+  }
+
+  .table.library-table td.library-table__title::before {
+    content: none;
+  }
+
+  .item-overview {
+    gap: var(--space-4);
+  }
+
+  .printout__line {
+    grid-template-columns: 4ch auto minmax(0, 1fr);
+  }
+
+  .art--large {
+    inline-size: 80px;
+    block-size: 120px;
+    font-size: var(--text-2xl);
+  }
+
+  .item-estimate__range {
+    font-size: var(--text-2xl);
+    line-height: var(--leading-2xl);
+  }
+}

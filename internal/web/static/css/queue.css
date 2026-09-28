@@ -1,0 +1,442 @@
+/* Queue and History pages. Use the tokens in tokens.css; shared components
+   live in components.css. */
+
+/* ---------- Queue ---------- */
+
+.queue {
+  display: grid;
+  gap: var(--gutter);
+  min-inline-size: 0;
+}
+
+.queue-state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-5);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface);
+  border: var(--border);
+  border-inline-start: 4px solid var(--rule);
+  border-radius: var(--radius-panel);
+}
+
+.queue-state__text {
+  font-weight: 500;
+}
+
+.queue-state__control {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.queue-state__note {
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+/* The running job */
+
+.queue-job {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.queue-job__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+}
+
+.queue-job__heading {
+  display: grid;
+  gap: var(--space-1);
+  min-inline-size: 0;
+}
+
+.queue-job__title {
+  font-size: var(--text-xl);
+  line-height: var(--leading-xl);
+  font-weight: 700;
+  letter-spacing: var(--tracking-title);
+  overflow-wrap: anywhere;
+}
+
+.queue-job__title a {
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.queue-job__title a:hover {
+  text-decoration: underline;
+}
+
+.queue-job__library {
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.queue-job__change {
+  font-size: var(--text-lg);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.queue-job__stats {
+  max-inline-size: 40rem;
+}
+
+.queue-job__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* Stage strip: Analysing > Encoding > Validating > Replacing */
+
+.queue-stages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1px;
+  inline-size: fit-content;
+  max-inline-size: 100%;
+  padding: 0;
+  list-style: none;
+  background: var(--rule);
+  border: var(--border-strong);
+  border-radius: var(--radius);
+}
+
+.queue-stages__item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-block-size: var(--control-height-small);
+  padding: 0 var(--space-3);
+  background: var(--surface-sunk);
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.queue-stages__mark {
+  display: inline-block;
+  min-inline-size: 1ch;
+}
+
+.queue-stages__item--done {
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.queue-stages__item--done .queue-stages__mark {
+  color: var(--ok);
+}
+
+.queue-stages__item--current {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+/* Waiting table */
+
+.queue-table__pos {
+  inline-size: 3rem;
+  color: var(--ink-2);
+}
+
+.queue-table__title a {
+  font-weight: 500;
+}
+
+.queue-table__lib {
+  display: block;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.queue-table__action {
+  inline-size: 1%;
+  white-space: nowrap;
+  text-align: end;
+}
+
+/* Recently failed */
+
+.queue-failed {
+  display: grid;
+  padding: 0;
+  list-style: none;
+}
+
+.queue-failed__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-block: var(--space-3);
+  border-block-end: var(--border-soft);
+}
+
+.queue-failed__item:first-child {
+  padding-block-start: 0;
+}
+
+.queue-failed__item:last-child {
+  padding-block-end: 0;
+  border-block-end: 0;
+}
+
+.queue-failed__text {
+  display: grid;
+  gap: var(--space-1);
+  min-inline-size: 0;
+  flex: 1 1 20rem;
+}
+
+.queue-failed__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+}
+
+.queue-failed__when,
+.queue-failed__summary {
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.queue-failed__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* Confirmation dialogs without JavaScript: the trigger is a link to the
+   dialog's id, so :target shows it in place. app.js opens it as a modal
+   instead and never changes the address. */
+html:not(.js) .dialog:target {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: block;
+  margin: auto;
+  block-size: fit-content;
+}
+
+html:not(.js) .dialog [data-dialog-close] {
+  display: none;
+}
+
+.js .queue-nojs {
+  display: none;
+}
+
+/* ---------- History ---------- */
+
+.history-total {
+  padding: var(--space-4) var(--space-5);
+  background: var(--surface);
+  border: var(--border);
+  border-radius: var(--radius-panel);
+}
+
+.history-attention__intro {
+  max-inline-size: none;
+  padding: var(--space-3) var(--space-5);
+  border-block-end: var(--border-soft);
+}
+
+.history-kept__path {
+  padding: 0 var(--space-1);
+  background: var(--surface);
+  border: var(--border-soft);
+  overflow-wrap: anywhere;
+}
+
+.history-filter__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1px;
+  inline-size: fit-content;
+  max-inline-size: 100%;
+  padding: 0;
+  list-style: none;
+  background: var(--rule);
+  border: var(--border-strong);
+  border-radius: var(--radius);
+}
+
+.history-filter__link {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--control-height);
+  padding: 0 var(--space-4);
+  background: var(--surface);
+  color: var(--ink);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background-color var(--dur) var(--ease), translate var(--dur) var(--ease);
+}
+
+.history-filter__link:hover {
+  background: var(--surface-sunk);
+}
+
+.history-filter__link:active {
+  translate: 0 1px;
+}
+
+.history-filter__link:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+.history-filter__link[aria-current="page"] {
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 500;
+  translate: 0 1px;
+}
+
+.history-table__when {
+  white-space: nowrap;
+  color: var(--ink-2);
+}
+
+.history-table__title a {
+  font-weight: 500;
+}
+
+.history-table__outcome {
+  max-inline-size: 32rem;
+}
+
+.history-table__view {
+  inline-size: 1%;
+  white-space: nowrap;
+  text-align: end;
+}
+
+/* Job detail */
+
+.history-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.history-actions__item {
+  display: grid;
+  gap: var(--space-1);
+  max-inline-size: 22rem;
+}
+
+.history-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--gutter);
+  align-items: start;
+}
+
+.history-grid__col {
+  display: grid;
+  gap: var(--gutter);
+  align-content: start;
+  min-inline-size: 0;
+}
+
+.history-job__item {
+  margin-block-start: var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.history-warnings {
+  display: grid;
+  gap: var(--space-2);
+  padding-inline-start: var(--space-4);
+}
+
+.history-technical {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.history-technical .callout__details {
+  margin-block-start: 0;
+}
+
+@media (min-width: 1080px) {
+  .history-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ---------- Below 720px ---------- */
+
+@media (max-width: 719.98px) {
+  .queue-state {
+    padding: var(--space-3);
+  }
+
+  .queue-stages {
+    inline-size: auto;
+  }
+
+  .queue-stages__item {
+    flex: 1 1 calc(50% - 1px);
+    justify-content: center;
+    min-block-size: var(--touch-target);
+    padding-inline: var(--space-2);
+  }
+
+  .queue-table__pos {
+    inline-size: auto;
+  }
+
+  .queue-table__action,
+  .history-table__view {
+    inline-size: auto;
+    text-align: start;
+  }
+
+  .history-total {
+    padding: var(--space-4);
+  }
+
+  .history-filter__list {
+    inline-size: auto;
+  }
+
+  .history-filter__link {
+    flex: 1 1 auto;
+    justify-content: center;
+    min-block-size: var(--touch-target);
+    padding-inline: var(--space-3);
+  }
+
+  .history-filter__list li {
+    display: flex;
+    flex: 1 1 auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .history-filter__link,
+  .history-filter__link:active,
+  .history-filter__link[aria-current="page"] {
+    transition: none;
+    translate: none;
+  }
+}

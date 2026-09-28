@@ -1,8 +1,11 @@
 package web
 
 import (
+	"errors"
 	"net/http"
 
+	"github.com/freakyturtle/jellytrim/internal/store"
+	"github.com/freakyturtle/jellytrim/internal/units"
 	"github.com/freakyturtle/jellytrim/internal/web/views"
 )
 
@@ -16,42 +19,42 @@ func (s *Server) shell(r *http.Request, title, active string) (views.Shell, erro
 		Title:        title,
 		Active:       active,
 		DryRun:       st.DryRun,
-		Sync:         views.SyncStatus{State: "never", Text: "Not synced yet"},
+		QueueCount:   s.queueCount(r),
+		Sync:         s.syncState(r),
 		AssetVersion: assetVersion(),
 	}, nil
 }
 
-func (s *Server) placeholder(w http.ResponseWriter, r *http.Request, title, active, description string) {
-	sh, err := s.shell(r, title, active)
-	if err != nil {
-		s.serverError(w, r, err)
-		return
+// syncState describes the last or current sync for the top bar.
+func (s *Server) syncState(r *http.Request) views.SyncStatus {
+	if s.Library != nil {
+		if st := s.Library.Status(); st.Running {
+			return views.SyncStatus{State: "running", Text: "Syncing"}
+		} else if st.LastError != "" {
+			return views.SyncStatus{State: "error", Text: "Last sync failed"}
+		}
 	}
-	s.render(w, r, views.PlaceholderPage(sh, title, description))
+	last, err := s.Store.LastSync(r.Context())
+	switch {
+	case errors.Is(err, store.ErrNotFound):
+		return views.SyncStatus{State: "never", Text: "Not synced yet"}
+	case err != nil:
+		return views.SyncStatus{State: "error", Text: "Sync status unknown"}
+	case last.Status == "failed":
+		return views.SyncStatus{State: "error", Text: "Last sync failed"}
+	case last.FinishedAt != nil:
+		return views.SyncStatus{State: "ok", Text: "Synced " + units.Ago(*last.FinishedAt, s.Now())}
+	}
+	return views.SyncStatus{State: "running", Text: "Syncing"}
 }
 
-func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
-	s.placeholder(w, r, "Dashboard", "dashboard", "Storage used, what JellyTrim could save, and what it is doing.")
-}
-
-func (s *Server) library(w http.ResponseWriter, r *http.Request) {
-	s.placeholder(w, r, "Library", "library", "Your Jellyfin media and what JellyTrim plans for each item.")
-}
-
-func (s *Server) policies(w http.ResponseWriter, r *http.Request) {
-	s.placeholder(w, r, "Policies", "policies", "Rules that describe what to optimise, and when.")
-}
-
-func (s *Server) queue(w http.ResponseWriter, r *http.Request) {
-	s.placeholder(w, r, "Queue", "queue", "Files being optimised now and waiting their turn.")
-}
-
-func (s *Server) history(w http.ResponseWriter, r *http.Request) {
-	s.placeholder(w, r, "History", "history", "Everything JellyTrim has done, skipped or failed to do.")
-}
-
-func (s *Server) settings(w http.ResponseWriter, r *http.Request) {
-	s.placeholder(w, r, "Settings", "settings", "Jellyfin connection, paths, hardware and safety settings.")
+// queueCount is the number of waiting and running jobs, for the nav badge.
+func (s *Server) queueCount(r *http.Request) int {
+	n, err := s.Store.ActiveJobCount(r.Context())
+	if err != nil {
+		return 0
+	}
+	return n
 }
 
 func (s *Server) styleguide(w http.ResponseWriter, r *http.Request) {
@@ -61,8 +64,4 @@ func (s *Server) styleguide(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.render(w, r, views.Styleguide(sh))
-}
-
-func (s *Server) setup(w http.ResponseWriter, r *http.Request) {
-	s.placeholder(w, r, "Set up JellyTrim", "", "The setup wizard arrives in milestone M2.")
 }

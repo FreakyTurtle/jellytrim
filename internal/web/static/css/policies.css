@@ -1,0 +1,500 @@
+/* Page styles for policies. Use the tokens in tokens.css; shared components live in components.css. */
+
+/* ---------- Without JavaScript ---------- */
+
+/* Controls that only matter without JavaScript: Apply, Update preview and
+   the "Keep it" link in a delete confirmation. */
+:root.js .policy-nojs {
+  display: none;
+}
+
+/* Without JavaScript a delete link jumps to its dialog, which shows in place
+   through :target. The dialog's own Cancel needs JavaScript, so it hides. */
+:root:not(.js) .policy-card .dialog:target,
+:root:not(.js) .policy-editor__delete .dialog:target {
+  position: static;
+  display: block;
+  inline-size: auto;
+  margin: var(--space-4) 0 0;
+}
+
+:root:not(.js) .policy-card .dialog [data-dialog-close],
+:root:not(.js) .policy-editor__delete .dialog [data-dialog-close] {
+  display: none;
+}
+
+/* ---------- List page ---------- */
+
+.policies {
+  display: grid;
+  align-items: start;
+  gap: var(--gutter);
+  min-inline-size: 0;
+}
+
+.policies__main {
+  display: grid;
+  gap: var(--space-4);
+  min-inline-size: 0;
+}
+
+/* A rack of modules: 1px rules between cards, a 2px frame around them. */
+.policy-list {
+  display: grid;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: var(--rule);
+  border: var(--border-strong);
+}
+
+.policy-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    "pos main"
+    "pos controls"
+    "dialog dialog";
+  column-gap: var(--space-4);
+  row-gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--surface);
+}
+
+.policy-card__pos {
+  grid-area: pos;
+  align-self: start;
+  min-inline-size: 2ch;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xl);
+  font-weight: 500;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.policy-card__main {
+  grid-area: main;
+  display: grid;
+  gap: var(--space-2);
+  min-inline-size: 0;
+}
+
+.policy-card__name {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  line-height: var(--leading-lg);
+}
+
+.policy-card__name a {
+  color: var(--ink);
+  text-decoration-line: none;
+}
+
+.policy-card__name a:hover {
+  text-decoration-line: underline;
+}
+
+/* The full sentence is on the editor; here it stops after two lines. */
+.policy-card__sentence {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--ink-2);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.policy-card__controls {
+  grid-area: controls;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.policy-card__toggle,
+.policy-card__move {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.policy-card > .dialog {
+  grid-area: dialog;
+}
+
+/* A policy that is off reads as idle: its number greys out. */
+.policy-card--off .policy-card__pos {
+  color: var(--ink-2);
+}
+
+.policy-card--off {
+  background: var(--surface-sunk);
+}
+
+.policies-how {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.policies-how__item {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.policies-how dt {
+  font-weight: 700;
+}
+
+.policies-how dd {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+/* ---------- Editor ---------- */
+
+.policy-editor {
+  display: grid;
+  align-items: start;
+  gap: var(--gutter);
+  min-inline-size: 0;
+}
+
+.policy-editor__main,
+.policy-editor__side {
+  display: grid;
+  gap: var(--space-5);
+  min-inline-size: 0;
+}
+
+.policy-form {
+  display: grid;
+  gap: var(--space-5);
+  min-inline-size: 0;
+}
+
+.policy-errors {
+  margin: 0;
+  padding-inline-start: var(--space-5);
+}
+
+/* One clause of the sentence: a heavy rule, the word, then its controls. */
+.policy-part {
+  display: grid;
+  gap: var(--space-3);
+  padding-block-start: var(--space-3);
+  border-block-start: var(--border-strong);
+  min-inline-size: 0;
+}
+
+.policy-part__label {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  line-height: var(--leading-xl);
+  letter-spacing: var(--tracking-title);
+}
+
+.policy-part__body {
+  display: grid;
+  gap: var(--space-4);
+  min-inline-size: 0;
+}
+
+.policy-part__empty {
+  color: var(--ink-2);
+}
+
+.policy-group {
+  display: grid;
+  gap: var(--space-1);
+}
+
+/* Scrolling checklist for series and collections. */
+.policy-checklist {
+  display: grid;
+  gap: var(--space-1);
+  min-inline-size: 0;
+}
+
+.policy-checklist__items {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  column-gap: var(--space-4);
+  max-block-size: 15rem;
+  padding-inline: var(--space-3);
+  overflow: auto;
+  background: var(--surface);
+  border: var(--border);
+}
+
+.policy-part__body #policy-seasons {
+  max-inline-size: 14rem;
+}
+
+/* Conditions: each row is one clause of the sentence. */
+.policy-conds {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.policy-cond {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.policy-cond__line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-1);
+  font-size: var(--text-lg);
+  line-height: 2;
+}
+
+.policy-cond--invalid .policy-cond__line {
+  padding-inline-start: var(--space-2);
+  border-inline-start: 2px solid var(--bad);
+}
+
+.policy-cond--invalid > .field__error {
+  padding-inline-start: var(--space-3);
+}
+
+.policy-cond__join {
+  color: var(--ink-2);
+}
+
+.policy-cond__unit {
+  color: var(--ink-2);
+  font-size: var(--text-body);
+}
+
+.policy-cond .field--slot select.field__input {
+  max-inline-size: 100%;
+}
+
+.policy-cond .field--slot input.field__input {
+  inline-size: 7ch;
+}
+
+.policy-cond .policy-slot--wide input.field__input {
+  inline-size: 16ch;
+  text-align: start;
+}
+
+.policy-cond__remove {
+  align-self: center;
+  min-inline-size: var(--control-height-small);
+  margin-inline-start: auto;
+  padding: 0;
+}
+
+/* Codec and dynamic range chips inside the sentence. */
+.policy-picks {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-self: center;
+  gap: var(--space-1);
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.policy-picks .chips__option {
+  line-height: 1.2;
+}
+
+/* Protect replaces the conversion settings with an explanation. CSS does
+   this, so it works without a round trip and without JavaScript. */
+.policy-protect-note {
+  display: none;
+}
+
+.policy-form:has(#kind-protect:checked) .policy-protect-note {
+  display: block;
+}
+
+.policy-form:has(#kind-protect:checked) .policy-convert {
+  display: none;
+}
+
+.policy-convert {
+  display: grid;
+  gap: var(--space-5);
+  min-inline-size: 0;
+}
+
+.policy-advanced {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.policy-advanced > summary {
+  inline-size: fit-content;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.policy-advanced[open] > summary {
+  margin-block-end: var(--space-3);
+}
+
+.policy-form__footer {
+  display: grid;
+  gap: var(--space-4);
+  padding-block-start: var(--space-4);
+  border-block-start: var(--border-strong);
+}
+
+.policy-editor__delete {
+  padding-block-start: var(--space-4);
+  border-block-start: var(--border);
+}
+
+/* ---------- Preview ---------- */
+
+.policy-preview {
+  display: grid;
+  gap: var(--space-4);
+  min-inline-size: 0;
+}
+
+/* The policy as one sentence, set off by a heavy stub like the page rule. */
+.policy-preview__sentence {
+  padding-inline-start: var(--space-3);
+  border-inline-start: 5px solid var(--ink);
+  font-size: var(--text-lg);
+  font-weight: 500;
+  line-height: var(--leading-lg);
+}
+
+.policy-preview .metrics {
+  border: var(--border);
+}
+
+.policy-preview .metrics {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.policy-preview .metrics > .metric {
+  padding: var(--space-4);
+}
+
+.policy-preview .metric__value {
+  font-size: var(--text-3xl);
+}
+
+.policy-preview .metric__unit {
+  font-size: var(--text-sm);
+}
+
+.policy-preview__note {
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+/* The numbers read like the Dry Run printout. */
+.policy-printout {
+  display: grid;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.policy-printout__row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0 var(--space-3);
+  padding-block: var(--space-1);
+  border-block-end: var(--border-soft);
+}
+
+.policy-printout dd {
+  margin: 0;
+  margin-inline-start: auto;
+  font-weight: 500;
+  text-align: end;
+}
+
+.policy-preview__heading {
+  font-size: var(--text-label);
+  font-weight: 500;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
+.policy-samples {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.policy-samples__item {
+  display: grid;
+  gap: var(--space-1);
+  padding-block: var(--space-2);
+  border-block-start: var(--border-soft);
+}
+
+.policy-samples__name {
+  color: var(--ink);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.policy-samples__summary {
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+/* ---------- Below 720px: phones ---------- */
+
+@media (max-width: 719.98px) {
+  .policy-cond__line {
+    font-size: var(--text-body);
+  }
+}
+
+/* ---------- 720px and above ---------- */
+
+@media (min-width: 720px) {
+  .policy-card {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "pos main controls"
+      "dialog dialog dialog";
+    align-items: center;
+  }
+
+  .policy-card__controls {
+    justify-content: flex-end;
+    max-inline-size: 30rem;
+  }
+
+  .policy-part {
+    grid-template-columns: 5.5rem minmax(0, 1fr);
+    gap: var(--space-4);
+  }
+}
+
+/* ---------- 1080px and above ---------- */
+
+@media (min-width: 1080px) {
+  .policies {
+    grid-template-columns: minmax(0, 1fr) 20rem;
+  }
+
+  .policy-editor {
+    grid-template-columns: minmax(0, 1fr) minmax(20rem, 26rem);
+  }
+
+}

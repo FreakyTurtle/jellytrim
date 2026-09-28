@@ -1,0 +1,371 @@
+package views
+
+import "strconv"
+
+// SettingsQualityTier is one editable quality number in Advanced.
+type SettingsQualityTier struct {
+	Name    string // form field name, for example "q-x265-high"
+	Label   string // "High"
+	Value   string // the override as entered; empty uses the default
+	Default string
+	Error   string
+}
+
+// SettingsQualityBackend is one encoder's row of quality numbers.
+type SettingsQualityBackend struct {
+	Label   string
+	Backend string
+	Scale   string // what the number is, for example "CRF"
+	Tiers   []SettingsQualityTier
+}
+
+// SettingsView is everything the Settings page shows. Numbers are strings
+// so an invalid entry is shown back exactly as typed.
+type SettingsView struct {
+	Shell    Shell
+	Saved    string // the section just saved
+	SavedAt  string
+	Errors   map[string]string          // by form field name
+	Problems map[string]SetupConnResult // by section, shown above its buttons
+
+	Jellyfin   SetupJellyfinView
+	ServerName string
+
+	Libraries []SetupLibrary
+	Users     []SetupUser
+	WatchMode string
+	Paths     SetupPathsView
+
+	DryRun           bool
+	ConfirmDryRunOff bool
+	KeepDays         int
+
+	SyncInterval string
+	SyncDailyAt  string
+	LastSync     string
+	WindowOn     bool
+	WindowStart  string
+	WindowEnd    string
+
+	AutoProcess bool
+	Validation  string
+	Concurrency string
+	Encoder     string
+
+	MinSaving  string
+	BackupDays string
+
+	Hardware SetupHardwareView
+
+	AdvancedOpen bool
+	Preset       string
+	BitDepth     string // "10" or "source"
+	Quality      []SettingsQualityBackend
+}
+
+type settingsNavItem struct {
+	ID    string
+	Label string
+}
+
+var settingsNav = []settingsNavItem{
+	{"jellyfin", "Jellyfin"},
+	{"libraries", "Libraries"},
+	{"watched", "Watched state"},
+	{"paths", "Path mappings"},
+	{"dry-run", "Dry Run"},
+	{"schedule", "Schedule"},
+	{"processing", "Processing"},
+	{"safety", "Saving and backups"},
+	{"hardware", "Hardware"},
+	{"hdr", "HDR"},
+	{"advanced", "Advanced"},
+}
+
+var settingsValidationOptions = []Option{
+	{Value: "full", Label: "Full decode check", Hint: "Decodes the whole new file before it replaces the original. The safest choice."},
+	{Value: "sampled", Label: "Sampled (faster)", Hint: "Decodes several short parts of the new file. Faster on long films."},
+}
+
+var settingsConcurrencyOptions = []Option{
+	{Value: "1", Label: "1"},
+	{Value: "2", Label: "2"},
+	{Value: "3", Label: "3"},
+	{Value: "4", Label: "4"},
+}
+
+var settingsPresetOptions = []Option{
+	{Value: "medium", Label: "medium", Hint: "Faster, with slightly larger files."},
+	{Value: "slow", Label: "slow", Hint: "The default. A good balance of speed and size."},
+	{Value: "slower", Label: "slower", Hint: "Slightly smaller files, but takes much longer."},
+}
+
+var settingsBitDepthOptions = []Option{
+	{Value: "10", Label: "10-bit", Hint: "The default. Smoother gradients and smaller files. HDR is always 10-bit."},
+	{Value: "source", Label: "Match the source", Hint: "8-bit sources stay 8-bit, for very old players."},
+}
+
+func settingsErr(v SettingsView, name string) string {
+	return v.Errors[name]
+}
+
+func settingsProblem(v SettingsView, section string) (SetupConnResult, bool) {
+	p, ok := v.Problems[section]
+	return p, ok
+}
+
+func settingsDryRunText(days int) string {
+	return "Turn off Dry Run? JellyTrim will start replacing files that match enabled policies. Originals are kept as backups for " + settingsDays(days) + "."
+}
+
+func settingsDays(days int) string {
+	if days == 1 {
+		return "1 day"
+	}
+	return strconv.Itoa(days) + " days"
+}
+
+// SettingsPage is the Settings page: one form per section.
+templ SettingsPage(v SettingsView) {
+	@Layout(v.Shell) {
+		@PageHeader("Settings", "Each section saves on its own.")
+		<div class="settings">
+			<nav class="settings__nav" aria-label="Settings sections">
+				<ol class="settings__navlist">
+					for _, item := range settingsNav {
+						<li><a href={ templ.SafeURL("#" + item.ID) }>{ item.Label }</a></li>
+					}
+				</ol>
+			</nav>
+			<div class="settings__sections">
+				@settingsJellyfin(v)
+				@settingsLibraries(v)
+				@settingsWatched(v)
+				@settingsPaths(v)
+				@settingsDryRun(v)
+				@settingsSchedule(v)
+				@settingsProcessing(v)
+				@settingsSafety(v)
+				@settingsHardware(v)
+				@settingsHDR()
+				@settingsAdvanced(v)
+			</div>
+		</div>
+	}
+}
+
+// settingsFeedback shows "Saved at 14:02" after a save, or the section's
+// problem after a failed one.
+templ settingsFeedback(v SettingsView, section string) {
+	if p, ok := settingsProblem(v, section); ok {
+		@SetupConnResultView(p)
+	} else if v.Saved == section {
+		<p class="settings__saved" role="status">
+			@Lamp("ok")
+			<span>Saved at { v.SavedAt }</span>
+		</p>
+	}
+}
+
+templ settingsSave(label string) {
+	<div class="actions">
+		<button class="btn btn--secondary" type="submit">{ label }</button>
+	</div>
+}
+
+templ settingsJellyfin(v SettingsView) {
+	@Panel("Jellyfin", "jellyfin") {
+		<form class="settings-form" method="post" action="/settings/jellyfin" novalidate>
+			@setupDefaultSubmit("Save connection")
+			if v.ServerName != "" {
+				<p class="setup-note">Connected to <span class="mono">{ v.ServerName }</span>.</p>
+			}
+			@settingsFeedback(v, "jellyfin")
+			@SetupJellyfinFields(v.Jellyfin, "settings")
+			@settingsSave("Save connection")
+		</form>
+	}
+}
+
+templ settingsLibraries(v SettingsView) {
+	@Panel("Libraries", "libraries") {
+		<form class="settings-form" method="post" action="/settings/libraries">
+			@settingsFeedback(v, "libraries")
+			@SetupLibraryList(v.Libraries, settingsErr(v, "library"), "settings")
+			@settingsSave("Save libraries")
+		</form>
+	}
+}
+
+templ settingsWatched(v SettingsView) {
+	@Panel("Watched state", "watched") {
+		<form class="settings-form" method="post" action="/settings/users">
+			@settingsFeedback(v, "users")
+			@SetupUserList(v.Users, v.WatchMode, settingsErr(v, "user"), "settings")
+			@settingsSave("Save watched state")
+		</form>
+	}
+}
+
+templ settingsPaths(v SettingsView) {
+	@Panel("Path mappings", "paths") {
+		<form class="settings-form" method="post" action="/settings/paths" novalidate>
+			@setupDefaultSubmit("Save path mappings")
+			@settingsFeedback(v, "paths")
+			@SetupPathRows(v.Paths, "settings")
+			@settingsSave("Save path mappings")
+		</form>
+	}
+}
+
+templ settingsDryRun(v SettingsView) {
+	@PanelWith(PanelProps{Tab: "Dry Run", ID: "dry-run", Variant: "emphasis"}) {
+		<div class={ "settings-dryrun", templ.KV("settings-dryrun--on", v.DryRun) }>
+			@settingsFeedback(v, "dryrun")
+			if v.ConfirmDryRunOff {
+				@CalloutWith(CalloutProps{Variant: "warn", Title: "Turn off Dry Run?", Text: settingsDryRunText(v.KeepDays)}) {
+					<form class="callout__actions" method="post" action="/settings/dryrun">
+						<input type="hidden" name="dry_run" value="off"/>
+						<input type="hidden" name="confirm" value="yes"/>
+						<a class="btn btn--secondary" href="/settings#dry-run">Cancel</a>
+						<button class="btn btn--danger" type="submit">Turn off Dry Run</button>
+					</form>
+				}
+			}
+			<form class="settings-form" method="post" action="/settings/dryrun">
+				if v.DryRun {
+					@ToggleWith(ToggleProps{Name: "dry_run", Label: "Dry Run", Checked: true, Large: true, Note: "While Dry Run is on, JellyTrim evaluates everything and changes nothing.", Attrs: templ.Attributes{"value": "on", "data-dialog-open": "settings-dryrun-dialog", "aria-haspopup": "dialog"}})
+				} else {
+					@ToggleWith(ToggleProps{Name: "dry_run", Label: "Dry Run", Checked: false, Large: true, Note: "Dry Run is off. JellyTrim replaces files that match enabled policies.", Attrs: templ.Attributes{"value": "on"}})
+				}
+				@settingsSave("Save Dry Run")
+			</form>
+			if v.DryRun {
+				@Dialog("settings-dryrun-dialog", "Turn off Dry Run") {
+					<form method="post" action="/settings/dryrun">
+						<input type="hidden" name="dry_run" value="off"/>
+						<input type="hidden" name="confirm" value="yes"/>
+						@DialogBody() {
+							<p>{ settingsDryRunText(v.KeepDays) }</p>
+						}
+						@DialogActions() {
+							@DialogCancel("Cancel")
+							<button class="btn btn--danger" type="submit">Turn off Dry Run</button>
+						}
+					</form>
+				}
+			}
+		</div>
+	}
+}
+
+templ settingsSchedule(v SettingsView) {
+	@Panel("Schedule", "schedule") {
+		<form class="settings-form" method="post" action="/settings/schedule" novalidate>
+			@settingsFeedback(v, "schedule")
+			<fieldset class="settings-group">
+				<legend class="settings-group__legend">Sync with Jellyfin</legend>
+				<div class="settings-row">
+					@Field(FieldProps{ID: "settings-interval", Name: "interval", Label: "Every (hours)", Hint: "From 1 to 168.", Value: v.SyncInterval, Mono: true, Error: settingsErr(v, "interval"), Attrs: templ.Attributes{"inputmode": "numeric"}})
+					@Field(FieldProps{ID: "settings-daily", Name: "daily_at", Label: "Or daily at", Hint: "Leave empty to use the interval.", Type: "time", Value: v.SyncDailyAt, Mono: true, Error: settingsErr(v, "daily_at")})
+				</div>
+			</fieldset>
+			<fieldset class="settings-group">
+				<legend class="settings-group__legend">Processing window</legend>
+				@ToggleWith(ToggleProps{Name: "window", Label: "Only encode during a time window", Checked: v.WindowOn, Note: "Jobs that are running when the window closes finish first."})
+				<div class="settings-row">
+					@Field(FieldProps{ID: "settings-window-start", Name: "window_start", Label: "From", Type: "time", Value: v.WindowStart, Mono: true, Error: settingsErr(v, "window_start")})
+					@Field(FieldProps{ID: "settings-window-end", Name: "window_end", Label: "To", Type: "time", Value: v.WindowEnd, Mono: true, Error: settingsErr(v, "window_end")})
+				</div>
+			</fieldset>
+			@settingsSave("Save schedule")
+		</form>
+		<form class="settings-sync" method="post" action="/sync">
+			<button class="btn btn--secondary" type="submit">Sync now</button>
+			<p class="actions__note">Last sync: { v.LastSync }</p>
+		</form>
+	}
+}
+
+templ settingsProcessing(v SettingsView) {
+	@Panel("Processing", "processing") {
+		<form class="settings-form" method="post" action="/settings/processing">
+			@settingsFeedback(v, "processing")
+			@ToggleWith(ToggleProps{Name: "auto_process", Label: "Queue matching items automatically", Checked: v.AutoProcess, Note: "Only applies when Dry Run is off. When this is off, you queue items yourself from the Library."})
+			@Segmented("validation", "Check each new file with", settingsValidationOptions, v.Validation, "")
+			@Segmented("concurrency", "Jobs at a time", settingsConcurrencyOptions, v.Concurrency, "More than one job at a time is only faster with a hardware encoder.")
+			if e := settingsErr(v, "concurrency"); e != "" {
+				<p class="field__error"><span aria-hidden="true">✗</span> { e }</p>
+			}
+			@Segmented("encoder", "Encoder", SetupEncoderOptions, v.Encoder, "")
+			@settingsSave("Save processing")
+		</form>
+	}
+}
+
+templ settingsSafety(v SettingsView) {
+	@Panel("Saving and backups", "safety") {
+		<form class="settings-form" method="post" action="/settings/safety" novalidate>
+			@settingsFeedback(v, "safety")
+			<div class="settings-row">
+				@Field(FieldProps{ID: "settings-min-saving", Name: "min_saving", Label: "Minimum saving (%)", Hint: "Replace a file only if the new one is at least this much smaller. From 0 to 90.", Value: v.MinSaving, Mono: true, Error: settingsErr(v, "min_saving"), Attrs: templ.Attributes{"inputmode": "numeric"}})
+				@Field(FieldProps{ID: "settings-backup-days", Name: "backup_days", Label: "Keep originals for (days)", Hint: "Replaced originals are kept as backups for this many days. From 0 to 90.", Value: v.BackupDays, Mono: true, Error: settingsErr(v, "backup_days"), Attrs: templ.Attributes{"inputmode": "numeric"}})
+			</div>
+			@settingsSave("Save minimum saving and backups")
+		</form>
+	}
+}
+
+templ settingsHardware(v SettingsView) {
+	@Panel("Hardware", "hardware") {
+		<form class="settings-form" method="post" action="/settings/hardware/test">
+			@settingsFeedback(v, "hardware")
+			@SetupHardwareBody(v.Hardware)
+		</form>
+	}
+}
+
+templ settingsHDR() {
+	@PanelWith(PanelProps{Tab: "HDR", ID: "hdr", Variant: "sunk"}) {
+		<div class="setup-fields">
+			@Stats() {
+				@StatRow("SDR", "Converted as normal", false)
+				@StatRow("HDR10", "Converted, keeping 10-bit colour and HDR metadata", false)
+				@StatRow("HLG", "Converted, keeping 10-bit colour", false)
+				@StatRow("HDR10+", "Skipped, unless the policy allows reducing it to HDR10", false)
+				@StatRow("Dolby Vision", "Skipped, unless the policy allows reducing it to HDR10 and the file has an HDR10 base", false)
+				@StatRow("Unclear", "Always skipped", false)
+			}
+			<p class="setup-note">JellyTrim never converts HDR to SDR. "Allow HDR10+ and Dolby Vision to be reduced to HDR10" is set on each policy, and is off by default. See <a href="/policies">Policies</a>.</p>
+		</div>
+	}
+}
+
+templ settingsAdvanced(v SettingsView) {
+	@Panel("Advanced", "advanced") {
+		<details class="settings-advanced" open?={ v.AdvancedOpen }>
+			<summary class="settings-advanced__summary">Encoder settings</summary>
+			<form class="settings-form" method="post" action="/settings/advanced" novalidate>
+				@setupDefaultSubmit("Save advanced settings")
+				@settingsFeedback(v, "advanced")
+				<p class="setup-note">These numbers are for people who know their encoders. The defaults suit almost everyone. Lower numbers mean higher quality and larger files.</p>
+				for _, b := range v.Quality {
+					<fieldset class="settings-group">
+						<legend class="settings-group__legend">{ b.Label } <span class="mono">{ b.Backend }</span>, { b.Scale }</legend>
+						<div class="settings-quality">
+							for _, t := range b.Tiers {
+								@Field(FieldProps{ID: "settings-" + t.Name, Name: t.Name, Label: t.Label, Hint: "Default " + t.Default, Value: t.Value, Placeholder: t.Default, Mono: true, Error: t.Error, Attrs: templ.Attributes{"inputmode": "numeric"}})
+							}
+						</div>
+					</fieldset>
+				}
+				@Segmented("preset", "x265 speed preset", settingsPresetOptions, v.Preset, "")
+				@Segmented("bit_depth", "Output bit depth", settingsBitDepthOptions, v.BitDepth, "")
+				<div class="actions">
+					<button class="btn btn--secondary" type="submit">Save advanced settings</button>
+					<button class="btn btn--secondary" type="submit" name="reset" value="1">Reset to defaults</button>
+				</div>
+			</form>
+		</details>
+	}
+}

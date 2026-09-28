@@ -1,0 +1,344 @@
+package views
+
+import "strconv"
+
+// QueuePageData is everything the Queue page shows.
+type QueuePageData struct {
+	Shell Shell
+	Live  QueueLive
+}
+
+// QueueLive is the part of the Queue page that refreshes while jobs run.
+type QueueLive struct {
+	Lamp     string // the queue state's lamp
+	State    string // "Running. 1 job at a time."
+	Paused   bool
+	DryRun   bool
+	Poll     bool   // refresh every 2 seconds; false once nothing can change
+	LiveURL  string // the fragment's own URL, carrying what the browser last saw
+	Announce string // stage changes and finished jobs, for the live region
+	Notice   *QueueNotice
+	Running  []QueueRunning
+	Waiting  []QueueWaiting
+	Failed   []QueueFailed
+}
+
+// QueueNotice is a callout: the result of an action, or why it did not work.
+type QueueNotice struct {
+	Variant string // "ok", "info", "warn" or "bad"
+	Title   string
+	Text    string
+	Detail  string // technical detail, shown in a closed <details>
+	Alert   bool   // role="alert": only after the user acted
+}
+
+// QueueStage is one step in the running job's stage strip.
+type QueueStage struct {
+	Name  string
+	State string // "done", "current" or "todo"
+}
+
+// QueueRunning is a job that is being processed now.
+type QueueRunning struct {
+	ID      int64
+	Title   string
+	Href    string
+	Library string
+	Change  string // "2160p H.264 → 1080p HEVC · High"
+	Policy  string
+	Status  string // "Encoding"
+	Stages  []QueueStage
+	Percent int // -1 when the stage has no percentage
+	Readout string
+	Elapsed string
+	Encoder string
+	Saving  string // estimated range, without "~"
+}
+
+// QueueWaiting is a job waiting its turn.
+type QueueWaiting struct {
+	ID       int64
+	Position int
+	Title    string
+	Href     string
+	Library  string
+	Change   string
+	Policy   string
+	Saving   string
+}
+
+// QueueFailed is a job that failed recently, offered for a retry.
+type QueueFailed struct {
+	ID      int64
+	Title   string
+	Href    string
+	Summary string
+	When    string
+}
+
+func queueJobID(prefix string, id int64) string {
+	return prefix + strconv.FormatInt(id, 10)
+}
+
+func queueJobURL(id int64, action string) string {
+	return "/queue/" + strconv.FormatInt(id, 10) + "/" + action
+}
+
+func queueHistoryURL(id int64) string {
+	return "/history/" + strconv.FormatInt(id, 10)
+}
+
+// queuePollTrigger polls every 2 seconds, but not while a confirmation
+// dialog is open inside the fragment, so the swap never closes it.
+const queuePollTrigger = "every 2s [!document.querySelector('#queue-live dialog[open]')]"
+
+// QueuePage is the queue: what is running, what is waiting, and control
+// over both.
+templ QueuePage(v QueuePageData) {
+	@Layout(v.Shell) {
+		@PageHeader("Queue", "Files being optimised now and waiting their turn.")
+		<p id="queue-announce" class="visually-hidden" role="status" aria-live="polite" aria-atomic="true"></p>
+		@QueueLiveFragment(v.Live)
+	}
+}
+
+// QueueLiveFragment is the polled part of the queue page.
+templ QueueLiveFragment(v QueueLive) {
+	<div
+		class="queue"
+		id="queue-live"
+		if v.Poll {
+			hx-get={ v.LiveURL }
+			hx-trigger={ queuePollTrigger }
+			hx-swap="outerHTML"
+		}
+	>
+		if v.Notice != nil {
+			@QueueNoticeCallout(*v.Notice)
+		}
+		@queueStateBar(v)
+		if v.DryRun {
+			@Callout("info", "Nothing runs while Dry Run is on", "Jobs stay in the queue and no file is changed. Turn off Dry Run in Settings when you are ready.") {
+				@CalloutActions() {
+					<a class="btn btn--secondary" href="/settings#dry-run">Go to the Dry Run setting</a>
+				}
+			}
+		}
+		for _, r := range v.Running {
+			@queueRunningPanel(r)
+		}
+		@queueWaitingPanel(v)
+		if len(v.Failed) > 0 {
+			@queueFailedPanel(v.Failed)
+		}
+	</div>
+	if v.Announce != "" {
+		<p id="queue-announce" hx-swap-oob="innerHTML">{ v.Announce }</p>
+	}
+}
+
+// QueueNoticeCallout shows a QueueNotice, with its technical detail if any.
+templ QueueNoticeCallout(n QueueNotice) {
+	@CalloutWith(CalloutProps{Variant: n.Variant, Title: n.Title, Text: n.Text, Alert: n.Alert}) {
+		if n.Detail != "" {
+			@TechnicalDetails("Technical details", n.Detail)
+		}
+	}
+}
+
+templ queueStateBar(v QueueLive) {
+	<div class="queue-state">
+		<p class="queue-state__text">
+			@Status(v.Lamp, v.State)
+		</p>
+		if v.Paused {
+			<form class="queue-state__control" method="post" action="/queue/resume" hx-post="/queue/resume" hx-target="#queue-live" hx-swap="outerHTML" hx-disabled-elt="find button">
+				<button class="btn btn--secondary" id="queue-toggle" type="submit">Resume queue</button>
+			</form>
+		} else {
+			<form class="queue-state__control" method="post" action="/queue/pause" hx-post="/queue/pause" hx-target="#queue-live" hx-swap="outerHTML" hx-disabled-elt="find button">
+				<button class="btn btn--secondary" id="queue-toggle" type="submit" aria-describedby="queue-toggle-note">Pause queue</button>
+				<p class="queue-state__note" id="queue-toggle-note">A running job finishes first.</p>
+			</form>
+		}
+	</div>
+}
+
+templ queueRunningPanel(r QueueRunning) {
+	@PanelWith(PanelProps{Tab: "Running", ID: queueJobID("queue-job-", r.ID), Variant: "emphasis"}) {
+		<div class="queue-job">
+			<div class="queue-job__head">
+				<div class="queue-job__heading">
+					<h3 class="queue-job__title"><a href={ templ.SafeURL(r.Href) }>{ r.Title }</a></h3>
+					if r.Library != "" {
+						<p class="queue-job__library">{ r.Library }</p>
+					}
+				</div>
+				@Status("active", r.Status)
+			</div>
+			if r.Change != "" {
+				<p class="queue-job__change mono">{ r.Change }</p>
+			}
+			@queueStageStrip(r.Stages)
+			@Meter(queueJobID("queue-job-progress-", r.ID), r.Percent, r.Readout)
+			<dl class="stats queue-job__stats">
+				@StatRow("Encoder", r.Encoder, false)
+				@StatRow("Policy", r.Policy, false)
+				if r.Elapsed != "" {
+					@StatRow("Elapsed", r.Elapsed, true)
+				}
+				if r.Saving != "" {
+					<div class="stats__row">
+						<dt>Est. saving</dt>
+						<dd class="mono"><span aria-hidden="true">~ </span><span class="visually-hidden">About </span>{ r.Saving }</dd>
+					</div>
+				}
+			</dl>
+			<div class="queue-job__actions">
+				<a
+					class="btn btn--danger"
+					id={ queueJobID("queue-cancel-open-", r.ID) }
+					href={ templ.SafeURL("#" + queueJobID("queue-cancel-", r.ID)) }
+					data-dialog-open={ queueJobID("queue-cancel-", r.ID) }
+					aria-haspopup="dialog"
+				>Cancel<span class="visually-hidden">{ " " + r.Title }</span></a>
+			</div>
+		</div>
+		@queueCancelDialog(r)
+	}
+}
+
+templ queueStageStrip(stages []QueueStage) {
+	<ol class="queue-stages" aria-label="Stages">
+		for _, st := range stages {
+			<li
+				class={ "queue-stages__item", "queue-stages__item--" + st.State }
+				if st.State == "current" {
+					aria-current="step"
+				}
+			>
+				<span class="queue-stages__mark" aria-hidden="true">
+					if st.State == "done" {
+						✓
+					} else if st.State == "current" {
+						›
+					}
+				</span>
+				{ st.Name }
+				if st.State == "done" {
+					<span class="visually-hidden">{ ", done" }</span>
+				}
+			</li>
+		}
+	</ol>
+}
+
+// queueCancelDialog confirms stopping a running job. Without JavaScript the
+// Cancel link opens it through :target, and "Keep it running" links back.
+templ queueCancelDialog(r QueueRunning) {
+	@Dialog(queueJobID("queue-cancel-", r.ID), "Stop this job?") {
+		<form
+			class="queue-dialog__form"
+			method="post"
+			action={ templ.SafeURL(queueJobURL(r.ID, "cancel")) }
+			hx-post={ queueJobURL(r.ID, "cancel") }
+			hx-target="#queue-live"
+			hx-swap="outerHTML"
+			hx-disabled-elt="find button[type=submit]"
+		>
+			@DialogBody() {
+				<p>Stop optimising <strong>{ r.Title }</strong>? The original file is not affected.</p>
+				<p>The partly written new file is deleted.</p>
+			}
+			@DialogActions() {
+				@DialogCancel("Keep it running")
+				<a class="btn btn--secondary queue-nojs" href={ templ.SafeURL("#" + queueJobID("queue-job-", r.ID)) }>Keep it running</a>
+				<button class="btn btn--danger" type="submit">Stop job</button>
+			}
+		</form>
+	}
+}
+
+templ queueWaitingPanel(v QueueLive) {
+	@PanelWith(PanelProps{Tab: "Waiting", ID: "queue-waiting", Flush: len(v.Waiting) > 0}) {
+		if len(v.Waiting) == 0 {
+			if len(v.Running) > 0 {
+				@EmptyState("0", "Nothing waiting", "Jobs queued after this one appear here.", "", "")
+			} else {
+				@EmptyState("0", "No jobs in the queue", "Jobs appear here when Dry Run is off and an enabled policy matches an item after a sync, or when you press Optimise now on an item.", "/policies", "Review policies")
+			}
+		} else {
+			@queueWaitingTable(v.Waiting)
+		}
+	}
+}
+
+templ queueWaitingTable(rows []QueueWaiting) {
+	<div class="table-wrap">
+		<table class="table queue-table" role="table">
+			<caption class="visually-hidden">Waiting jobs, in the order they run</caption>
+			<thead role="rowgroup">
+				<tr role="row">
+					<th scope="col" role="columnheader" class="num">#</th>
+					<th scope="col" role="columnheader">Title</th>
+					<th scope="col" role="columnheader">Change</th>
+					<th scope="col" role="columnheader">Policy</th>
+					<th scope="col" role="columnheader" class="num">Est. saving</th>
+					<th scope="col" role="columnheader"><span class="visually-hidden">Actions</span></th>
+				</tr>
+			</thead>
+			<tbody role="rowgroup">
+				for _, w := range rows {
+					<tr role="row">
+						<td role="cell" data-label="Position" class="num mono queue-table__pos">{ strconv.Itoa(w.Position) }</td>
+						<td role="cell" data-label="Title" class="queue-table__title">
+							<a href={ templ.SafeURL(w.Href) }>{ w.Title }</a>
+							if w.Library != "" {
+								<span class="queue-table__lib">{ w.Library }</span>
+							}
+						</td>
+						<td role="cell" data-label="Change" class="mono">{ w.Change }</td>
+						<td role="cell" data-label="Policy">{ w.Policy }</td>
+						<td role="cell" data-label="Est. saving" class="num mono">
+							if w.Saving != "" {
+								<span><span aria-hidden="true">~ </span><span class="visually-hidden">About </span>{ w.Saving }</span>
+							}
+						</td>
+						<td role="cell" class="queue-table__action">
+							<form method="post" action={ templ.SafeURL(queueJobURL(w.ID, "cancel")) } hx-post={ queueJobURL(w.ID, "cancel") } hx-target="#queue-live" hx-swap="outerHTML" hx-disabled-elt="find button">
+								<button class="btn btn--danger btn--small" id={ queueJobID("queue-waiting-cancel-", w.ID) } type="submit">Cancel<span class="visually-hidden">{ " " + w.Title }</span></button>
+							</form>
+						</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+	</div>
+}
+
+templ queueFailedPanel(failed []QueueFailed) {
+	@Panel("Failed in the last hour", "queue-failed") {
+		<ul class="queue-failed">
+			for _, f := range failed {
+				<li class="queue-failed__item">
+					<div class="queue-failed__text">
+						<p class="queue-failed__title">
+							@Status("bad", "Failed")
+							<a href={ templ.SafeURL(f.Href) }>{ f.Title }</a>
+							<span class="queue-failed__when">{ f.When }</span>
+						</p>
+						if f.Summary != "" {
+							<p class="queue-failed__summary">{ f.Summary }</p>
+						}
+					</div>
+					<div class="queue-failed__actions">
+						<form method="post" action={ templ.SafeURL(queueJobURL(f.ID, "retry")) }>
+							<button class="btn btn--secondary btn--small" type="submit">Retry<span class="visually-hidden">{ " " + f.Title }</span></button>
+						</form>
+						<a class="btn btn--secondary btn--small" href={ templ.SafeURL(queueHistoryURL(f.ID)) }>Details<span class="visually-hidden">{ " for " + f.Title }</span></a>
+					</div>
+				</li>
+			}
+		</ul>
+	}
+}

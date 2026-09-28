@@ -159,10 +159,15 @@ templ head(title, assetVersion string) {
 	<meta name="htmx-config" content={ htmxConfig }/>
 	<link rel="preload" href="/static/vendor/fonts/ibm-plex-sans-latin-400.woff2" as="font" type="font/woff2" crossorigin/>
 	<link rel="preload" href="/static/vendor/fonts/ibm-plex-mono-latin-500.woff2" as="font" type="font/woff2" crossorigin/>
+	<link rel="icon" type="image/svg+xml" href={ asset("/static/img/favicon.svg", assetVersion) }/>
 	<link rel="stylesheet" href={ asset("/static/css/tokens.css", assetVersion) }/>
 	<link rel="stylesheet" href={ asset("/static/css/base.css", assetVersion) }/>
 	<link rel="stylesheet" href={ asset("/static/css/shell.css", assetVersion) }/>
 	<link rel="stylesheet" href={ asset("/static/css/components.css", assetVersion) }/>
+	<link rel="stylesheet" href={ asset("/static/css/setup.css", assetVersion) }/>
+	<link rel="stylesheet" href={ asset("/static/css/library.css", assetVersion) }/>
+	<link rel="stylesheet" href={ asset("/static/css/policies.css", assetVersion) }/>
+	<link rel="stylesheet" href={ asset("/static/css/queue.css", assetVersion) }/>
 	<script src={ asset("/static/vendor/htmx.min.js", assetVersion) } defer></script>
 	<script src={ asset("/static/js/app.js", assetVersion) } defer></script>
 }
@@ -368,16 +373,3 @@ templ PageHeader(title, description string) {
 	</header>
 }
 
-// PlaceholderPage stands in for a page that a later milestone builds.
-templ PlaceholderPage(s Shell, heading, description string) {
-	@Layout(s) {
-		@PageHeader(heading, description)
-		@Panel("Not built yet", "placeholder") {
-			if s.Active == "dashboard" {
-				@EmptyState("--", "This page arrives in a later milestone", "JellyTrim is being built in stages. This part is not ready yet.", "", "")
-			} else {
-				@EmptyState("--", "This page arrives in a later milestone", "JellyTrim is being built in stages. This part is not ready yet.", "/", "Go to the Dashboard")
-			}
-		}
-	}
-}
