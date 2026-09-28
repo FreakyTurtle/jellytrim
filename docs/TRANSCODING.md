@@ -82,7 +82,7 @@ Checks run in this order; the first skip stops the list, but all skip reasons fo
 4. More than one non-cover video stream; interlaced (`field_order` other than `progressive` or unknown); rotated.
 5. HDR class that is always skipped, or needs an opt-in the policy does not give.
 6. A stream the output container cannot hold (for example PGS in MP4), or a data stream in MP4.
-7. No available encoder can produce the target codec (and, for HDR, preserve HDR metadata).
+7. No available encoder can produce the target codec (and, for HDR, preserve HDR metadata). Reducing Dolby Vision or HDR10+ to HDR10 needs x265; a policy that names a hardware encoder for such a file is skipped with the reason.
 
 **Worth-it checks (already optimal)**
 1. The file is in the `optimised` table (JellyTrim made it) and the action does not lower the resolution further.
@@ -91,7 +91,7 @@ Checks run in this order; the first skip stops the list, but all skip reasons fo
 3. The estimated saving is below the minimum saving (default 10%).
 
 **Target**
-- Resolution: the policy's cap, never above the source. Scaled with `scale=-2:<height>` (or the width cap for wide films), keeping even dimensions and the sample aspect ratio.
+- Resolution: the policy's cap, never above the source. The plan computes an explicit even width and height that fit inside the cap's nominal frame (for example 1920x800 for a scope film capped at 1080p), and the encoder scales with `scale=W:H:flags=lanczos,setsar=<source SAR>`.
 - Codec: the policy's codec; "Keep existing" keeps the source codec (only a resolution change can then trigger an encode).
 - Bit depth: 10-bit HEVC output by default (ADR 0006); always 10-bit for HDR.
 - Audio, subtitles, attachments, chapters, metadata: copied.
@@ -119,19 +119,9 @@ H.264 uses 1.6 times these values; AV1 uses 0.8 times. These are rough and will 
 
 ## 4. Encoders (`internal/encoder`)
 
-Each backend implements:
+Each backend (`x265`, `qsv-hevc`) implements `encoder.Backend`: its name and label, codec, whether it is hardware, the native quality number for each tier, a `Check` that refuses jobs it cannot do safely, and the three parts of its arguments (input options, the `-filter:v:0` chain, the encoder options). `encoder.BuildArgs(backend, job)` assembles the full argument list. Backends carry their detected `Capability`, so `BuildArgs` refuses HDR on a backend that has not proved it keeps HDR metadata.
 
-```go
-type Backend interface {
-    Name() string                 // "x265", "qsv-hevc"
-    Codec() media.Codec           // HEVC
-    Hardware() bool
-    Probe(ctx, runner) Capability // real test encodes
-    Args(p Plan) ([]string, error) // input options, filters, encoder options
-}
-```
-
-**Auto** chooses, for the target codec, the first backend in the preference order (hardware first, by default) whose probe passed, and which can preserve HDR metadata if the source is HDR. Users can pick a backend explicitly, and can set Auto to prefer software.
+**Auto** chooses, for the target codec, the first backend in the preference order (hardware first, by default) whose probe passed, and which can preserve HDR metadata if the source is HDR. Reducing Dolby Vision or HDR10+ to HDR10 always uses x265, because only libx265 has the `-dolbyvision 0` option. Users can pick a backend explicitly, and can set Auto to prefer software.
 
 ### Quality maps
 
@@ -152,21 +142,31 @@ The numbers are not equivalent across encoders. They are starting values, to be 
 ```
 ffmpeg -nostdin -hide_banner -loglevel error -progress pipe:1 -nostats -y
   -i file:<source>
-  -map 0:<main video> -map 0:a? -map 0:s? -map 0:t? [-map 0:<cover art>]...
+  -map 0:<main video> -map 0:<each other stream, in source order>
   -map_metadata 0 -map_chapters 0
   -c copy
-  -c:v:0 libx265 -preset slow -crf <N> -pix_fmt yuv420p10le -profile:v:0 main10
-  -x265-params log-level=error:pools=<threads>[:hdr options]
-  [-filter:v:0 scale=-2:<height>:flags=lanczos]
-  -metadata:s:v:0 BPS= -metadata:s:v:0 NUMBER_OF_BYTES= ... (clear stale MKV statistics)
-  -metadata JELLYTRIM=v1;enc=x265;q=<tier>
+  -c:v:0 libx265 -preset:v:0 slow -crf:v:0 <N> -profile:v:0 main10
+  -x265-params:v:0 log-level=error[:hdr options]
+  -filter:v:0 [scale=W:H:flags=lanczos,setsar=<source SAR>,]format=yuv420p10le[,setparams=<colour>]
+  [-color_primaries:v:0 .. -color_trc:v:0 .. -colorspace:v:0 ..]
+  -disposition:v:0 <source video disposition>
+  -metadata:s:v:0 BPS= ... (clear stale MKV statistics, Matroska only)
+  -metadata JELLYTRIM=v1;enc=x265;q=<tier>          (Matroska only)
   -max_muxing_queue_size 4096
   -f matroska file:<dir>/.<name>.jellytrim-<job>.partial
 ```
 
-For HDR10, the x265 parameters add `colorprim=bt2020:transfer=smpte2084:colormatrix=bt2020nc:hdr10=1:hdr10-opt=1:repeat-headers=1`, plus `master-display=...` and `max-cll=...` built from the probed side data. For HLG: `transfer=arib-std-b67` and no static metadata. The same colour values are also set on the stream (`-color_primaries`, `-color_trc`, `-colorspace`).
+Notes from real encodes with ffmpeg 8:
 
-For MP4 output: `-f mp4 -tag:v:0 hvc1 -movflags +faststart`.
+- Every stream is mapped by index; nothing is mapped by type wildcard.
+- Every encoder option is scoped to the output video stream (`:v:0`), so copied streams are untouched.
+- ffmpeg 8 takes colour tags from frame properties negotiated through the filter graph, so tagged sources get `setparams=color_primaries=..:color_trc=..:colorspace=..` at the end of the chain as well as the `-color_*` options. Untagged sources stay untagged. Colour names come from an allow-list.
+- After scaling, `setsar` restores the source's sample aspect ratio.
+- `-disposition:v:0` is always set from the source. Without any explicit disposition, ffmpeg 8 marks the first subtitle track as default when none was, which would make players show it.
+
+For HDR10, the x265 parameters add `colorprim=bt2020:transfer=smpte2084:colormatrix=bt2020nc:hdr10=1:hdr10-opt=1:repeat-headers=1`, plus `master-display=...` and `max-cll=...` built from the probed side data. For HLG: `transfer=arib-std-b67` and no static metadata. When a policy allows reducing Dolby Vision or HDR10+ to HDR10, the chain first removes that metadata from the decoded frames and `-dolbyvision:v:0 0` is passed.
+
+For MP4 output: `-f mp4 -tag:v:0 hvc1 -movflags +faststart`. The MP4 muxer drops unknown tags such as `JELLYTRIM` (and `-movflags +use_metadata_tags`, which would keep it, loses the cover art), so JellyTrim recognises its own MP4 files only through the `optimised` table.
 
 ### QSV arguments (Intel, Linux)
 
@@ -175,32 +175,32 @@ For MP4 output: `-f mp4 -tag:v:0 hvc1 -movflags +faststart`.
   -init_hw_device qsv=qs@va -filter_hw_device qs
   -hwaccel qsv -hwaccel_output_format qsv
   -i file:<source>
-  ... same maps ...
-  -c copy
-  -c:v:0 hevc_qsv -preset slow -global_quality <N> -profile:v:0 main10
+  ... same maps and copies ...
+  -c:v:0 hevc_qsv -preset:v:0 slow -global_quality:v:0 <N> -profile:v:0 main10
   -filter:v:0 vpp_qsv=w=<w>:h=<h>:format=p010
 ```
 
-If the GPU cannot decode the source codec, the backend uses software decoding and uploads frames: `-filter:v:0 format=p010le,hwupload=extra_hw_frames=64,vpp_qsv=...`. HDR is sent to QSV only if its probe shows the output keeps the mastering display and content light level metadata; otherwise Auto uses x265 for HDR files.
+If the GPU cannot decode the source (the hardware test records which codecs and bit depths it decoded), the backend drops `-hwaccel` and uploads software-decoded frames: `-filter:v:0 format=p010le,hwupload=extra_hw_frames=64,vpp_qsv=...`, keeping `-init_hw_device` and `-filter_hw_device`. HDR is sent to QSV only if its test shows the output keeps the mastering display and content light level metadata; otherwise Auto uses x265 for HDR files.
 
 The QSV backend is covered by golden argument tests. It has not been tested on real Intel hardware by the maintainers yet; reports are welcome.
 
 ### Hardware probe
 
 For each backend, JellyTrim:
-1. checks the encoder is listed by `ffmpeg -hide_banner -encoders`;
-2. runs a real 1-second test encode of a `lavfi` test source with the exact options used for real jobs;
-3. for HDR, encodes a short HDR10 test clip and checks the output's side data;
-4. records the result, the ffmpeg version and, for Intel, the device name (from `vainfo` if available).
+1. checks the encoder is listed by `ffmpeg -hide_banner -encoders` (for QSV, first that `/dev/dri/renderD128` exists);
+2. runs a real 1-second test encode of a `lavfi` test source with the exact rate-control options used for real jobs;
+3. for HDR, re-encodes a short HDR10 clip made with x265 and checks the output's first-frame side data still has the mastering display and content light level metadata;
+4. for QSV, decodes small clips per codec and bit depth to learn which sources the GPU can decode;
+5. records the result and the ffmpeg version.
 
-Results are shown in Settings and can be re-run.
+Results are stored, shown in Settings, and re-run at start-up and on request.
 
 ## 5. Encoding safety
 
 - The partial file is `.<name>.jellytrim-<job>.partial` in the same directory as the source. Jellyfin ignores dotfiles, so it never sees it.
 - The muxer is always explicit (`-f matroska` or `-f mp4`).
 - Progress comes from `-progress pipe:1` (`out_time_us`, `speed`, `total_size`). The duration comes from the format.
-- **Early abort:** after 15% of the duration, if `total_size / fraction_done` is more than 90% of the source size, the encode stops and the job is Skipped: "The new file would be about the same size as the original."
+- **Early abort:** after 15% of the duration (and at least 2 minutes of it, so headers and the first keyframes do not skew the projection), if `total_size / fraction_done` is more than 90% of the source size, the encode stops and the job is Skipped: "The new file would be about the same size as the original."
 - CPU is limited for software encodes (x265 `pools`, and the process runs with a lower priority). Encoding can be limited to a daily time window.
 
 ## 6. Validation
@@ -213,7 +213,7 @@ After encoding, JellyTrim probes the partial file and rejects it if any check fa
 4. The number of audio, subtitle and attachment streams equals the source's. Each stream keeps its codec (copied), language, title and default and forced flags, in the same order.
 5. The chapters count equals the source's.
 6. The duration is within 0.5 seconds or 0.5% of the source, whichever is larger.
-7. A full decode of the output finishes with no errors (`ffmpeg -v error -i file:<partial> -map 0:v:0 -f null -`). Settings can reduce this to a sampled decode.
+7. The encode itself logged nothing at error level (ffmpeg errors on a clean exit, such as undecodable source frames, reject the output); the main video stream's own duration matches the source's where both files record it (Matroska `DURATION` tags); and a full decode of the output finishes with no errors (`ffmpeg -v error -i file:<partial> -map 0:v:0 -f null -`). Settings can reduce this to a sampled decode.
 8. The saving is at least the minimum (default 10%).
 
 A failure keeps the original, deletes the partial file, and records the failing check in plain words with the details.
@@ -234,9 +234,16 @@ The new file keeps the new modification time, so Jellyfin notices the change and
 
 ### Backups and restore
 
-Backups are kept for 7 days by default (Settings: 0 to 90; 0 deletes the backup once Jellyfin has picked up the change). History has a **Restore** button while the backup exists: it renames the backup over the current file (keeping the optimised file as a backup in turn) and asks Jellyfin to rescan. A daily task deletes expired backups; the journal records each deletion.
+Backups are kept for 7 days by default (Settings: 0 to 90; 0 deletes the backup once Jellyfin has picked up the change). History has a **Restore** button while the backup exists. Restore only goes ahead if the file at the path is still the one JellyTrim produced (same device, inode and size as recorded when the job finished) and no job is working on the item; otherwise it refuses, so a newer download is never overwritten. It renames the backup over the optimised file, asks Jellyfin to rescan, and marks the item so JellyTrim leaves it alone until the user allows changes again. A daily task deletes expired backups; the journal records each deletion.
 
 A hard-linked backup uses no extra space until the replacement: then the backup holds the original's data and the new file holds the new data, so free space must cover the new file.
+
+### When something goes wrong during replacement
+
+- The original is re-checked after the backup is made and before every rename attempt. If another program replaced the file meanwhile, JellyTrim leaves the new file alone, keeps the version it started from as a backup, and marks the job Skipped.
+- A rename that reports an error but did happen (a lost reply on a network filesystem) is detected by the new file's inode and treated as complete.
+- If the final rename fails and the original cannot be put back either, the job is marked **Needs attention** with the exact location of the original. Nothing is deleted. Recovery tries again on every start.
+- Recovery acts only on this job's exact partial and backup names next to the original.
 
 ## 8. Diagnostics
 

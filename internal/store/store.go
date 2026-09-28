@@ -25,6 +25,10 @@ var migrationFS embed.FS
 // FileName is the database file inside the config directory.
 const FileName = "jellytrim.db"
 
+// ErrNewerSchema is returned by Open when the database was written by a newer
+// JellyTrim, whose schema this build cannot safely use.
+var ErrNewerSchema = errors.New("the database was created by a newer version of JellyTrim")
+
 // Store wraps the database handle. It is safe for concurrent use.
 type Store struct {
 	db  *sql.DB
@@ -38,9 +42,16 @@ func Open(ctx context.Context, dir string) (*Store, error) {
 		return nil, err
 	}
 	q := url.Values{}
-	for _, p := range []string{"foreign_keys(1)", "journal_mode(WAL)", "busy_timeout(5000)", "synchronous(NORMAL)"} {
+	// synchronous(FULL): the job journal must be on disk before the
+	// filesystem step it describes happens.
+	for _, p := range []string{"foreign_keys(1)", "journal_mode(WAL)", "busy_timeout(5000)", "synchronous(FULL)"} {
 		q.Add("_pragma", p)
 	}
+	// Write transactions take the write lock when they begin. A deferred
+	// transaction that reads and then writes gets SQLITE_BUSY at once when
+	// another writer is active, because busy_timeout does not cover the
+	// upgrade from a read lock.
+	q.Set("_txlock", "immediate")
 	db, err := sql.Open("sqlite", "file:"+path+"?"+q.Encode())
 	if err != nil {
 		return nil, fmt.Errorf("opening database: %w", err)
@@ -133,6 +144,14 @@ func (s *Store) migrate(ctx context.Context) error {
 	current, err := s.SchemaVersion(ctx)
 	if err != nil {
 		return err
+	}
+	if len(ms) == 0 {
+		return errors.New("no migrations embedded")
+	}
+	if latest := ms[len(ms)-1].version; current > latest {
+		return fmt.Errorf("%w: the database is at schema version %d but this JellyTrim only knows up to %d. "+
+			"Run the newer JellyTrim again, or restore a backup of the config folder made before the upgrade",
+			ErrNewerSchema, current, latest)
 	}
 	for _, m := range ms {
 		if m.version <= current {

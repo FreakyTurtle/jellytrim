@@ -9,9 +9,15 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/freakyturtle/jellytrim/internal/config"
+	"github.com/freakyturtle/jellytrim/internal/encoder"
+	"github.com/freakyturtle/jellytrim/internal/ffmpeg"
+	"github.com/freakyturtle/jellytrim/internal/library"
+	"github.com/freakyturtle/jellytrim/internal/queue"
+	"github.com/freakyturtle/jellytrim/internal/scheduler"
 	"github.com/freakyturtle/jellytrim/internal/store"
 	"github.com/freakyturtle/jellytrim/internal/version"
 	"github.com/freakyturtle/jellytrim/internal/web"
@@ -22,10 +28,18 @@ const ShutdownTimeout = 10 * time.Second
 
 // App is a running JellyTrim instance.
 type App struct {
-	cfg   config.Config
-	log   *slog.Logger
-	store *store.Store
-	http  *http.Server
+	cfg       config.Config
+	log       *slog.Logger
+	store     *store.Store
+	library   *library.Service
+	queue     *queue.Service
+	hardware  *hardware
+	scheduler *scheduler.Scheduler
+	http      *http.Server
+
+	// bg tracks the scheduler and the start-up hardware test, so shutdown
+	// waits for them before closing the store.
+	bg sync.WaitGroup
 }
 
 // New opens the database and builds every service.
@@ -41,11 +55,29 @@ func New(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error)
 		_ = st.Close()
 		return nil, err
 	}
-	srv := web.New(web.Deps{Store: st, Log: log})
+	if err := st.MarkInterruptedSyncs(ctx); err != nil {
+		_ = st.Close()
+		return nil, err
+	}
+	runner := ffmpeg.New(cfg.FFmpeg, cfg.FFprobe, log)
+	registry := encoder.NewRegistry(encoder.DefaultBackends(encoder.DefaultQSVDevice))
+	lib := library.New(library.Options{Store: st, Log: log, Prober: runner, Encoders: registry})
+	hw := &hardware{registry: registry, runner: runner, store: st, library: lib, log: log}
+	hw.load(ctx)
+	if s, err := st.Settings(ctx); err == nil {
+		registry.SetPreferSoftware(s.EncoderPreference == "software")
+	}
+	q := queue.New(queue.Options{Store: st, Library: lib, Registry: registry, Runner: runner, Log: log})
+	sched := &scheduler.Scheduler{Store: st, Library: lib, Queue: q, Log: log}
+	srv := web.New(web.Deps{Store: st, Library: lib, Hardware: hw, Queue: q, Log: log})
 	return &App{
-		cfg:   cfg,
-		log:   log,
-		store: st,
+		cfg:       cfg,
+		log:       log,
+		store:     st,
+		library:   lib,
+		queue:     q,
+		hardware:  hw,
+		scheduler: sched,
 		http: &http.Server{
 			Addr:              cfg.Listen,
 			Handler:           srv.Handler(),
@@ -78,13 +110,34 @@ func applyPresets(ctx context.Context, st *store.Store, cfg config.Config) error
 	return st.SetSettings(ctx, kv)
 }
 
-// Run serves until ctx is cancelled, then shuts down in order.
-func (a *App) Run(ctx context.Context) error {
+// Run serves until ctx is cancelled or the HTTP server fails, then shuts
+// down in order. Every service runs on a context derived from ctx, so a
+// server failure stops them too.
+func (a *App) Run(parent context.Context) error {
 	var lc net.ListenConfig
-	ln, err := lc.Listen(ctx, "tcp", a.cfg.Listen)
+	ln, err := lc.Listen(parent, "tcp", a.cfg.Listen)
 	if err != nil {
 		return fmt.Errorf("listening on %s: %w", a.cfg.Listen, err)
 	}
+	ctx, cancel := context.WithCancel(parent)
+	defer cancel()
+	a.library.Start(ctx)
+	// Queueing and encoding wait for the hardware test and a fresh
+	// evaluation: before that, every plan would say "no encoder" and the
+	// jobs would be skipped. The web UI is available meanwhile.
+	a.bg.Go(func() {
+		if err := a.hardware.Retest(ctx); err != nil && ctx.Err() == nil {
+			a.log.Warn("hardware: test failed", "err", err)
+		}
+		if ctx.Err() != nil {
+			return
+		}
+		if _, err := a.library.Evaluate(ctx); err != nil && !errors.Is(err, library.ErrBusy) && ctx.Err() == nil {
+			a.log.Warn("library: evaluating after the hardware test", "err", err)
+		}
+		a.queue.Start(ctx)
+		a.scheduler.Run(ctx)
+	})
 	a.log.Info("jellytrim: started", "version", version.Version, "listen", ln.Addr().String(), "config_dir", a.cfg.ConfigDir)
 
 	errc := make(chan error, 1)
@@ -95,16 +148,23 @@ func (a *App) Run(ctx context.Context) error {
 		close(errc)
 	}()
 
+	var serveErr error
 	select {
 	case <-ctx.Done():
 	case err := <-errc:
 		if err != nil {
-			return fmt.Errorf("http server: %w", err)
+			serveErr = fmt.Errorf("http server: %w", err)
 		}
 	}
-	return a.shutdown()
+	cancel()
+	return errors.Join(serveErr, a.shutdown())
 }
 
+// shutdown stops work in order, once the run context is cancelled: first
+// the HTTP server (no new requests start work), then the scheduler and the
+// hardware test, then the queue (running encodes stop, their partial files
+// are removed and the jobs go back to waiting), then background library
+// runs, and only then the database.
 func (a *App) shutdown() error {
 	a.log.Info("jellytrim: shutting down")
 	ctx, cancel := context.WithTimeout(context.Background(), ShutdownTimeout)
@@ -113,6 +173,9 @@ func (a *App) shutdown() error {
 	if err := a.http.Shutdown(ctx); err != nil {
 		errs = append(errs, fmt.Errorf("http shutdown: %w", err))
 	}
+	a.bg.Wait()
+	a.queue.Stop()
+	a.library.Wait()
 	if err := a.store.Close(); err != nil {
 		errs = append(errs, fmt.Errorf("closing database: %w", err))
 	}

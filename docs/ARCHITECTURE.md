@@ -51,9 +51,9 @@ JellyTrim is one Go binary. It serves a server-rendered web UI, keeps its state 
 
 ### Sync (every 6 hours by default, or on demand)
 
-1. `library.Sync` lists the managed libraries from Jellyfin (`/Library/VirtualFolders`).
-2. For each library it pages through movies and episodes (`/Items`), with the primary watch-state user's data.
-3. For each other selected user it pages through user data only.
+1. `library.Sync` records the attempt in `sync_runs` first, so every attempt, including one that fails at once (Jellyfin down, nothing selected), is recorded and the scheduler backs off. It then lists the libraries and users from Jellyfin (`/Library/VirtualFolders`, `/Users`). An empty answer is refused while libraries or users are stored, so a faulty reply cannot cascade-delete the library.
+2. For each managed library it pages through movies and episodes (`/Items`) without a user ID: the API key is an administrator's, so the list does not depend on one user's library access. A managed library that comes back empty while items are stored for it fails the sync, so nothing is swept.
+3. For each selected user it pages through user data only. Collections are read as each selected user sees them and merged; a box set's members are stored as reported, which may be a series or season rather than episodes.
 4. It maps each Jellyfin path to a local path (`pathmap`) and checks it is inside a configured root.
 5. It writes items, user data, tags and collection membership to the store. Items not seen in a **complete** sync are removed afterwards (mark and sweep).
 6. For each item whose file identity (device, inode, size, mtime) changed since the last probe, it runs ffprobe (two passes: streams and format, then the first frame's side data) and stores the raw JSON.
@@ -61,7 +61,7 @@ JellyTrim is one Go binary. It serves a server-rendered web UI, keeps its state 
 
 ### Evaluation (after each sync, and whenever a policy or setting changes)
 
-1. Build an `policy.Item` snapshot from the store: Jellyfin metadata, user data, parsed `media.File`.
+1. Build an `policy.Item` snapshot from the store: Jellyfin metadata, user data, parsed `media.File`. An episode's collections are those holding the episode, its series or its season. One gate, shared by evaluation, the policy preview and the pre-job reassessment, decides first: excluded items are protected, items the sync marked unmanageable are skipped, uninspected items stay pending, and an item whose facts could not be checked (for example the optimised-file lookup) is skipped.
 2. `policy.Evaluate(policies, item, now)` returns the winning policy, all matching policies, and an explanation for each.
 3. `plan.Decide(item, action, settings, capabilities)` returns an `Optimise` plan with an estimated size range, or `AlreadyOptimal`, `Protected`, `Skipped{reasons}` or `NoPolicy`.
 4. The result is stored in `evaluations` and drives the Library filters, the Dry Run summary and the dashboard.
@@ -94,13 +94,13 @@ Times are Unix seconds (`INTEGER`, UTC) unless named `_ns`. JSON columns are `TE
 | `path_mappings` | Jellyfin prefix to local prefix | `id`, `jellyfin_prefix`, `local_prefix`, `position` |
 | `libraries` | Jellyfin libraries and whether JellyTrim manages them | `id` (Jellyfin ItemId), `name`, `collection_type`, `locations` (JSON), `managed` |
 | `jellyfin_users` | Users and whether their watch state counts | `id`, `name`, `disabled`, `selected` |
-| `items` | Movies and episodes from Jellyfin | `id`, `library_id`, `type`, `name`, `series_name`, `season_name`, `season_number`, `episode_number`, `year`, `jellyfin_path`, `local_path`, `date_added`, `runtime_ticks`, `tags`, `genres`, `sync_skip_reason`, `seen_sync_id` |
+| `items` | Movies and episodes from Jellyfin | `id`, `library_id`, `type`, `name`, `series_id`, `series_name`, `season_id`, `season_name`, `season_number`, `episode_number`, `year`, `jellyfin_path`, `local_path`, `date_added`, `runtime_ticks`, `tags`, `genres`, `sync_skip_reason`, `seen_sync_id` |
 | `item_user_data` | Watch state per user | `item_id`, `user_id`, `played`, `play_count`, `favorite`, `last_played_at` |
-| `collections`, `collection_items` | Jellyfin collections and membership | |
+| `collections`, `collection_items` | Jellyfin collections and membership. `collection_items.item_id` is a movie, episode, series or season ID as Jellyfin reports it, so it has no foreign key to `items` | `collection_id`, `item_id` |
 | `probes` | Cached ffprobe output per item | `item_id`, `dev`, `inode`, `size`, `mtime_ns`, `nlink`, `is_symlink`, `probe_json`, `frame_json`, `error`, `probed_at` |
 | `policies` | User policies | `id`, `name`, `enabled`, `priority`, `scope`, `conditions`, `action` (JSON) |
 | `evaluations` | Latest decision per item | `item_id`, `outcome`, `policy_id`, `explanation`, `plan`, `reasons`, `est_min_bytes`, `est_max_bytes`, `evaluated_at` |
-| `jobs` | Queue and history | `id`, `item_id`, `policy_id`, `status`, `plan`, `source_identity`, `progress`, `speed`, `eta_seconds`, `encoder`, `source_size`, `output_size`, `summary`, `diagnostics`, `backup_path`, `backup_expires_at`, `restored_at`, timestamps |
+| `jobs` | Queue and history. At most one active (waiting to replacing) job per item, enforced by the partial unique index `jobs_one_active`. Status `attention` means the job stopped in a state the user must check: not active, but it blocks new jobs for its item and file | `id`, `item_id`, `policy_id`, `status`, `plan`, `source_identity`, `output_identity`, `progress`, `speed`, `eta_seconds`, `encoder`, `source_size`, `output_size`, `summary`, `diagnostics`, `backup_path`, `backup_expires_at`, `restored_at`, timestamps |
 | `journal` | Intent journal of filesystem steps | `id`, `job_id`, `step`, `path`, `created_at`, `completed_at` |
 | `optimised` | Files JellyTrim produced (loop guard) | `dev`, `inode`, `size`, `mtime_ns`, `item_id`, `job_id` |
 | `capabilities` | Hardware probe results | `backend`, `available`, `detail` (JSON), `tested_at` |
@@ -113,16 +113,17 @@ The database is `/config/jellytrim.db`, created with mode 0600. Migrations are i
 - One HTTP server goroutine pool (stdlib).
 - One sync at a time (a mutex in `library`).
 - A worker pool in `queue` with configurable concurrency (default 1). A per-path lock stops two jobs, or a sync and a replace, from working on the same file.
-- SQLite: one `*sql.DB`; writes serialise through SQLite's lock with a busy timeout. Long operations (ffmpeg) never hold a transaction.
+- SQLite: one `*sql.DB`; writes serialise through SQLite's lock with a busy timeout. Transactions begin `IMMEDIATE` (`_txlock=immediate`), so a transaction that reads then writes waits for the lock instead of failing with `SQLITE_BUSY`. `synchronous=FULL`, so a journal row is on disk before the step it describes. Long operations (ffmpeg) never hold a transaction.
+- A database written by a newer JellyTrim (a schema version above the newest embedded migration) is refused at start with a clear error.
 - Every goroutine takes a `context.Context` from `app` and stops on shutdown.
 
 ## Shutdown
 
-On SIGTERM or SIGINT, `app`:
-1. stops accepting new jobs and scheduled work;
-2. cancels running encodes (ffmpeg receives SIGTERM, then SIGKILL after 10 s);
-3. removes the partial files recorded in the journal for those jobs and marks them Waiting again;
-4. shuts down the HTTP server with a 10 s timeout;
+On SIGTERM or SIGINT, or when the HTTP server fails, `app` cancels the run context and then:
+1. shuts down the HTTP server with a 10 s timeout, so no request starts new work;
+2. waits for the scheduler and the start-up hardware test;
+3. waits for the queue: running encodes are cancelled (ffmpeg receives SIGTERM, then SIGKILL after 10 s), the partial files recorded in the journal are removed and the jobs go back to Waiting;
+4. waits for background library runs; `library` refuses to start new ones once the context is done;
 5. closes the database.
 
 A job interrupted during Replacing is never cancelled mid-step: the replace sequence is short and finishes first.

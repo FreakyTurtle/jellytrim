@@ -41,11 +41,15 @@ func safetyChecks(f *media.File, facts FileFacts, a policy.Action, env Env) []Re
 	rs = append(rs, containerChecks(f)...)
 	rs = append(rs, videoChecks(f)...)
 	rs = append(rs, hdrChecks(f, a)...)
+	_, reduce := outputHDR(f.HDR().Class)
+	if why := reductionEncoderProblem(a, reduce); why != "" {
+		add("hdr_encoder", why)
+	}
 	if f.Duration <= 0 {
 		add("no_duration", "The file's duration is unknown, so the result could not be checked.")
 	}
 	if len(rs) == 0 {
-		if _, ok, why := env.Encoders.Select(targetCodec(f, a), f.HDR().Class.IsHDR(), a.Encoder); !ok {
+		if _, ok, why := env.Encoders.Select(targetCodec(f, a), f.HDR().Class.IsHDR(), encoderFor(a, reduce)); !ok {
 			add("no_encoder", why)
 		}
 	}

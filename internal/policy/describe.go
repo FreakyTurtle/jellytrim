@@ -231,16 +231,16 @@ func Starter() []Policy {
 			Action: Action{Version: 1, Kind: KindOptimise, MaxResolution: "1080p", Codec: "hevc", Quality: QualityHigh, Encoder: "auto", Audio: "preserve", Subtitles: "preserve"},
 		},
 		{
-			Name: "Efficient encoding", Priority: 30,
-			Scope:      Scope{Version: 1},
-			Conditions: Conditions{Version: 1, All: []Condition{{Field: FieldCodec, Op: OpIs, List: []string{"h264"}}}},
-			Action:     Action{Version: 1, Kind: KindOptimise, MaxResolution: "keep", Codec: "hevc", Quality: QualityHigh, Encoder: "auto", Audio: "preserve", Subtitles: "preserve"},
-		},
-		{
-			Name: "Space-saving television", Priority: 40,
+			Name: "Space-saving television", Priority: 30,
 			Scope:      Scope{Version: 1, Types: []string{"Episode"}},
 			Conditions: Conditions{Version: 1, All: []Condition{{Field: FieldResolution, Op: OpAbove, Text: "720p"}}},
 			Action:     Action{Version: 1, Kind: KindOptimise, MaxResolution: "720p", Codec: "hevc", Quality: QualityBalanced, Encoder: "auto", Audio: "preserve", Subtitles: "preserve"},
+		},
+		{
+			Name: "Efficient encoding", Priority: 40,
+			Scope:      Scope{Version: 1},
+			Conditions: Conditions{Version: 1, All: []Condition{{Field: FieldCodec, Op: OpIs, List: []string{"h264"}}}},
+			Action:     Action{Version: 1, Kind: KindOptimise, MaxResolution: "keep", Codec: "hevc", Quality: QualityHigh, Encoder: "auto", Audio: "preserve", Subtitles: "preserve"},
 		},
 	}
 }

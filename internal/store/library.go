@@ -12,6 +12,15 @@ import (
 // ErrNotFound is returned when a row does not exist.
 var ErrNotFound = errors.New("not found")
 
+// Errors from replacing the Jellyfin lists. An empty answer from Jellyfin
+// is far more likely a fault (a restarting server, a key without access)
+// than a real server with no libraries or users, and replacing the list
+// would cascade-delete every item, probe and evaluation.
+var (
+	ErrNoLibraries = errors.New("Jellyfin returned no libraries; keeping the current list")
+	ErrNoUsers     = errors.New("Jellyfin returned no users; keeping the current list")
+)
+
 // Library is a Jellyfin library and whether JellyTrim manages it.
 type Library struct {
 	ID             string
@@ -37,9 +46,13 @@ type PathMapping struct {
 }
 
 // ReplaceLibraries stores the libraries Jellyfin reports, keeping each
-// library's managed flag and removing libraries that no longer exist.
+// library's managed flag and removing libraries missing from the list. An
+// empty list is refused with ErrNoLibraries while libraries are stored.
 func (s *Store) ReplaceLibraries(ctx context.Context, libs []Library) error {
 	return s.tx(ctx, func(tx *sql.Tx) error {
+		if len(libs) == 0 {
+			return refuseEmpty(ctx, tx, "libraries", ErrNoLibraries)
+		}
 		ids := make([]any, 0, len(libs))
 		for _, l := range libs {
 			locs, _ := json.Marshal(nonNil(l.Locations))
@@ -91,9 +104,14 @@ func (s *Store) SetManagedLibraries(ctx context.Context, ids []string) error {
 	})
 }
 
-// ReplaceUsers stores the Jellyfin users, keeping each user's selected flag.
+// ReplaceUsers stores the Jellyfin users, keeping each user's selected flag
+// and removing users missing from the list. An empty list is refused with
+// ErrNoUsers while users are stored.
 func (s *Store) ReplaceUsers(ctx context.Context, users []JellyfinUser) error {
 	return s.tx(ctx, func(tx *sql.Tx) error {
+		if len(users) == 0 {
+			return refuseEmpty(ctx, tx, "jellyfin_users", ErrNoUsers)
+		}
 		ids := make([]any, 0, len(users))
 		for _, u := range users {
 			if _, err := tx.ExecContext(ctx, `INSERT INTO jellyfin_users (id, name, disabled, selected, updated_at)
@@ -201,6 +219,20 @@ func (s *Store) tx(ctx context.Context, fn func(*sql.Tx) error) error {
 		return err
 	}
 	return tx.Commit()
+}
+
+// refuseEmpty returns refusal when table has rows, and nil when it is empty
+// (a new install whose server really has none yet). The table name is a
+// constant from this package.
+func refuseEmpty(ctx context.Context, tx *sql.Tx, table string, refusal error) error {
+	var n int
+	if err := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table).Scan(&n); err != nil { // #nosec G202 -- constant table name
+		return fmt.Errorf("counting %s: %w", table, err)
+	}
+	if n > 0 {
+		return refusal
+	}
+	return nil
 }
 
 // deleteNotIn removes rows whose key is not in keep. The table and column

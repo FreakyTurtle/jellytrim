@@ -1,0 +1,26 @@
+-nostdin
+-hide_banner
+-loglevel error
+-progress pipe:1
+-nostats
+-y
+-i file:/media/movies/Kilo (2015)/Kilo (2015).mp4
+-map 0:0
+-map 0:1
+-map 0:2
+-map 0:3
+-map_metadata 0
+-map_chapters 0
+-c copy
+-c:v:0 libx265
+-preset:v:0 slow
+-crf:v:0 21
+-profile:v:0 main10
+-x265-params:v:0 log-level=error
+-filter:v:0 format=yuv420p10le
+-disposition:v:0 default
+-max_muxing_queue_size 4096
+-tag:v:0 hvc1
+-movflags +faststart
+-f mp4
+file:/media/movies/Kilo (2015)/.Kilo (2015).mp4.jellytrim-42.partial

@@ -1,0 +1,37 @@
+-nostdin
+-hide_banner
+-loglevel error
+-progress pipe:1
+-nostats
+-y
+-i file:/media/movies/Alpha (2019)/Alpha (2019).mkv
+-map 0:0
+-map 0:1
+-map_metadata 0
+-map_chapters 0
+-c copy
+-c:v:0 libx265
+-preset:v:0 slow
+-crf:v:0 21
+-profile:v:0 main
+-x265-params:v:0 log-level=error
+-filter:v:0 format=yuv420p
+-disposition:v:0 0
+-metadata:s:v:0 BPS=
+-metadata:s:v:0 BPS-eng=
+-metadata:s:v:0 NUMBER_OF_BYTES=
+-metadata:s:v:0 NUMBER_OF_BYTES-eng=
+-metadata:s:v:0 NUMBER_OF_FRAMES=
+-metadata:s:v:0 NUMBER_OF_FRAMES-eng=
+-metadata:s:v:0 DURATION=
+-metadata:s:v:0 DURATION-eng=
+-metadata:s:v:0 _STATISTICS_TAGS=
+-metadata:s:v:0 _STATISTICS_TAGS-eng=
+-metadata:s:v:0 _STATISTICS_WRITING_APP=
+-metadata:s:v:0 _STATISTICS_WRITING_APP-eng=
+-metadata:s:v:0 _STATISTICS_WRITING_DATE_UTC=
+-metadata:s:v:0 _STATISTICS_WRITING_DATE_UTC-eng=
+-metadata JELLYTRIM=v1;enc=x265;q=high
+-max_muxing_queue_size 4096
+-f matroska
+file:/media/movies/Alpha (2019)/.Alpha (2019).mkv.jellytrim-42.partial

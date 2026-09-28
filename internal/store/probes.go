@@ -101,6 +101,37 @@ func (s *Store) Probes(ctx context.Context) (map[string]Probe, error) {
 	return out, rows.Err()
 }
 
+// ProbeIdentity is the part of a cached probe that says whether the file
+// must be probed again. It leaves out the JSON, which is large.
+type ProbeIdentity struct {
+	ItemID    string
+	LocalPath string
+	FileIdentity
+	Nlink     int
+	IsSymlink bool
+	Error     string
+}
+
+// ProbeIdentities returns every cached probe's identity keyed by item ID.
+func (s *Store) ProbeIdentities(ctx context.Context) (map[string]ProbeIdentity, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT item_id, local_path, dev, inode, size, mtime_ns, nlink, is_symlink, error FROM probes`)
+	if err != nil {
+		return nil, fmt.Errorf("reading probe identities: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	out := map[string]ProbeIdentity{}
+	for rows.Next() {
+		var p ProbeIdentity
+		var dev, inode int64
+		if err := rows.Scan(&p.ItemID, &p.LocalPath, &dev, &inode, &p.Size, &p.MtimeNs, &p.Nlink, &p.IsSymlink, &p.Error); err != nil {
+			return nil, err
+		}
+		p.Dev, p.Inode = uint64(dev), uint64(inode)
+		out[p.ItemID] = p
+	}
+	return out, rows.Err()
+}
+
 // DeleteProbe removes an item's cached probe so it is probed again.
 func (s *Store) DeleteProbe(ctx context.Context, itemID string) error {
 	_, err := s.db.ExecContext(ctx, `DELETE FROM probes WHERE item_id = ?`, itemID)
@@ -113,6 +144,27 @@ func (s *Store) IsOptimised(ctx context.Context, id FileIdentity) (bool, error) 
 	err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM optimised WHERE dev = ? AND inode = ? AND size = ? AND mtime_ns = ?`,
 		int64(id.Dev), int64(id.Inode), id.Size, id.MtimeNs).Scan(&n)
 	return n > 0, err
+}
+
+// OptimisedIdentities returns the identity of every file JellyTrim
+// produced, for checking a whole library in one query.
+func (s *Store) OptimisedIdentities(ctx context.Context) (map[FileIdentity]bool, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT dev, inode, size, mtime_ns FROM optimised`)
+	if err != nil {
+		return nil, fmt.Errorf("reading optimised files: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	out := map[FileIdentity]bool{}
+	for rows.Next() {
+		var id FileIdentity
+		var dev, inode int64
+		if err := rows.Scan(&dev, &inode, &id.Size, &id.MtimeNs); err != nil {
+			return nil, err
+		}
+		id.Dev, id.Inode = uint64(dev), uint64(inode)
+		out[id] = true
+	}
+	return out, rows.Err()
 }
 
 // RecordOptimised remembers a file JellyTrim produced, so it is not encoded again.

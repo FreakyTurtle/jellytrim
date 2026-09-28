@@ -118,7 +118,7 @@ func (s *Store) LibraryList(ctx context.Context, f LibraryFilter) ([]LibraryRow,
 	order := "i.sort_name COLLATE NOCASE, i.id"
 	switch f.Sort {
 	case "size":
-		order = "COALESCE(p.size, i.jellyfin_size, 0) DESC, i.id"
+		order = "COALESCE(NULLIF(p.size, 0), i.jellyfin_size, 0) DESC, i.id"
 	case "saving":
 		order = "(COALESCE(p.size, 0) - COALESCE(e.est_max_bytes, COALESCE(p.size, 0))) DESC, i.id"
 	}
@@ -126,11 +126,11 @@ func (s *Store) LibraryList(ctx context.Context, f LibraryFilter) ([]LibraryRow,
 	if limit <= 0 || limit > 500 {
 		limit = 100
 	}
-	q := `SELECT ` + itemColumns + `, COALESCE(p.size, i.jellyfin_size, 0), COALESCE(p.video_codec, ''), COALESCE(p.width, 0),
+	q := `SELECT ` + itemColumns + `, COALESCE(NULLIF(p.size, 0), i.jellyfin_size, 0), COALESCE(p.video_codec, ''), COALESCE(p.width, 0),
 		COALESCE(p.height, 0), COALESCE(p.resolution, 0), COALESCE(p.hdr, ''), p.item_id IS NOT NULL, COALESCE(p.error, ''),
 		COALESCE(e.outcome, ''), COALESCE(e.summary, ''), e.est_min_bytes, e.est_max_bytes,
-		EXISTS (SELECT 1 FROM item_user_data d JOIN jellyfin_users u ON u.id = d.user_id WHERE d.item_id = i.id AND u.selected = 1 AND d.played = 1),
-		EXISTS (SELECT 1 FROM item_user_data d JOIN jellyfin_users u ON u.id = d.user_id WHERE d.item_id = i.id AND u.selected = 1 AND d.favorite = 1)
+		EXISTS (SELECT 1 FROM item_user_data d JOIN jellyfin_users u ON u.id = d.user_id WHERE d.item_id = i.id AND u.selected = 1 AND u.disabled = 0 AND d.played = 1),
+		EXISTS (SELECT 1 FROM item_user_data d JOIN jellyfin_users u ON u.id = d.user_id WHERE d.item_id = i.id AND u.selected = 1 AND u.disabled = 0 AND d.favorite = 1)
 		FROM items i JOIN libraries l ON l.id = i.library_id
 		LEFT JOIN probes p ON p.item_id = i.id LEFT JOIN evaluations e ON e.item_id = i.id ` + where +
 		` ORDER BY ` + order + ` LIMIT ? OFFSET ?` // #nosec G202 -- order comes from a fixed switch
@@ -178,7 +178,7 @@ func libraryWhere(f LibraryFilter) (string, []any) {
 		conds = append(conds, "p.hdr NOT IN ('', 'sdr')")
 	}
 	watched := `EXISTS (SELECT 1 FROM item_user_data d JOIN jellyfin_users u ON u.id = d.user_id
-		WHERE d.item_id = i.id AND u.selected = 1 AND d.played = 1)`
+		WHERE d.item_id = i.id AND u.selected = 1 AND u.disabled = 0 AND d.played = 1)`
 	switch f.Watched {
 	case "yes":
 		conds = append(conds, watched)
@@ -216,7 +216,7 @@ type OutcomeTotals struct {
 // Totals computes outcome counts and sizes across managed items.
 func (s *Store) Totals(ctx context.Context) (OutcomeTotals, error) {
 	t := OutcomeTotals{ByOutcome: map[string]int{}, SourceBytes: map[string]int64{}}
-	rows, err := s.db.QueryContext(ctx, `SELECT COALESCE(e.outcome, 'pending'), COUNT(*), COALESCE(SUM(COALESCE(p.size, i.jellyfin_size, 0)), 0),
+	rows, err := s.db.QueryContext(ctx, `SELECT COALESCE(e.outcome, 'pending'), COUNT(*), COALESCE(SUM(COALESCE(NULLIF(p.size, 0), i.jellyfin_size, 0)), 0),
 		COALESCE(SUM(e.est_min_bytes), 0), COALESCE(SUM(e.est_max_bytes), 0), SUM(p.item_id IS NULL)
 		FROM items i JOIN libraries l ON l.id = i.library_id AND l.managed = 1
 		LEFT JOIN probes p ON p.item_id = i.id LEFT JOIN evaluations e ON e.item_id = i.id
@@ -262,6 +262,35 @@ func (s *Store) ItemsWithOutcome(ctx context.Context, outcome string) ([]Evaluat
 		}
 		e.PolicyID, e.EstMin, e.EstMax = int64Ptr(pid), int64Ptr(lo), int64Ptr(hi)
 		out = append(out, e)
+	}
+	return out, rows.Err()
+}
+
+// EvaluationRow is an evaluation with the item facts the summaries need.
+type EvaluationRow struct {
+	Evaluation
+	SourceSize int64
+}
+
+// Evaluations lists every managed item's evaluation with its current size.
+func (s *Store) Evaluations(ctx context.Context) ([]EvaluationRow, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT e.item_id, e.outcome, e.policy_id, e.summary, e.reasons, e.plan,
+		e.est_min_bytes, e.est_max_bytes, COALESCE(NULLIF(p.size, 0), i.jellyfin_size, 0)
+		FROM evaluations e JOIN items i ON i.id = e.item_id JOIN libraries l ON l.id = i.library_id AND l.managed = 1
+		LEFT JOIN probes p ON p.item_id = e.item_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var out []EvaluationRow
+	for rows.Next() {
+		var r EvaluationRow
+		var pid, lo, hi sql.NullInt64
+		if err := rows.Scan(&r.ItemID, &r.Outcome, &pid, &r.Summary, &r.Reasons, &r.Plan, &lo, &hi, &r.SourceSize); err != nil {
+			return nil, err
+		}
+		r.PolicyID, r.EstMin, r.EstMax = int64Ptr(pid), int64Ptr(lo), int64Ptr(hi)
+		out = append(out, r)
 	}
 	return out, rows.Err()
 }

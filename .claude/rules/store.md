@@ -5,7 +5,7 @@ paths:
 
 # SQLite store
 
-- Driver: `modernc.org/sqlite` (pure Go, no cgo). Open through `store.Open`, which sets WAL mode, `foreign_keys=ON`, `busy_timeout=5000` and `synchronous=NORMAL`.
+- Driver: `modernc.org/sqlite` (pure Go, no cgo). Open through `store.Open`, which sets WAL mode, `foreign_keys=ON`, `busy_timeout=5000`, `synchronous=FULL` (journal rows must be on disk before the filesystem step they describe) and `_txlock=immediate` (write transactions take the lock up front, so a read-then-write cannot fail with SQLITE_BUSY).
 - **One writer.** SQLite allows one writer at a time. The store uses a single `*sql.DB` with `SetMaxOpenConns` tuned so writes serialise; do not open a second handle.
 - **Migrations** are embedded SQL files in `internal/store/migrations/NNNN_name.sql`, applied in order at startup inside a transaction each, recorded in `schema_migrations`. Forward only. Never edit a migration that has been committed; add a new one. Use `/migration`.
 - **Queries** are hand-written with `database/sql` in the repository files (`items.go`, `policies.go`, `jobs.go`, ...). Use `?` placeholders only; never build SQL with string formatting from input.

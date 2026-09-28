@@ -216,3 +216,62 @@ func TestEstimatesAreSane(t *testing.T) {
 		t.Fatalf("summary must say it is an estimate: %q", d.Summary)
 	}
 }
+
+// recordingEncoders answers like a working registry and records which
+// encoder each Select asked for.
+type recordingEncoders struct{ requested *[]string }
+
+func (r recordingEncoders) Select(_ media.Codec, _ bool, requested string) (string, bool, string) {
+	*r.requested = append(*r.requested, requested)
+	return "x265", true, ""
+}
+
+func TestHDRReductionEncoder(t *testing.T) {
+	reduce := func(encoder string) policy.Action {
+		a := hevc("1080p")
+		a.AllowHDRReduction = true
+		a.Encoder = encoder
+		return a
+	}
+	cases := []struct {
+		name, fixture, encoder string
+		wantRequested          string // what Select must be asked for; "" when it is never reached
+		wantSkip               bool
+	}{
+		{"auto picks the software encoder for HDR10+", "hdr10plus", "auto", "x265", false},
+		{"no choice picks the software encoder for Dolby Vision", "dv-profile8-hdr10", "", "x265", false},
+		{"explicit x265 is fine", "hdr10plus", "x265", "x265", false},
+		{"explicit hardware encoder is skipped", "hdr10plus", "qsv-hevc", "", true},
+		{"explicit hardware encoder is skipped for Dolby Vision", "dv-profile8-hdr10", "qsv-hevc", "", true},
+		{"HDR10 keeps the requested hardware encoder", "hevc-2160p-hdr10", "qsv-hevc", "qsv-hevc", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var requested []string
+			e := env
+			e.Encoders = recordingEncoders{requested: &requested}
+			d := decide(t, tc.fixture, reduce(tc.encoder), okFacts, e)
+			if tc.wantSkip {
+				want := "Reducing Dolby Vision or HDR10+ to HDR10 needs the software encoder; this policy asks for qsv-hevc."
+				if d.Outcome != Skipped || !hasCode(d, "hdr_encoder") || d.Reasons[0].Text != want {
+					t.Fatalf("decision %+v", d)
+				}
+				if len(requested) != 0 {
+					t.Fatalf("a skipped item still asked for an encoder: %v", requested)
+				}
+				return
+			}
+			if hasCode(d, "hdr_encoder") || d.Outcome == Skipped {
+				t.Fatalf("decision %+v", d)
+			}
+			for _, r := range requested {
+				if r != tc.wantRequested {
+					t.Fatalf("asked for %q, want %q (all: %v)", r, tc.wantRequested, requested)
+				}
+			}
+			if len(requested) == 0 {
+				t.Fatal("no encoder was asked for")
+			}
+		})
+	}
+}

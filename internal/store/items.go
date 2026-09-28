@@ -19,6 +19,7 @@ type Item struct {
 	SortName       string
 	SeriesID       string
 	SeriesName     string
+	SeasonID       string
 	SeasonName     string
 	SeasonNumber   *int
 	EpisodeNumber  *int
@@ -93,13 +94,24 @@ type SyncRun struct {
 	Error      string
 }
 
-// LastSync returns the most recent sync, or ErrNotFound.
+// LastSync returns the most recent sync attempt, or ErrNotFound.
 func (s *Store) LastSync(ctx context.Context) (SyncRun, error) {
+	return s.syncRun(ctx, `SELECT id, started_at, finished_at, status, items_seen, error
+		FROM sync_runs ORDER BY id DESC LIMIT 1`)
+}
+
+// LastCompleteSync returns the most recent sync that finished completely,
+// or ErrNotFound.
+func (s *Store) LastCompleteSync(ctx context.Context) (SyncRun, error) {
+	return s.syncRun(ctx, `SELECT id, started_at, finished_at, status, items_seen, error
+		FROM sync_runs WHERE status = 'complete' ORDER BY id DESC LIMIT 1`)
+}
+
+func (s *Store) syncRun(ctx context.Context, q string) (SyncRun, error) {
 	var r SyncRun
 	var started int64
 	var finished sql.NullInt64
-	err := s.db.QueryRowContext(ctx, `SELECT id, started_at, finished_at, status, items_seen, error
-		FROM sync_runs ORDER BY id DESC LIMIT 1`).Scan(&r.ID, &started, &finished, &r.Status, &r.ItemsSeen, &r.Error)
+	err := s.db.QueryRowContext(ctx, q).Scan(&r.ID, &started, &finished, &r.Status, &r.ItemsSeen, &r.Error)
 	if errors.Is(err, sql.ErrNoRows) {
 		return r, ErrNotFound
 	}
@@ -122,15 +134,16 @@ func (s *Store) UpsertItems(ctx context.Context, syncID int64, items []Item) err
 	return s.tx(ctx, func(tx *sql.Tx) error {
 		stmt, err := tx.PrepareContext(ctx, `INSERT INTO items (id, library_id, type, name, sort_name, series_id, series_name,
 			season_name, season_number, episode_number, year, jellyfin_path, local_path, date_added, runtime_ticks,
-			jellyfin_size, jellyfin_codec, tags, genres, has_image, sync_skip_reason, seen_sync_id, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			jellyfin_size, jellyfin_codec, tags, genres, has_image, sync_skip_reason, seen_sync_id, updated_at, season_id)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			ON CONFLICT(id) DO UPDATE SET library_id = excluded.library_id, type = excluded.type, name = excluded.name,
 			sort_name = excluded.sort_name, series_id = excluded.series_id, series_name = excluded.series_name,
 			season_name = excluded.season_name, season_number = excluded.season_number, episode_number = excluded.episode_number,
 			year = excluded.year, jellyfin_path = excluded.jellyfin_path, local_path = excluded.local_path,
 			date_added = excluded.date_added, runtime_ticks = excluded.runtime_ticks, jellyfin_size = excluded.jellyfin_size,
 			jellyfin_codec = excluded.jellyfin_codec, tags = excluded.tags, genres = excluded.genres, has_image = excluded.has_image,
-			sync_skip_reason = excluded.sync_skip_reason, seen_sync_id = excluded.seen_sync_id, updated_at = excluded.updated_at`)
+			sync_skip_reason = excluded.sync_skip_reason, seen_sync_id = excluded.seen_sync_id, updated_at = excluded.updated_at,
+			season_id = excluded.season_id`)
 		if err != nil {
 			return err
 		}
@@ -142,7 +155,7 @@ func (s *Store) UpsertItems(ctx context.Context, syncID int64, items []Item) err
 			if _, err := stmt.ExecContext(ctx, it.ID, it.LibraryID, it.Type, it.Name, it.SortName, it.SeriesID, it.SeriesName,
 				it.SeasonName, it.SeasonNumber, it.EpisodeNumber, it.Year, it.JellyfinPath, it.LocalPath, unixPtr(it.DateAdded),
 				it.RuntimeTicks, it.JellyfinSize, it.JellyfinCodec, string(tags), string(genres), it.HasImage, it.SyncSkipReason,
-				syncID, now); err != nil {
+				syncID, now, it.SeasonID); err != nil {
 				return fmt.Errorf("saving item %s: %w", it.ID, err)
 			}
 		}
@@ -182,7 +195,8 @@ func (s *Store) RemoveUserDataExcept(ctx context.Context, keep []string) error {
 	})
 }
 
-// ReplaceCollections stores collections and their membership.
+// ReplaceCollections stores collections and their membership. Member IDs
+// may be movies, episodes, series or seasons.
 func (s *Store) ReplaceCollections(ctx context.Context, cols []Collection) error {
 	return s.tx(ctx, func(tx *sql.Tx) error {
 		if _, err := tx.ExecContext(ctx, `DELETE FROM collection_items`); err != nil {
@@ -195,9 +209,12 @@ func (s *Store) ReplaceCollections(ctx context.Context, cols []Collection) error
 			if _, err := tx.ExecContext(ctx, `INSERT INTO collections (id, name) VALUES (?, ?)`, c.ID, c.Name); err != nil {
 				return err
 			}
+			// Members are stored as reported: a box set may hold a series
+			// or season, which is not an item row. Evaluation matches an
+			// episode through its series and season IDs.
 			for _, id := range c.ItemIDs {
-				if _, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO collection_items (collection_id, item_id)
-					SELECT ?, ? WHERE EXISTS (SELECT 1 FROM items WHERE id = ?)`, c.ID, id, id); err != nil {
+				if _, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO collection_items (collection_id, item_id) VALUES (?, ?)`,
+					c.ID, id); err != nil {
 					return err
 				}
 			}
@@ -226,7 +243,8 @@ func (s *Store) Collections(ctx context.Context) ([]Collection, error) {
 
 const itemColumns = `i.id, i.library_id, COALESCE(l.name, ''), i.type, i.name, i.sort_name, i.series_id, i.series_name,
 	i.season_name, i.season_number, i.episode_number, i.year, i.jellyfin_path, i.local_path, i.date_added,
-	i.runtime_ticks, COALESCE(i.jellyfin_size, 0), i.jellyfin_codec, i.tags, i.genres, i.has_image, i.sync_skip_reason`
+	i.runtime_ticks, COALESCE(i.jellyfin_size, 0), i.jellyfin_codec, i.tags, i.genres, i.has_image, i.sync_skip_reason,
+	i.season_id`
 
 type scanner interface{ Scan(...any) error }
 
@@ -236,7 +254,8 @@ func scanItem(r scanner, extra ...any) (Item, error) {
 	var tags, genres string
 	dst := append([]any{&it.ID, &it.LibraryID, &it.LibraryName, &it.Type, &it.Name, &it.SortName, &it.SeriesID,
 		&it.SeriesName, &it.SeasonName, &season, &episode, &year, &it.JellyfinPath, &it.LocalPath, &added,
-		&it.RuntimeTicks, &it.JellyfinSize, &it.JellyfinCodec, &tags, &genres, &it.HasImage, &it.SyncSkipReason}, extra...)
+		&it.RuntimeTicks, &it.JellyfinSize, &it.JellyfinCodec, &tags, &genres, &it.HasImage, &it.SyncSkipReason,
+		&it.SeasonID}, extra...)
 	if err := r.Scan(dst...); err != nil {
 		return it, err
 	}
@@ -296,18 +315,66 @@ func (s *Store) AllUserData(ctx context.Context) (map[string][]UserData, error) 
 	defer func() { _ = rows.Close() }()
 	out := map[string][]UserData{}
 	for rows.Next() {
-		var d UserData
-		var last sql.NullInt64
-		if err := rows.Scan(&d.ItemID, &d.UserID, &d.Played, &d.PlayCount, &d.Favourite, &last); err != nil {
+		d, err := scanUserData(rows)
+		if err != nil {
 			return nil, err
 		}
-		d.LastPlayedAt = timePtr(last)
 		out[d.ItemID] = append(out[d.ItemID], d)
 	}
 	return out, rows.Err()
 }
 
-// ItemCollections returns collection IDs keyed by item ID.
+// ItemUserData returns one item's watch state for the selected users.
+func (s *Store) ItemUserData(ctx context.Context, itemID string) ([]UserData, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT d.item_id, d.user_id, d.played, d.play_count, d.favorite, d.last_played_at
+		FROM item_user_data d JOIN jellyfin_users u ON u.id = d.user_id
+		WHERE d.item_id = ? AND u.selected = 1 AND u.disabled = 0`, itemID)
+	if err != nil {
+		return nil, fmt.Errorf("reading watch state for %s: %w", itemID, err)
+	}
+	defer func() { _ = rows.Close() }()
+	var out []UserData
+	for rows.Next() {
+		d, err := scanUserData(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, d)
+	}
+	return out, rows.Err()
+}
+
+func scanUserData(r scanner) (UserData, error) {
+	var d UserData
+	var last sql.NullInt64
+	if err := r.Scan(&d.ItemID, &d.UserID, &d.Played, &d.PlayCount, &d.Favourite, &last); err != nil {
+		return d, err
+	}
+	d.LastPlayedAt = timePtr(last)
+	return d, nil
+}
+
+// ItemCountsByLibrary returns how many items are stored for each library.
+func (s *Store) ItemCountsByLibrary(ctx context.Context) (map[string]int, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT library_id, COUNT(*) FROM items GROUP BY library_id`)
+	if err != nil {
+		return nil, fmt.Errorf("counting items: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	out := map[string]int{}
+	for rows.Next() {
+		var id string
+		var n int
+		if err := rows.Scan(&id, &n); err != nil {
+			return nil, err
+		}
+		out[id] = n
+	}
+	return out, rows.Err()
+}
+
+// ItemCollections returns collection IDs keyed by member ID. A member may be
+// a movie, an episode, a series or a season.
 func (s *Store) ItemCollections(ctx context.Context) (map[string][]string, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT item_id, collection_id FROM collection_items`)
 	if err != nil {

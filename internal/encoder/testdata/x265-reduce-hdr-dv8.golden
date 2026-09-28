@@ -1,0 +1,42 @@
+-nostdin
+-hide_banner
+-loglevel error
+-progress pipe:1
+-nostats
+-y
+-i file:/media/movies/Quebec (2023)/Quebec (2023).mkv
+-map 0:0
+-map 0:1
+-map 0:2
+-map_metadata 0
+-map_chapters 0
+-c copy
+-c:v:0 libx265
+-preset:v:0 slow
+-crf:v:0 21
+-profile:v:0 main10
+-x265-params:v:0 log-level=error:hdr10=1:hdr10-opt=1:repeat-headers=1:colorprim=bt2020:transfer=smpte2084:colormatrix=bt2020nc:master-display=G(13250,34500)B(7500,3000)R(34000,16000)WP(15635,16450)L(10000000,50):max-cll=1000,400
+-dolbyvision:v:0 0
+-filter:v:0 sidedata=mode=delete:type=DOVI_RPU_BUFFER,sidedata=mode=delete:type=DOVI_METADATA,sidedata=mode=delete:type=DYNAMIC_HDR_PLUS,format=yuv420p10le,setparams=color_primaries=bt2020:color_trc=smpte2084:colorspace=bt2020nc
+-color_primaries:v:0 bt2020
+-color_trc:v:0 smpte2084
+-colorspace:v:0 bt2020nc
+-disposition:v:0 default
+-metadata:s:v:0 BPS=
+-metadata:s:v:0 BPS-eng=
+-metadata:s:v:0 NUMBER_OF_BYTES=
+-metadata:s:v:0 NUMBER_OF_BYTES-eng=
+-metadata:s:v:0 NUMBER_OF_FRAMES=
+-metadata:s:v:0 NUMBER_OF_FRAMES-eng=
+-metadata:s:v:0 DURATION=
+-metadata:s:v:0 DURATION-eng=
+-metadata:s:v:0 _STATISTICS_TAGS=
+-metadata:s:v:0 _STATISTICS_TAGS-eng=
+-metadata:s:v:0 _STATISTICS_WRITING_APP=
+-metadata:s:v:0 _STATISTICS_WRITING_APP-eng=
+-metadata:s:v:0 _STATISTICS_WRITING_DATE_UTC=
+-metadata:s:v:0 _STATISTICS_WRITING_DATE_UTC-eng=
+-metadata JELLYTRIM=v1;enc=x265;q=high
+-max_muxing_queue_size 4096
+-f matroska
+file:/media/movies/Quebec (2023)/.Quebec (2023).mkv.jellytrim-42.partial

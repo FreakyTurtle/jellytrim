@@ -56,7 +56,7 @@ func decideTarget(d Decision, f *media.File, facts FileFacts, a policy.Action, e
 	}
 	p.HDR, p.ReduceHDR = outputHDR(f.HDR().Class)
 	p.TargetLabel = media.ClassOf(width, height).Label() + " " + codec.Label()
-	name, _, _ := env.Encoders.Select(codec, p.HDR.IsHDR(), a.Encoder)
+	name, _, _ := env.Encoders.Select(codec, p.HDR.IsHDR(), encoderFor(a, p.ReduceHDR))
 	p.Encoder = name
 	p.EstMin, p.EstMax = estimate(f, v, p)
 
@@ -224,3 +224,28 @@ func resLabel(limit media.Resolution, v media.VideoStream) string {
 	}
 	return limit.Label()
 }
+
+// softwareEncoder is the only backend that can reduce Dolby Vision or
+// HDR10+ to HDR10: it needs x265's -dolbyvision option, which hardware
+// encoders lack.
+const softwareEncoder = "x265"
+
+// encoderFor picks the encoder to ask for. When the policy leaves the choice
+// to JellyTrim and the HDR is being reduced, that is the software encoder.
+func encoderFor(a policy.Action, reduceHDR bool) string {
+	if reduceHDR && autoEncoder(a.Encoder) {
+		return softwareEncoder
+	}
+	return a.Encoder
+}
+
+// reductionEncoderProblem explains why a reduction cannot run when the
+// policy names an encoder other than the software one, or returns "".
+func reductionEncoderProblem(a policy.Action, reduceHDR bool) string {
+	if !reduceHDR || !a.AllowHDRReduction || autoEncoder(a.Encoder) || a.Encoder == softwareEncoder {
+		return ""
+	}
+	return "Reducing Dolby Vision or HDR10+ to HDR10 needs the software encoder; this policy asks for " + a.Encoder + "."
+}
+
+func autoEncoder(name string) bool { return name == "" || name == "auto" }

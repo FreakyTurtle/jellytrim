@@ -32,6 +32,7 @@ const (
 	KeyX265Preset        = "x265_preset"
 	KeyQualityOverrides  = "quality_overrides" // JSON
 	KeyDefaultQuality    = "default_quality"
+	KeyQueuePaused       = "queue_paused"
 )
 
 // Settings is the typed view of the settings table with defaults applied.

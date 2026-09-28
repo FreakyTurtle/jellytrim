@@ -230,24 +230,14 @@ func checkWatched(c Condition, it Item) Line {
 	return Line{got == want, text}
 }
 
+// favouriteState is true when any selected user marked the item as a
+// favourite, whatever the watch mode. A favourite usually protects an item,
+// so requiring every user to agree would quietly weaken that protection.
 func favouriteState(it Item) (bool, string) {
-	fav := 0
 	for _, u := range it.Users {
 		if u.Favourite {
-			fav++
+			return true, "a favourite"
 		}
-	}
-	if it.WatchMode == WatchAll && len(it.Users) > 0 {
-		if fav == len(it.Users) {
-			return true, "a favourite of every selected user"
-		}
-		if fav > 0 {
-			return false, fmt.Sprintf("a favourite of %d of %d selected users", fav, len(it.Users))
-		}
-		return false, "not a favourite"
-	}
-	if fav > 0 {
-		return true, "a favourite"
 	}
 	return false, "not a favourite"
 }

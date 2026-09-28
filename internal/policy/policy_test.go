@@ -150,9 +150,32 @@ func TestFavourites(t *testing.T) {
 	if !checkCondition(fav, it, now).Pass || checkCondition(notFav, it, now).Pass {
 		t.Fatal("any: one user's favourite protects the item")
 	}
+	// "All selected users" applies to watched state only: one user's
+	// favourite still counts, so Protect favourites is never weakened.
 	it.WatchMode = WatchAll
-	if checkCondition(fav, it, now).Pass {
-		t.Fatal("all: only one of two users favourited")
+	if l := checkCondition(fav, it, now); !l.Pass || l.Text != "a favourite" {
+		t.Fatalf("all: one user's favourite must still count: %+v", l)
+	}
+	if checkCondition(notFav, it, now).Pass {
+		t.Fatal("all: 'not a favourite' must not match when one user favourited it")
+	}
+	it.Users = []UserState{{UserID: "a"}, {UserID: "b"}}
+	if l := checkCondition(notFav, it, now); !l.Pass || l.Text != "not a favourite" {
+		t.Fatalf("all: nobody's favourite: %+v", l)
+	}
+	it.Users = nil
+	if checkCondition(fav, it, now).Pass || checkCondition(notFav, it, now).Pass {
+		t.Fatal("no users selected must match neither favourite nor not favourite")
+	}
+}
+
+func TestProtectFavouritesWinsInAllMode(t *testing.T) {
+	it := baseItem()
+	it.WatchMode = WatchAll
+	it.Users = []UserState{{UserID: "a", Favourite: true}, {UserID: "b"}}
+	res := Evaluate(Starter()[:1], it, now)
+	if res.Winner == nil || res.Winner.Action.Kind != KindProtect {
+		t.Fatalf("Protect favourites did not win: %+v", res.Matches)
 	}
 }
 
@@ -357,7 +380,7 @@ func TestDescribe(t *testing.T) {
 	if got := Describe(csi, n); got != "For CSI: Crime Scene Investigation, when resolution above 720p: convert to 720p HEVC at Balanced quality." {
 		t.Fatalf("csi: %q", got)
 	}
-	eff := Starter()[2]
+	eff := Starter()[3]
 	if got := Describe(eff, n); got != "In every managed library, when codec is H.264: convert to HEVC, keeping the resolution at High quality." {
 		t.Fatalf("efficient: %q", got)
 	}

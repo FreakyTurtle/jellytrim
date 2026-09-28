@@ -42,10 +42,15 @@ All conditions must pass (AND). A policy with no conditions matches everything i
 
 Jellyfin keeps watched state and favourites per user. In Settings, the user chooses which Jellyfin users count and how:
 
-- **Any selected user** (default): watched if any of them watched it; favourite if any of them favourited it.
-- **All selected users**: watched only if every one of them watched it; favourite only if every one of them favourited it.
+- **Any selected user** (default): watched if any of them watched it.
+- **All selected users**: watched only if every one of them watched it.
 
-"Last watched" always uses the most recent play by any selected user, so a recent viewing by anyone resets the clock. This is the cautious choice. (Per-policy choice of users is planned.)
+The mode applies to watched state only. Two things always use any selected user, because that is the cautious choice:
+
+- **Favourite** is true if any selected user favourited the item, so one person's favourite is enough for *Protect favourites* to keep it.
+- **Last watched** uses the most recent play by any selected user, so a recent viewing by anyone resets the clock.
+
+(Per-policy choice of users is planned.)
 
 ### Days
 
@@ -136,8 +141,8 @@ Created by the setup wizard. Only the first is enabled.
 
 1. **Protect favourites.** Condition: favourite. Action: Protect. Enabled.
 2. **Archive watched 4K.** Conditions: watched, last watched more than 90 days ago, not a favourite, resolution above 1080p. Action: 1080p, HEVC, High. (Above *Efficient encoding*, so a watched 4K H.264 film is also downscaled.)
-3. **Efficient encoding.** Condition: codec is H.264. Action: keep resolution, HEVC, High.
-4. **Space-saving television.** Scope: libraries or series the user picks. Condition: resolution above 720p. Action: 720p, HEVC, Balanced.
+3. **Space-saving television.** Scope: libraries or series the user picks. Condition: resolution above 720p. Action: 720p, HEVC, Balanced. (Above *Efficient encoding*, so episodes are capped at 720p rather than only converted.)
+4. **Efficient encoding.** Condition: codec is H.264. Action: keep resolution, HEVC, High.
 
 ## Planned
 
