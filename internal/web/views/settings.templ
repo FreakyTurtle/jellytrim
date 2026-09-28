@@ -19,6 +19,24 @@ type SettingsQualityBackend struct {
 	Tiers   []SettingsQualityTier
 }
 
+// SettingsScheduleView is the Processing schedule section.
+type SettingsScheduleView struct {
+	Grid    ScheduleGridProps
+	Summary string // "Nights (01:00 to 07:00). 42 hours a week."
+	State   string // "Active now, until Friday 07:00" or "Next active: Friday 01:00"
+	Lamp    string // "ok" while active now, "idle" otherwise
+	Zone    string // "Europe/London (BST)" or "UTC"
+	Empty   bool
+	Presets []SettingsSchedulePreset
+}
+
+// SettingsSchedulePreset is a preset button; Current when the grid matches it.
+type SettingsSchedulePreset struct {
+	ID      string
+	Label   string
+	Current bool
+}
+
 // SettingsView is everything the Settings page shows. Numbers are strings
 // so an invalid entry is shown back exactly as typed.
 type SettingsView struct {
@@ -43,9 +61,8 @@ type SettingsView struct {
 	SyncInterval string
 	SyncDailyAt  string
 	LastSync     string
-	WindowOn     bool
-	WindowStart  string
-	WindowEnd    string
+
+	Schedule SettingsScheduleView
 
 	AutoProcess bool
 	Validation  string
@@ -74,7 +91,8 @@ var settingsNav = []settingsNavItem{
 	{"watched", "Watched state"},
 	{"paths", "Path mappings"},
 	{"dry-run", "Dry Run"},
-	{"schedule", "Schedule"},
+	{"sync", "Sync"},
+	{"schedule", "Processing schedule"},
 	{"processing", "Processing"},
 	{"safety", "Saving and backups"},
 	{"hardware", "Hardware"},
@@ -103,6 +121,13 @@ var settingsPresetOptions = []Option{
 var settingsBitDepthOptions = []Option{
 	{Value: "10", Label: "10-bit", Hint: "The default. Smoother gradients and smaller files. HDR is always 10-bit."},
 	{Value: "source", Label: "Match the source", Hint: "8-bit sources stay 8-bit, for very old players."},
+}
+
+func settingsPresetState(current bool) string {
+	if current {
+		return ", in use"
+	}
+	return ""
 }
 
 func settingsErr(v SettingsView, name string) string {
@@ -143,7 +168,8 @@ templ SettingsPage(v SettingsView) {
 				@settingsWatched(v)
 				@settingsPaths(v)
 				@settingsDryRun(v)
-				@settingsSchedule(v)
+				@settingsSync(v)
+				@settingsHours(v)
 				@settingsProcessing(v)
 				@settingsSafety(v)
 				@settingsHardware(v)
@@ -259,10 +285,10 @@ templ settingsDryRun(v SettingsView) {
 	}
 }
 
-templ settingsSchedule(v SettingsView) {
-	@Panel("Schedule", "schedule") {
-		<form class="settings-form" method="post" action="/settings/schedule" novalidate>
-			@settingsFeedback(v, "schedule")
+templ settingsSync(v SettingsView) {
+	@Panel("Sync", "sync") {
+		<form class="settings-form" method="post" action="/settings/sync" novalidate>
+			@settingsFeedback(v, "sync")
 			<fieldset class="settings-group">
 				<legend class="settings-group__legend">Sync with Jellyfin</legend>
 				<div class="settings-row">
@@ -270,19 +296,51 @@ templ settingsSchedule(v SettingsView) {
 					@Field(FieldProps{ID: "settings-daily", Name: "daily_at", Label: "Or daily at", Hint: "Leave empty to use the interval.", Type: "time", Value: v.SyncDailyAt, Mono: true, Error: settingsErr(v, "daily_at")})
 				</div>
 			</fieldset>
-			<fieldset class="settings-group">
-				<legend class="settings-group__legend">Processing window</legend>
-				@ToggleWith(ToggleProps{Name: "window", Label: "Only encode during a time window", Checked: v.WindowOn, Note: "Jobs that are running when the window closes finish first."})
-				<div class="settings-row">
-					@Field(FieldProps{ID: "settings-window-start", Name: "window_start", Label: "From", Type: "time", Value: v.WindowStart, Mono: true, Error: settingsErr(v, "window_start")})
-					@Field(FieldProps{ID: "settings-window-end", Name: "window_end", Label: "To", Type: "time", Value: v.WindowEnd, Mono: true, Error: settingsErr(v, "window_end")})
-				</div>
-			</fieldset>
-			@settingsSave("Save schedule")
+			@settingsSave("Save sync")
 		</form>
 		<form class="settings-sync" method="post" action="/sync">
 			<button class="btn btn--secondary" type="submit">Sync now</button>
 			<p class="actions__note">Last sync: { v.LastSync }</p>
+		</form>
+	}
+}
+
+// settingsHours is the weekly processing schedule. Presets save at once;
+// the grid saves with Save schedule.
+templ settingsHours(v SettingsView) {
+	@Panel("Processing schedule", "schedule") {
+		<form class="settings-form" method="post" action="/settings/schedule-hours">
+			@setupDefaultSubmit("Save schedule")
+			@settingsFeedback(v, "schedule-hours")
+			<div class="settings-hours__intro">
+				<p class="setup-note">JellyTrim only encodes in the hours you switch on. When an hour ends, a running encode stops and starts again from the beginning in the next active hour. The original is never touched.</p>
+				<p class="setup-note">Times are in <span class="mono">{ v.Schedule.Zone }</span> (the server's time zone; set <span class="mono">TZ</span> in your compose file to change it).</p>
+			</div>
+			if v.Schedule.Empty {
+				@Callout("warn", "No hours are active, so nothing will be encoded.", "Choose a preset or switch on some hours, then save.")
+			}
+			@Stats() {
+				@StatRow("Schedule", v.Schedule.Summary, false)
+				<div class="stats__row">
+					<dt>Now</dt>
+					<dd>
+						@Status(v.Schedule.Lamp, v.Schedule.State)
+					</dd>
+				</div>
+			}
+			<fieldset class="settings-hours__presets" aria-describedby="settings-hours-presets-hint">
+				<legend class="settings-group__legend">Presets</legend>
+				<div class="settings-hours__buttons">
+					for _, p := range v.Schedule.Presets {
+						<button class={ "btn", "btn--secondary", "btn--small", templ.KV("btn--pressed", p.Current) } type="submit" name="preset" value={ p.ID }>
+							{ p.Label }<span class="visually-hidden">{ settingsPresetState(p.Current) }</span>
+						</button>
+					}
+				</div>
+				<p class="setup-note" id="settings-hours-presets-hint">A preset replaces the grid and saves at once.</p>
+			</fieldset>
+			@ScheduleGrid(v.Schedule.Grid)
+			@settingsSave("Save schedule")
 		</form>
 	}
 }

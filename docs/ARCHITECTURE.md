@@ -44,7 +44,8 @@ JellyTrim is one Go binary. It serves a server-rendered web UI, keeps its state 
 | `internal/pipeline` | Safe execution: encode to a partial file, validate, back up, replace, notify; journal and recovery | `encoder`, `ffmpeg`, `media`, `store`, `jellyfin` |
 | `internal/queue` | Job lifecycle and the worker pool | `pipeline`, `store` |
 | `internal/library` | Sync from Jellyfin, probe caching, evaluation of every item, Dry Run summary | `jellyfin`, `pathmap`, `ffmpeg`, `media`, `policy`, `plan`, `store` |
-| `internal/scheduler` | Periodic sync and re-evaluation; processing window; auto-enqueue | `library`, `queue` |
+| `internal/scheduler` | Periodic sync and re-evaluation; auto-enqueue | `library`, `queue` |
+| `internal/timetable` | The weekly processing schedule: 7 days of 24 hour blocks, each on or off (pure) | stdlib |
 | `internal/web` | HTTP handlers, templ views, static files, image proxy | services |
 
 `internal/testutil` holds shared test helpers (fixture loading, `RequireFFmpeg`).
@@ -67,7 +68,7 @@ JellyTrim is one Go binary. It serves a server-rendered web UI, keeps its state 
 2. `policy.Evaluate(policies, item, now)` returns the winning policy, all matching policies, and an explanation for each.
 3. `plan.Decide(item, action, settings, capabilities)` returns an `Optimise` plan with an estimated size range, or `AlreadyOptimal`, `Protected`, `Skipped{reasons}` or `NoPolicy`.
 4. The result is stored in `evaluations` and drives the Library filters, the Dry Run summary and the dashboard.
-5. If Dry Run is off, the policy is enabled and auto-processing is on, the scheduler enqueues `Optimise` results during the processing window.
+5. If Dry Run is off, the policy is enabled and auto-processing is on, the scheduler enqueues `Optimise` results. The queue only starts them during active hours of the processing schedule, and stops running encodes when an hour turns inactive (see below).
 
 ### A job
 
@@ -135,6 +136,16 @@ The HTTP server and the library's background sync are available as soon as `app`
 4. started the scheduler.
 
 This avoids queueing jobs, or letting the scheduler enqueue them, against a plan that assumes no working encoder because the hardware test has not run yet. The web UI itself has no such gate: it is reachable, and shows a first-run or stale hardware result, from the moment the server starts.
+
+## Processing schedule
+
+The weekly schedule (`internal/timetable`) is a grid of 168 hour blocks, Monday 00:00 first, stored as one setting. Hours are read in the server's local time (the container's `TZ`). The queue's dispatcher:
+
+- starts no job while the current hour is inactive;
+- when an hour turns inactive, cancels running jobs. A job still analysing, encoding or validating stops, its partial file is removed, and it goes back to Waiting with a note saying the schedule stopped it; the original is untouched. A job already replacing finishes its last step, which is short and never interrupted;
+- sleeps until the next change of the schedule (or 15 seconds, whichever is sooner), so stopping and starting happen on the hour.
+
+A stopped encode starts again from the beginning in the next active hour. The old daily "processing window" setting is converted to the grid the first time settings are read.
 
 ## Shutdown
 

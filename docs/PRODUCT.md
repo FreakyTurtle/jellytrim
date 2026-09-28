@@ -103,7 +103,7 @@ History lists every completed, skipped, cancelled and failed job, with the savin
 
 ### Scheduling
 
-JellyTrim syncs with Jellyfin on an interval (every 6 hours by default) or at a daily time, and on demand. It inspects a file with ffprobe only when the file's size or modification time has changed. Encoding can be limited to a daily time window.
+JellyTrim syncs with Jellyfin on an interval (every 6 hours by default) or at a daily time, and on demand. It inspects a file with ffprobe only when the file's size or modification time has changed. Encoding can be limited to chosen hours of the week: a grid of hour blocks, Monday to Sunday, each on or off, for example nights only so the GPU is free in the evening. When an hour ends, a running encode stops (the original is untouched) and starts again in the next active hour.
 
 ### Hardware
 

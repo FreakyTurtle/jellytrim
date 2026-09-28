@@ -620,3 +620,91 @@ templ DialogCancel(label string) {
 templ DialogButton(dialogID, label, variant string) {
 	<button class={ "btn", "btn--" + variant } type="button" data-dialog-open={ dialogID } aria-haspopup="dialog">{ label }</button>
 }
+
+// ---------- Schedule grid ----------
+
+// ScheduleDay is one day of a ScheduleGrid and its 24 hours.
+type ScheduleDay struct {
+	Index int
+	Name  string // "Monday"
+	Short string // "Mon"
+	Hours [24]bool
+}
+
+// ScheduleGridProps configures a ScheduleGrid.
+type ScheduleGridProps struct {
+	Name    string // form field name; each ticked hour sends "<day>-<hour>"
+	Legend  string
+	Hint    string
+	Days    []ScheduleDay
+	NowDay  int // the current day and hour are marked; -1 for none
+	NowHour int
+}
+
+func scheduleTwo(n int) string {
+	if n < 10 {
+		return "0" + strconv.Itoa(n)
+	}
+	return strconv.Itoa(n)
+}
+
+func scheduleCellValue(day, hour int) string {
+	return strconv.Itoa(day) + "-" + strconv.Itoa(hour)
+}
+
+// scheduleCellLabel is the cell's accessible name: "Monday 01:00 to 02:00".
+func scheduleCellLabel(day string, hour int) string {
+	return day + " " + scheduleTwo(hour) + ":00 to " + scheduleTwo((hour+1)%24) + ":00"
+}
+
+// schedulePos places an element in the grid. CSS turns the grid on its
+// side in a narrow container, so the position is data, not a fixed column.
+func schedulePos(day, hour int) templ.SafeCSS {
+	return templ.SafeCSS("--d: " + strconv.Itoa(day) + "; --h: " + strconv.Itoa(hour) + ";")
+}
+
+func scheduleHourClass(hour, now int) string {
+	c := "schedule__hour"
+	if hour%6 == 0 {
+		c += " schedule__hour--major"
+	}
+	if hour == now {
+		c += " schedule__hour--now"
+	}
+	return c
+}
+
+// ScheduleGrid is a week of hour cells: a real checkbox in each, labelled
+// "Monday 01:00 to 02:00". Days run down and hours across; in a narrow
+// container the grid turns so hours run down instead. app.js adds
+// click-and-drag painting; without it each cell is an ordinary checkbox.
+templ ScheduleGrid(g ScheduleGridProps) {
+	<fieldset class="schedule" data-schedule aria-describedby={ g.Name + "-schedule-hint" }>
+		<legend class="schedule__legend">{ g.Legend }</legend>
+		<p class="schedule__hint" id={ g.Name + "-schedule-hint" }>
+			{ g.Hint }
+			<span class="schedule__hint-js">{ " Drag across the grid to switch several hours at once. The arrow keys move between hours." }</span>
+		</p>
+		<div class="schedule__frame">
+			<div class="schedule__grid">
+				<span class="schedule__corner" aria-hidden="true"></span>
+				for h := range 24 {
+					<span class={ scheduleHourClass(h, g.NowHour) } style={ schedulePos(-1, h) } aria-hidden="true">{ scheduleTwo(h) }</span>
+				}
+				for _, d := range g.Days {
+					<span class={ "schedule__day", templ.KV("schedule__day--now", d.Index == g.NowDay) } style={ schedulePos(d.Index, -1) }>
+						<span aria-hidden="true">{ d.Short }</span>
+						<span class="visually-hidden">{ d.Name }</span>
+					</span>
+					for h, on := range d.Hours {
+						<label class={ "schedule__cell", templ.KV("schedule__cell--now", d.Index == g.NowDay && h == g.NowHour) } style={ schedulePos(d.Index, h) }>
+							<input class="schedule__input" type="checkbox" name={ g.Name } value={ scheduleCellValue(d.Index, h) } checked?={ on }/>
+							<span class="schedule__box" aria-hidden="true"></span>
+							<span class="visually-hidden">{ scheduleCellLabel(d.Name, h) }</span>
+						</label>
+					}
+				}
+			</div>
+		</div>
+	</fieldset>
+}

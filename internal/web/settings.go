@@ -11,21 +11,23 @@ import (
 	"time"
 
 	"github.com/freakyturtle/jellytrim/internal/store"
+	"github.com/freakyturtle/jellytrim/internal/timetable"
 	"github.com/freakyturtle/jellytrim/internal/units"
 	"github.com/freakyturtle/jellytrim/internal/web/views"
 )
 
 // settingsAnchors maps each section's form name to its anchor on the page.
 var settingsAnchors = map[string]string{
-	"jellyfin":   "jellyfin",
-	"libraries":  "libraries",
-	"users":      "watched",
-	"paths":      "paths",
-	"dryrun":     "dry-run",
-	"schedule":   "schedule",
-	"processing": "processing",
-	"safety":     "safety",
-	"advanced":   "advanced",
+	"jellyfin":       "jellyfin",
+	"libraries":      "libraries",
+	"users":          "watched",
+	"paths":          "paths",
+	"dryrun":         "dry-run",
+	"sync":           "sync",
+	"schedule-hours": "schedule",
+	"processing":     "processing",
+	"safety":         "safety",
+	"advanced":       "advanced",
 }
 
 // settingsSavedURLs is where each section returns after saving. The URLs
@@ -109,7 +111,35 @@ func (s *Server) settingsView(r *http.Request) (views.SettingsView, error) {
 		return v, err
 	}
 	settingsFromStore(&v, st)
+	sc, err := s.scheduleNow(ctx)
+	if err != nil {
+		return v, err
+	}
+	v.Schedule = settingsScheduleView(sc)
 	return v, nil
+}
+
+// settingsScheduleView builds the Processing schedule section.
+func settingsScheduleView(sc scheduleState) views.SettingsScheduleView {
+	v := views.SettingsScheduleView{
+		Grid: views.ScheduleGridProps{
+			Name:    "h",
+			Legend:  "Active hours",
+			Hint:    "Tick the hours when encoding may run.",
+			Days:    scheduleDays(sc.week),
+			NowDay:  timetable.Day(sc.now),
+			NowHour: sc.now.Hour(),
+		},
+		Summary: scheduleSummary(sc.week),
+		State:   sc.stateText(),
+		Lamp:    sc.lamp(),
+		Zone:    scheduleZone(sc.now),
+		Empty:   sc.week.Empty(),
+	}
+	for _, p := range timetable.Presets() {
+		v.Presets = append(v.Presets, views.SettingsSchedulePreset{ID: p.ID, Label: p.Label, Current: p.Week == sc.week})
+	}
+	return v
 }
 
 func (s *Server) settingsLibraryParts(ctx context.Context, v *views.SettingsView) error {
@@ -135,19 +165,13 @@ func (s *Server) settingsLibraryParts(ctx context.Context, v *views.SettingsView
 	return nil
 }
 
-// settingsFromStore fills the plain settings. A processing window that is
-// off shows example times, so switching it on starts from sensible values.
+// settingsFromStore fills the plain settings.
 func settingsFromStore(v *views.SettingsView, st store.Settings) {
 	v.WatchMode = st.WatchMode
 	v.DryRun = st.DryRun
 	v.KeepDays = st.BackupDays
 	v.SyncInterval = strconv.Itoa(st.SyncIntervalHours)
 	v.SyncDailyAt = st.SyncDailyAt
-	v.WindowOn = st.WindowStart != "" && st.WindowEnd != ""
-	v.WindowStart, v.WindowEnd = st.WindowStart, st.WindowEnd
-	if !v.WindowOn {
-		v.WindowStart, v.WindowEnd = "01:00", "07:00"
-	}
 	v.AutoProcess = st.AutoProcess
 	v.Validation = st.Validation
 	v.Concurrency = strconv.Itoa(st.Concurrency)
@@ -261,8 +285,10 @@ func (s *Server) settingsSave(ctx context.Context, section string, form url.Valu
 		return s.settingsSavePaths(ctx, form, v)
 	case "dryrun":
 		return s.settingsSaveDryRun(ctx, form, v)
-	case "schedule":
-		return s.settingsSaveSchedule(ctx, form, v)
+	case "sync":
+		return s.settingsSaveSync(ctx, form, v)
+	case "schedule-hours":
+		return s.settingsSaveHours(ctx, form, v)
 	case "processing":
 		return s.settingsSaveProcessing(ctx, form, v)
 	case "safety":
@@ -353,27 +379,12 @@ func (s *Server) settingsSaveDryRun(ctx context.Context, form url.Values, v *vie
 	return 0, s.Store.SetSetting(ctx, store.KeyDryRun, store.FormatBool(on))
 }
 
-func (s *Server) settingsSaveSchedule(ctx context.Context, form url.Values, v *views.SettingsView) (int, error) {
+func (s *Server) settingsSaveSync(ctx context.Context, form url.Values, v *views.SettingsView) (int, error) {
 	v.SyncInterval = strings.TrimSpace(form.Get("interval"))
 	v.SyncDailyAt = strings.TrimSpace(form.Get("daily_at"))
-	v.WindowOn = form.Get("window") == "on"
-	v.WindowStart = strings.TrimSpace(form.Get("window_start"))
-	v.WindowEnd = strings.TrimSpace(form.Get("window_end"))
 	settingsCheckInt(v, "interval", v.SyncInterval, 1, settingsMaxInterval, "Enter a whole number of hours from 1 to 168.")
 	if v.SyncDailyAt != "" && !settingsIsClock(v.SyncDailyAt) {
 		v.Errors["daily_at"] = "Enter a time such as 03:30, or leave it empty."
-	}
-	start, end := "", ""
-	if v.WindowOn {
-		for name, t := range map[string]string{"window_start": v.WindowStart, "window_end": v.WindowEnd} {
-			if !settingsIsClock(t) {
-				v.Errors[name] = "Enter a time such as 01:00."
-			}
-		}
-		if len(v.Errors) == 0 && v.WindowStart == v.WindowEnd {
-			v.Errors["window_end"] = "The window must end at a different time from when it starts."
-		}
-		start, end = v.WindowStart, v.WindowEnd
 	}
 	if len(v.Errors) > 0 {
 		return http.StatusUnprocessableEntity, nil
@@ -381,9 +392,41 @@ func (s *Server) settingsSaveSchedule(ctx context.Context, form url.Values, v *v
 	return 0, s.Store.SetSettings(ctx, map[string]string{
 		store.KeySyncIntervalHours: v.SyncInterval,
 		store.KeySyncDailyAt:       v.SyncDailyAt,
-		store.KeyWindowStart:       start,
-		store.KeyWindowEnd:         end,
 	})
+}
+
+// settingsSaveHours saves the processing schedule: a preset button, or the
+// ticked grid cells. It clears the old daily window, which the schedule
+// replaces, and wakes the queue so a change applies at once: a running
+// encode stops if its hour is now switched off.
+func (s *Server) settingsSaveHours(ctx context.Context, form url.Values, v *views.SettingsView) (int, error) {
+	var week timetable.Week
+	if id := form.Get("preset"); id != "" {
+		p, ok := schedulePreset(id)
+		if !ok {
+			v.Problems["schedule-hours"] = views.SetupConnResult{Variant: "bad", Title: "Choose one of the presets."}
+			return http.StatusUnprocessableEntity, nil
+		}
+		week = p.Week
+	} else {
+		w, ok := scheduleParse(form["h"])
+		if !ok {
+			v.Problems["schedule-hours"] = views.SetupConnResult{Variant: "bad", Title: "Some hours could not be read. Nothing was saved. Choose the hours again and save."}
+			return http.StatusUnprocessableEntity, nil
+		}
+		week = w
+	}
+	if err := s.Store.SetSettings(ctx, map[string]string{
+		store.KeyProcessingSchedule: week.String(),
+		store.KeyWindowStart:        "",
+		store.KeyWindowEnd:          "",
+	}); err != nil {
+		return 0, err
+	}
+	if s.Queue != nil {
+		s.Queue.Wake()
+	}
+	return 0, nil
 }
 
 func (s *Server) settingsSaveProcessing(ctx context.Context, form url.Values, v *views.SettingsView) (int, error) {

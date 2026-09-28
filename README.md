@@ -22,7 +22,7 @@ JellyTrim has not reached version 1.0, but it is feature-complete for its MVP: c
 - **Streams kept.** All audio tracks, subtitles, chapters, attachments and metadata are carried over.
 - **HDR handled with care.** HDR10 and HLG keep their HDR information. HDR10+ and Dolby Vision profiles 7 and 8 are skipped unless a policy allows reducing them to HDR10. Dolby Vision profile 5 and anything unclear are always skipped, with the reason shown. JellyTrim never converts HDR to SDR.
 - **Hardware detection by test encode.** JellyTrim checks which encoders actually work on your machine, not just which ones ffmpeg lists.
-- **Queue, history and scheduling.** Progress, speed and time left; full history with technical details; a processing time window.
+- **Queue, history and scheduling.** Progress, speed and time left; full history with technical details; a weekly processing schedule in hour blocks, so encoding only uses the GPU or CPU when you choose.
 - **Simple to run.** One container for amd64 and arm64. SQLite database. No external services. No telemetry.
 
 ## How it keeps your media safe
@@ -93,6 +93,7 @@ Most settings are made in the web interface and stored in the SQLite database in
 | `JELLYTRIM_FFPROBE` | set in the image | Path to `ffprobe` |
 | `JELLYTRIM_LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error` |
 | `JELLYTRIM_LOG_FORMAT` | `text` | `text` or `json` |
+| `TZ` | `UTC` | Time zone for the processing schedule and daily sync time, for example `Europe/London` |
 
 Values set by environment variables are shown as read-only in Settings.
 

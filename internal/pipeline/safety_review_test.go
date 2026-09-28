@@ -244,3 +244,15 @@ func TestValidateRejectsEveryKindOfLoss(t *testing.T) {
 		}
 	}
 }
+
+func TestStopDuringValidationIsAnInterruption(t *testing.T) {
+	r := newRig(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	r.runner.onRun = func(string) { cancel() } // stopped by the schedule mid-job
+	r.runner.decodeErr = context.Canceled
+	res := r.pipeline().Execute(ctx, r.job, Hooks{})
+	if res.Outcome != Interrupted {
+		t.Fatalf("outcome %s: %s", res.Outcome, res.Summary)
+	}
+	r.assertOriginalIntact(res)
+}

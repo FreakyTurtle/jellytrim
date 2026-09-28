@@ -12,6 +12,7 @@ type QueuePageData struct {
 type QueueLive struct {
 	Lamp     string // the queue state's lamp
 	State    string // "Running. 1 job at a time."
+	Schedule string // "Processing schedule: nights (01:00 to 07:00). Next active: Friday 01:00."; "" for any time
 	Paused   bool
 	DryRun   bool
 	Poll     bool   // refresh every 2 seconds; false once nothing can change
@@ -65,6 +66,7 @@ type QueueWaiting struct {
 	Change   string
 	Policy   string
 	Saving   string
+	Note     string // why it is waiting again, for a job that was stopped
 }
 
 // QueueFailed is a job that failed recently, offered for a retry.
@@ -117,6 +119,12 @@ templ QueueLiveFragment(v QueueLive) {
 			@QueueNoticeCallout(*v.Notice)
 		}
 		@queueStateBar(v)
+		if v.Schedule != "" {
+			<p class="queue-schedule">
+				<span>{ v.Schedule }</span>
+				<a href="/settings#schedule">Change the schedule</a>
+			</p>
+		}
 		if v.DryRun {
 			@Callout("info", "Nothing runs while Dry Run is on", "Jobs stay in the queue and no file is changed. Turn off Dry Run in Settings when you are ready.") {
 				@CalloutActions() {
@@ -295,6 +303,9 @@ templ queueWaitingTable(rows []QueueWaiting) {
 							<a href={ templ.SafeURL(w.Href) }>{ w.Title }</a>
 							if w.Library != "" {
 								<span class="queue-table__lib">{ w.Library }</span>
+							}
+							if w.Note != "" {
+								<span class="queue-table__note">{ w.Note }</span>
 							}
 						</td>
 						<td role="cell" data-label="Change" class="mono">{ w.Change }</td>

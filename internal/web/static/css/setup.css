@@ -417,6 +417,27 @@
   outline-offset: var(--focus-offset);
 }
 
+/* Processing schedule */
+.settings-hours__intro {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.settings-hours__presets {
+  display: grid;
+  gap: var(--space-2);
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.settings-hours__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
 .settings-quality {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr));
@@ -439,6 +460,10 @@
 /* ---------- Phones ---------- */
 
 @media (max-width: 719.98px) {
+  .settings-hours__buttons > .btn {
+    flex: 1 1 auto;
+  }
+
   .setup-paths__row {
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas:

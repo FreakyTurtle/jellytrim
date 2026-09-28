@@ -201,7 +201,7 @@ Results are stored, shown in Settings, and re-run at start-up and on request.
 - The muxer is always explicit (`-f matroska` or `-f mp4`).
 - Progress comes from `-progress pipe:1` (`out_time_us`, `speed`, `total_size`). The duration comes from the format.
 - **Early abort:** after 15% of the duration (and at least 2 minutes of it, so headers and the first keyframes do not skew the projection), if `total_size / fraction_done` is more than 90% of the source size, the encode stops and the job is Skipped: "The new file would be about the same size as the original."
-- CPU is limited for software encodes (x265 `pools`, and the process runs with a lower priority). Encoding can be limited to a daily time window.
+- CPU is limited for software encodes (x265 `pools`, and the process runs with a lower priority). Encoding can be limited to chosen hours of the week; when an hour ends, a running encode stops, its partial file is deleted, and the job waits for the next active hour.
 
 ## 6. Validation
 

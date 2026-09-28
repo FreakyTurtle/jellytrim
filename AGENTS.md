@@ -84,6 +84,7 @@ internal/pipeline/       safe transcode, validate, replace, journal, recovery
 internal/queue/          jobs and workers
 internal/library/        sync from Jellyfin, probe cache, evaluation
 internal/scheduler/      periodic sync and re-evaluation
+internal/timetable/      weekly processing schedule in hour blocks (pure)
 internal/web/            handlers, views/ (templ), static/ (css, js, vendor)
 internal/testutil/       shared test helpers (fixture loading, RequireFFmpeg)
 scripts/                 fixtures, dev bootstrap, devseed, public check

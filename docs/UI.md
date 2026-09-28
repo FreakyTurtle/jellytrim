@@ -509,6 +509,36 @@ A native `<dialog>` for confirmations that matter: turning off Dry Run, cancelli
 - Focus moves to the safe choice (Cancel) when it opens and returns to the trigger when it closes. Escape closes it.
 - The confirming button names the action ("Turn off Dry Run"), never "OK" or "Yes".
 
+### Schedule grid
+
+A week of hour cells for the processing schedule (`ScheduleGrid` in `components.templ`). Each cell is a real checkbox.
+
+```html
+<fieldset class="schedule" data-schedule aria-describedby="h-schedule-hint">
+  <legend class="schedule__legend">Active hours</legend>
+  <p class="schedule__hint" id="h-schedule-hint">Tick the hours when encoding may run.</p>
+  <div class="schedule__frame">
+    <div class="schedule__grid">
+      <span class="schedule__hour" style="--d: -1; --h: 1;" aria-hidden="true">01</span>
+      <span class="schedule__day" style="--d: 0; --h: -1;"><span aria-hidden="true">Mon</span><span class="visually-hidden">Monday</span></span>
+      <label class="schedule__cell" style="--d: 0; --h: 1;">
+        <input class="schedule__input" type="checkbox" name="h" value="0-1" checked>
+        <span class="schedule__box" aria-hidden="true"></span>
+        <span class="visually-hidden">Monday 01:00 to 02:00</span>
+      </label>
+      <!-- 168 cells -->
+    </div>
+  </div>
+</fieldset>
+```
+
+- Each ticked cell posts `h=<day>-<hour>`, day 0 being Monday. The server rejects any other value.
+- Off: `--surface-sunk` fill with a `--rule-soft` edge, like an unlit lamp. On: `--accent` fill with an `--ink` edge, so on and off differ in edge as well as fill.
+- Hour labels are Plex Mono; 00, 06, 12 and 18 are printed in `--ink`, the rest in `--ink-2`, like the long marks on a ruler. The current day and hour labels are inverted (ink fill), and the current cell carries a small ink square.
+- **Layout.** A container query on `.schedule__frame` picks the orientation. From 46rem wide, days run down and hours across, with square cells. Narrower (phones, tablets, and the Settings column below about 1300px), the grid turns on its side: hours run down and days across, each cell at least 44px tall, and the day row sticks under the top bar while the page scrolls. The page never scrolls sideways. Every element carries `--d` and `--h` as inline custom properties, and CSS places it from them, so one list of cells serves both layouts.
+- **Focus.** The accent ring would disappear against lit neighbours, so the grid draws a 2px `--ink` ring and raises the focused cell above the others.
+- **JavaScript** (`app.js`, progressive): pressing on a cell flips it, and dragging with the mouse button held paints every cell it crosses to the same value. Touch is left alone so a finger can scroll; a tap toggles one cell. The grid is one tab stop: the arrow keys move between hours following the drawn orientation, and Home and End go to the ends of a day. Space toggles. Without JavaScript every cell is an ordinary tabbable checkbox, and the drag and arrow-key hint is hidden.
+
 ### Visually hidden
 
 `.visually-hidden` hides text visually but keeps it for screen readers. Use it for extra context, such as "About" before an estimate, or "Met:" before an explanation line.
@@ -585,6 +615,7 @@ Route: `/setup`. Shown on first run, and again if the Jellyfin connection is rem
 - Codec: segmented control (HEVC, H.264, AV1 marked "(planned)" and disabled). Default HEVC.
 - Encoder: a second segmented control, "Auto" (default) or "Software only". This is a coarser choice than a specific backend: it says whether JellyTrim may use a working hardware encoder at all, not which one.
 - A note: "Policies can override these. Encoder settings are under Advanced in Settings."
+- A second note: "Encoding runs at any time by default. You can limit it to certain hours in Settings." The schedule grid itself stays out of setup to keep it short.
 
 **7. Starter policies.**
 
@@ -665,6 +696,7 @@ The title in Plex Sans 500, the rest in Plex Mono. Failed and skipped entries sh
 - "2 jobs failed today." [History]
 - "Intel QSV stopped working at the last test. JellyTrim is using software encoding." [Hardware]
 - "Less than 50 GB free on /mnt/media. Encoding is paused until more space is free."
+- "No processing hours are switched on, so nothing will be encoded." [Choose hours in Settings], when the processing schedule has no active hours.
 
 With nothing to report: an ok lamp and "No problems."
 
@@ -777,7 +809,9 @@ Route: `/policies`. The ordered list of policies, and the editor.
 
 Route: `/queue`. What is running, what is waiting, and control over both.
 
-**Header.** A status line with a lamp: "Running. 1 job at a time." or "Paused." or "Outside the processing window. Starts at 01:00." or "Dry Run is on. Nothing is processed." A Pause queue / Resume queue button (one button whose label changes). Pausing lets the running job finish; the button says so.
+**Header.** A status line with a lamp: "Running. 1 job at a time." or "Paused." or "Outside the processing schedule. Encoding starts again Tuesday 01:00." or "Dry Run is on. Nothing is processed." A Pause queue / Resume queue button (one button whose label changes). Pausing lets the running job finish; the button says so.
+
+**Processing schedule line.** When the schedule is not "any time", a strip attached under the status line says "Processing schedule: nights (01:00 to 07:00). Next active: Tuesday 01:00." (or "Active now, until Tuesday 07:00."), with a "Change the schedule" link to `/settings#schedule`. It refreshes with the rest of the polled fragment.
 
 **Running job** (`.panel--emphasis`):
 
@@ -790,7 +824,7 @@ Route: `/queue`. What is running, what is waiting, and control over both.
 - The panel refreshes every 2 seconds through HTMX polling (`hx-trigger="every 2s"`), except while a confirmation dialog is open inside it. When nothing is running or waiting, the server leaves out the polling attributes on the next swap, so the browser simply stops asking.
 - A polite live region announces stage changes and completion only, never every percentage.
 
-**Waiting.** A table: position, title, change, estimated saving, policy, and a Cancel button per row. Empty: "Nothing waiting." There is no "Cancel all waiting" action; cancel jobs one at a time.
+**Waiting.** A table: position, title, change, estimated saving, policy, and a Cancel button per row. A job that was stopped and queued again shows why under its title in `--ink-2`: "Stopped because the processing schedule ended. It will start again in the next active hour; the original is unchanged." or "Interrupted by a restart; it will run again." Empty: "Nothing waiting." There is no "Cancel all waiting" action; cancel jobs one at a time.
 
 **Failed in the last hour.** A panel below the waiting table lists jobs that failed in the last hour, each with a "Retry" button and a link to History. It is not shown when nothing has failed recently.
 
@@ -839,8 +873,13 @@ Saving **Libraries**, **Watched state** or **Path mappings** starts a full sync,
 - **Watched state.** Whose watched state counts, as in setup.
 - **Path mappings.** The mapping rows and live check from setup.
 - **Dry Run** (`.panel--emphasis`, with an accent left bar while on). A large toggle, twice the normal size, labelled "Dry Run". Text: "While Dry Run is on, JellyTrim evaluates everything and changes nothing." Turning it off opens a dialog: "Turn off Dry Run? JellyTrim will start replacing files that match enabled policies. Originals are kept as backups for 7 days." Buttons: Cancel (focused) and "Turn off Dry Run" (danger). Turning it on needs no confirmation.
-- **Schedule.** Sync with Jellyfin: every [6] hours, or daily at [time] (leave the time empty to use the interval). "Sync now" and the time of the last sync.
-- **Processing window.** A toggle "Only encode during a time window", then from [01:00] to [07:00].
+- **Sync** (`#sync`). Sync with Jellyfin: every [6] hours, or daily at [time] (leave the time empty to use the interval). "Sync now" and the time of the last sync.
+- **Processing schedule** (`#schedule`, posts to `/settings/schedule-hours`). Two sentences: "JellyTrim only encodes in the hours you switch on. When an hour ends, a running encode stops and starts again from the beginning in the next active hour. The original is never touched." and "Times are in Europe/London (BST) (the server's time zone; set TZ in your compose file to change it)." The zone is the `TZ` variable with the current abbreviation, or just the abbreviation ("UTC") when `TZ` is not set.
+  - A stat block: **Schedule** "Nights (01:00 to 07:00). 42 hours a week." and **Now** with a lamp: "Active now, until Tuesday 07:00" (ok) or "Next active: Tuesday 01:00" (idle).
+  - **Presets**, small submit buttons that replace the grid and save at once: Any time, Nights (01:00 to 07:00), Nights, and all weekend, Outside 17:00 to 23:00. The one matching the saved grid is held in (`.btn--pressed`, with ", in use" for screen readers).
+  - The **schedule grid** (see Components), then "Save schedule". A hidden first submit makes Enter save rather than press a preset.
+  - With no hours on, a warn callout: "No hours are active, so nothing will be encoded." The Dashboard lists the same as a problem, "No processing hours are switched on", linking here.
+  - Saving clears the old daily window settings and wakes the queue, so a change applies at once: a running encode stops if its hour is now off.
 - **Concurrency.** Jobs at a time, 1 to 4. Hint: "More than one job at a time is only faster with a hardware encoder."
 - **Saving and backups.** Minimum saving (replace a file only if it saves at least [10] %) and how many days to keep replaced originals as backups ([7] by default), in one section.
 - **Hardware.** The capabilities table from setup step 5, with the device name and ffmpeg version, the time of the last test, and "Test again" (runs with a meter per row).

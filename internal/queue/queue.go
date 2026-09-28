@@ -53,9 +53,11 @@ type Service struct {
 	cancelled map[int64]bool // cancelled by the user rather than shut down
 	live      map[int64]Live
 	itemBusy  map[string]bool // items with a job or Restore in progress
-	wake      chan struct{}
-	wg        sync.WaitGroup
-	base      context.Context
+	// scheduleStopped marks running jobs stopped because the schedule ended.
+	scheduleStopped map[int64]bool
+	wake            chan struct{}
+	wg              sync.WaitGroup
+	base            context.Context
 }
 
 // Options configure the queue.
@@ -73,7 +75,8 @@ func New(o Options) *Service {
 	q := &Service{
 		store: o.Store, library: o.Library, registry: o.Registry, log: o.Log, now: o.Now,
 		running: map[int64]context.CancelFunc{}, cancelled: map[int64]bool{}, live: map[int64]Live{},
-		wake: make(chan struct{}, 1),
+		scheduleStopped: map[int64]bool{},
+		wake:            make(chan struct{}, 1),
 	}
 	if q.log == nil {
 		q.log = slog.Default()

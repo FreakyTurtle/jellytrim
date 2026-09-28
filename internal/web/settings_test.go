@@ -2,10 +2,12 @@ package web
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -13,6 +15,7 @@ import (
 
 	"github.com/freakyturtle/jellytrim/internal/encoder"
 	"github.com/freakyturtle/jellytrim/internal/store"
+	"github.com/freakyturtle/jellytrim/internal/timetable"
 )
 
 // newSettingsEnv is a server whose setup is complete and connected to the
@@ -49,15 +52,13 @@ func TestSettingsPageRendersWithoutServices(t *testing.T) {
 
 func TestSettingsSaveAndShowSaved(t *testing.T) {
 	e := newSettingsEnv(t)
-	res, body := e.post("/settings/schedule", url.Values{
-		"interval": {"12"}, "daily_at": {"03:30"}, "window": {"on"}, "window_start": {"01:00"}, "window_end": {"06:30"},
-	}, false)
-	e.expectRedirect(res, body, "/settings?saved=schedule#schedule")
+	res, body := e.post("/settings/sync", url.Values{"interval": {"12"}, "daily_at": {"03:30"}}, false)
+	e.expectRedirect(res, body, "/settings?saved=sync#sync")
 	st := e.settings()
-	if st.SyncIntervalHours != 12 || st.SyncDailyAt != "03:30" || st.WindowStart != "01:00" || st.WindowEnd != "06:30" {
-		t.Fatalf("schedule not saved: %+v", st)
+	if st.SyncIntervalHours != 12 || st.SyncDailyAt != "03:30" {
+		t.Fatalf("sync not saved: %+v", st)
 	}
-	res, body = e.get("/settings?saved=schedule", false)
+	res, body = e.get("/settings?saved=sync", false)
 	expectStatus(t, res, body, http.StatusOK)
 	expectContains(t, body, "Saved at ", `value="12"`)
 
@@ -83,9 +84,14 @@ func TestSettingsValidationErrors(t *testing.T) {
 		form    url.Values
 		want    string
 	}{
-		{"schedule", url.Values{"interval": {"0"}}, "Enter a whole number of hours from 1 to 168."},
-		{"schedule", url.Values{"interval": {"6"}, "daily_at": {"25:00"}}, "Enter a time such as 03:30"},
-		{"schedule", url.Values{"interval": {"6"}, "window": {"on"}, "window_start": {"02:00"}, "window_end": {"02:00"}}, "must end at a different time"},
+		{"sync", url.Values{"interval": {"0"}}, "Enter a whole number of hours from 1 to 168."},
+		{"sync", url.Values{"interval": {"6"}, "daily_at": {"25:00"}}, "Enter a time such as 03:30"},
+		{"schedule-hours", url.Values{"h": {"0-1", "7-0"}}, "Some hours could not be read."},
+		{"schedule-hours", url.Values{"h": {"0-24"}}, "Some hours could not be read."},
+		{"schedule-hours", url.Values{"h": {"-1-3"}}, "Some hours could not be read."},
+		{"schedule-hours", url.Values{"h": {"01-1"}}, "Some hours could not be read."},
+		{"schedule-hours", url.Values{"h": {"monday"}}, "Some hours could not be read."},
+		{"schedule-hours", url.Values{"preset": {"weekends"}}, "Choose one of the presets."},
 		{"processing", url.Values{"validation": {"full"}, "concurrency": {"5"}, "encoder": {"hardware"}}, "Choose from 1 to 4 jobs"},
 		{"safety", url.Values{"min_saving": {"95"}, "backup_days": {"7"}}, "Enter a whole number from 0 to 90."},
 		{"safety", url.Values{"min_saving": {"10"}, "backup_days": {"-1"}}, "Enter a whole number of days from 0 to 90."},
@@ -254,5 +260,114 @@ func TestSettingsHardwareTestAgain(t *testing.T) {
 	expectContains(t, body, `id="hardware-body"`, "Works")
 	if strings.Contains(body, "<html") || hw.retests.Load() != 1 {
 		t.Fatalf("want a fragment after one re-test, got %d re-tests", hw.retests.Load())
+	}
+}
+
+// settingsCheckedHours lists the grid cells rendered as ticked.
+func settingsCheckedHours(body string) []string {
+	var out []string
+	for d := 0; d < timetable.Days; d++ {
+		for h := 0; h < timetable.Hours; h++ {
+			v := strconv.Itoa(d) + "-" + strconv.Itoa(h)
+			if strings.Contains(body, `name="h" value="`+v+`" checked`) {
+				out = append(out, v)
+			}
+		}
+	}
+	return out
+}
+
+func TestSettingsScheduleGridRendersEveryHour(t *testing.T) {
+	e := newSettingsEnv(t)
+	_, body := e.get("/settings", false)
+	if n := strings.Count(body, `type="checkbox" name="h" value="`); n != timetable.Slots {
+		t.Fatalf("%d hour checkboxes, want %d", n, timetable.Slots)
+	}
+	for d, day := range timetable.DayNames {
+		for h := 0; h < timetable.Hours; h++ {
+			label := fmt.Sprintf("%s %02d:00 to %02d:00", day, h, (h+1)%24)
+			if !strings.Contains(body, label) {
+				t.Errorf("cell %d-%d has no label %q", d, h, label)
+			}
+		}
+	}
+	// Never saved and no old window: any time, every cell ticked.
+	expectContains(t, body, `id="schedule"`, `href="#schedule"`, "Processing schedule", "Any time. 168 hours a week.",
+		"Times are in", "a running encode stops and starts again from the beginning", `name="preset" value="nights"`)
+	if n := len(settingsCheckedHours(body)); n != timetable.Slots {
+		t.Fatalf("%d cells ticked, want all", n)
+	}
+	e.checkNoKey()
+}
+
+func TestSettingsScheduleSaveGridAndPresets(t *testing.T) {
+	e := newSettingsEnv(t)
+	ctx := context.Background()
+	// An old daily window shows as the grid it converts to.
+	if err := e.st.SetSettings(ctx, map[string]string{store.KeyWindowStart: "01:00", store.KeyWindowEnd: "07:00"}); err != nil {
+		t.Fatal(err)
+	}
+	_, body := e.get("/settings", false)
+	expectContains(t, body, "Nights (01:00 to 07:00). 42 hours a week.")
+
+	res, body := e.post("/settings/schedule-hours", url.Values{"h": {"0-1", "0-2", "6-23"}}, false)
+	e.expectRedirect(res, body, "/settings?saved=schedule-hours#schedule")
+	st := e.settings()
+	var want timetable.Week
+	want[0][1], want[0][2], want[6][23] = true, true, true
+	if st.ProcessingSchedule != want.String() {
+		t.Fatalf("schedule saved as %q", st.ProcessingSchedule)
+	}
+	if st.WindowStart != "" || st.WindowEnd != "" {
+		t.Fatalf("old window not cleared: %q to %q", st.WindowStart, st.WindowEnd)
+	}
+	_, body = e.get("/settings?saved=schedule-hours", false)
+	expectContains(t, body, "Saved at ", "3 hours a week.")
+	if got := settingsCheckedHours(body); strings.Join(got, " ") != "0-1 0-2 6-23" {
+		t.Fatalf("ticked cells %v", got)
+	}
+
+	res, body = e.post("/settings/schedule-hours", url.Values{"preset": {"nights-weekends"}, "h": {"0-1"}}, false)
+	e.expectRedirect(res, body, "/settings?saved=schedule-hours#schedule")
+	p, _ := schedulePreset("nights-weekends")
+	if e.settings().ProcessingSchedule != p.Week.String() {
+		t.Fatal("the preset was not saved")
+	}
+	_, body = e.get("/settings", false)
+	expectContains(t, body, "Nights, and all weekend.", `btn--pressed" type="submit" name="preset" value="nights-weekends">Nights, and all weekend<span class="visually-hidden">, in use</span>`)
+	e.checkNoKey()
+}
+
+func TestSettingsScheduleEmptyWarns(t *testing.T) {
+	e := newSettingsEnv(t)
+	res, body := e.post("/settings/schedule-hours", url.Values{}, false)
+	e.expectRedirect(res, body, "/settings?saved=schedule-hours#schedule")
+	if got := e.settings().ProcessingSchedule; got != (timetable.Week{}).String() {
+		t.Fatalf("schedule %q, want no hours", got)
+	}
+	_, body = e.get("/settings", false)
+	expectContains(t, body, "No hours are active, so nothing will be encoded.", "No hours are active.",
+		"Not active: no hours are switched on")
+	if n := len(settingsCheckedHours(body)); n != 0 {
+		t.Fatalf("%d cells ticked, want none", n)
+	}
+	// The dashboard lists it as a problem.
+	_, body = e.get("/", false)
+	expectContains(t, body, "No processing hours are switched on", `href="/settings#schedule"`)
+	e.checkNoKey()
+}
+
+func TestSettingsScheduleZone(t *testing.T) {
+	t.Setenv("TZ", "")
+	if got := scheduleZone(time.Date(2027, 1, 1, 0, 0, 0, 0, time.UTC)); got != "UTC" {
+		t.Fatalf("zone %q, want UTC", got)
+	}
+	t.Setenv("TZ", "Europe/London")
+	london, err := time.LoadLocation("Europe/London")
+	if err != nil {
+		t.Skip("no zone database:", err)
+	}
+	if got := scheduleZone(time.Date(2027, 7, 1, 12, 0, 0, 0, london)); got != "Europe/London (BST)" {
+		t.Fatalf("zone %q", got)
 	}
 }

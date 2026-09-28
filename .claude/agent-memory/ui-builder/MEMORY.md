@@ -32,3 +32,10 @@ Curate this file: keep it under 150 lines, one fact per bullet, date each entry 
 - 2026-09-28: a phone-only 44px hit area for a text link: `display: flex; align-items: center; min-block-size: var(--touch-target)` inside the `max-width: 719.98px` query; desktop stays unchanged.
 - 2026-09-28: auto mode refuses writing settings (such as dry_run) into a devseed config's database; to see a Dry-Run-off-only control, inject its rendered markup through CDP instead.
 - 2026-09-28: the unlit lamp is a solid `--rule-soft` square with a matching edge; a light fill inside an ink border read as an unticked checkbox.
+- 2026-09-28: a grid that must work at phone and desktop widths: place items from inline `--d`/`--h` custom properties and swap the orientation in a container query (ScheduleGrid); one DOM, no sideways scroll.
+- 2026-09-28: an accent focus ring vanishes on accent-filled neighbours; the schedule grid uses a 2px ink outline and raises the cell with `:has(:focus-visible) { z-index }`.
+- 2026-09-28: a grid of many checkboxes needs a roving tab stop (tabIndex 0/-1 plus arrow keys in app.js), or Tab takes 168 presses to leave it.
+- 2026-09-28: drag-painting labels: preventDefault on pointerdown does not stop the following click, so swallow that click (detail > 0) or the label toggles the cell back.
+- 2026-09-28: `time.Local.String()` is always "Local"; name the zone from `TZ` plus `now.Zone()` instead.
+- 2026-09-28: the Playwright MCP may be absent; `require()` the cached playwright under ~/.npm/_npx with `executablePath` set to the installed Google Chrome.
+- 2026-09-28: never write `cat > file` without a heredoc in Bash; it waits on stdin until the call times out.

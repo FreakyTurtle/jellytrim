@@ -538,3 +538,25 @@ func TestHistoryCheckText(t *testing.T) {
 		}
 	}
 }
+
+func TestQueueShowsProcessingSchedule(t *testing.T) {
+	e := newQueueTestEnv(t)
+	ctx := context.Background()
+	// Any time: no schedule line.
+	_, body := e.get(t, "/queue", false)
+	queueExpectNot(t, body, "Processing schedule:")
+
+	// The clock is Friday 00:00 UTC, before the nights preset starts.
+	p, _ := schedulePreset("nights")
+	libraryTestMust(t, e.st.SetSetting(ctx, store.KeyProcessingSchedule, p.Week.String()))
+	id := e.seed(t, queueTestJob{item: "b", name: "Bravo (2020)"})
+	stopped := "Stopped because the processing schedule ended. It will start again in the next active hour; the original is unchanged."
+	libraryTestMust(t, e.st.RequeueJob(ctx, id, stopped))
+	_, body = e.get(t, "/queue", false)
+	queueExpect(t, body, "Processing schedule: nights (01:00 to 07:00). Next active: Friday 01:00.", stopped)
+	queueExpectRaw(t, body, `<a href="/settings#schedule">Change the schedule</a>`, `class="queue-table__note"`)
+
+	// The polled fragment carries it too.
+	_, body = e.get(t, "/queue/live", true)
+	queueExpect(t, body, "Next active: Friday 01:00.")
+}

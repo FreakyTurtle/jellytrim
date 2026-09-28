@@ -96,7 +96,12 @@ func (s *Server) queueLiveView(ctx context.Context, was string) (views.QueueLive
 		}
 		v.Running = append(v.Running, s.queueRunningView(j, live[j.ID]))
 	}
-	v.Lamp, v.State = s.queueState(st, paused, len(v.Running))
+	v.Lamp, v.State = s.queueState(ctx, st, paused, len(v.Running))
+	sc, err := s.scheduleNow(ctx)
+	if err != nil {
+		return v, err
+	}
+	v.Schedule = sc.queueLine()
 	v.Poll = len(v.Running) > 0 || (len(v.Waiting) > 0 && !paused && !st.DryRun)
 	sig := queueSignature(v.Running)
 	v.LiveURL = "/queue/live?was=" + url.QueryEscape(sig)
@@ -110,7 +115,7 @@ func (s *Server) queueLiveView(ctx context.Context, was string) (views.QueueLive
 }
 
 // queueState is the status line at the top of the queue.
-func (s *Server) queueState(st store.Settings, paused bool, running int) (lamp, text string) {
+func (s *Server) queueState(ctx context.Context, st store.Settings, paused bool, running int) (lamp, text string) {
 	switch {
 	case st.DryRun:
 		return "idle", "Dry Run is on. Nothing is processed."
@@ -118,8 +123,8 @@ func (s *Server) queueState(st store.Settings, paused bool, running int) (lamp, 
 		return "warn", "Paused. The running job finishes, then nothing new starts."
 	case paused:
 		return "warn", "Paused. Nothing new starts until you resume."
-	case !queue.InWindow(s.Now().Local(), st.WindowStart, st.WindowEnd):
-		return "idle", "Outside the processing window. Starts at " + st.WindowStart + "."
+	case !s.scheduleActive(ctx):
+		return "idle", s.scheduleWaitText(ctx)
 	}
 	n := max(st.Concurrency, 1)
 	if n == 1 {
@@ -160,6 +165,9 @@ func queueWaitingRow(j store.Job, pos int) views.QueueWaiting {
 	return views.QueueWaiting{
 		ID: j.ID, Position: pos, Title: j.ItemName, Href: jobItemHref(j), Library: j.LibraryName,
 		Change: jobChange(j, true), Policy: j.PolicyName, Saving: jobEstSaving(j),
+		// A waiting job only has a summary when it was stopped and queued
+		// again: by the processing schedule, or by a restart.
+		Note: j.Summary,
 	}
 }
 

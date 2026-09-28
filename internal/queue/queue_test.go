@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/freakyturtle/jellytrim/internal/pipeline"
 	"github.com/freakyturtle/jellytrim/internal/store"
 	"github.com/freakyturtle/jellytrim/internal/testutil"
+	"github.com/freakyturtle/jellytrim/internal/timetable"
 )
 
 type env struct {
@@ -224,28 +226,6 @@ func TestRecoveryRequeuesAndCleansUp(t *testing.T) {
 	}
 }
 
-func TestInWindow(t *testing.T) {
-	at := func(h, m int) time.Time { return time.Date(2026, 1, 1, h, m, 0, 0, time.UTC) }
-	cases := []struct {
-		now        time.Time
-		start, end string
-		want       bool
-	}{
-		{at(3, 0), "", "", true},
-		{at(3, 0), "01:00", "07:00", true},
-		{at(8, 0), "01:00", "07:00", false},
-		{at(23, 30), "22:00", "06:00", true},
-		{at(5, 59), "22:00", "06:00", true},
-		{at(6, 0), "22:00", "06:00", false},
-		{at(12, 0), "bad", "07:00", true},
-	}
-	for _, c := range cases {
-		if got := InWindow(c.now, c.start, c.end); got != c.want {
-			t.Errorf("%v %s-%s: %v", c.now.Format("15:04"), c.start, c.end, got)
-		}
-	}
-}
-
 func TestRestoreRefusedWhileItemBusy(t *testing.T) {
 	e := setup(t)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -271,5 +251,65 @@ func TestRestoreRefusedWhileItemBusy(t *testing.T) {
 	b, _ := os.ReadFile(e.alpha)
 	if sha256.Sum256(b) != e.hash {
 		t.Fatal("restore did not put the original back")
+	}
+}
+
+func TestScheduleBlocksNewJobs(t *testing.T) {
+	e := setup(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer func() { cancel(); e.q.Stop(); e.lib.Wait() }()
+	must(t, e.st.SetSettings(ctx, map[string]string{
+		store.KeyDryRun:             "false",
+		store.KeyProcessingSchedule: timetable.Week{}.String(), // no active hours
+	}))
+	e.q.Start(ctx)
+	jobID, _, err := e.q.Enqueue(ctx, alphaID(t, e), "manual")
+	must(t, err)
+	time.Sleep(300 * time.Millisecond)
+	if j, _ := e.st.Job(ctx, jobID); j.Status != store.JobWaiting {
+		t.Fatalf("a job started outside the schedule: %s", j.Status)
+	}
+	// Opening the schedule lets it run.
+	must(t, e.st.SetSetting(ctx, store.KeyProcessingSchedule, timetable.Always().String()))
+	e.q.Wake()
+	if j := waitFor(t, e, jobID, store.JobComplete, store.JobFailed, store.JobSkipped); j.Status != store.JobComplete {
+		t.Fatalf("%s: %s", j.Status, j.Summary)
+	}
+}
+
+func TestScheduleStopsRunningJob(t *testing.T) {
+	e := setup(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer func() { cancel(); e.q.Stop(); e.lib.Wait() }()
+	// A slow preset keeps the encode running long enough to stop it.
+	must(t, e.st.SetSettings(ctx, map[string]string{store.KeyDryRun: "false", store.KeyX265Preset: "slower"}))
+	e.q.Start(ctx)
+	jobID, _, err := e.q.Enqueue(ctx, alphaID(t, e), "manual")
+	must(t, err)
+	waitFor(t, e, jobID, store.JobEncoding)
+
+	must(t, e.st.SetSetting(ctx, store.KeyProcessingSchedule, timetable.Week{}.String()))
+	e.q.Wake()
+	deadline := time.Now().Add(30 * time.Second)
+	var j store.Job
+	for time.Now().Before(deadline) {
+		j, _ = e.st.Job(ctx, jobID)
+		if j.Status == store.JobWaiting && j.StartedAt == nil {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if j.Status != store.JobWaiting || !strings.Contains(j.Summary, "processing schedule") {
+		t.Fatalf("job %s: %q", j.Status, j.Summary)
+	}
+	b, _ := os.ReadFile(e.alpha)
+	if sha256.Sum256(b) != e.hash {
+		t.Fatal("original changed")
+	}
+	entries, _ := os.ReadDir(filepath.Dir(e.alpha))
+	for _, en := range entries {
+		if strings.Contains(en.Name(), ".jellytrim-") {
+			t.Fatalf("left behind %s", en.Name())
+		}
 	}
 }

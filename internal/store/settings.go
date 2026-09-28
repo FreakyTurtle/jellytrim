@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+
+	"github.com/freakyturtle/jellytrim/internal/timetable"
 )
 
 // Setting keys. Values are stored as text.
@@ -24,15 +26,18 @@ const (
 	KeyConcurrency       = "concurrency"
 	KeyMinSavingPercent  = "min_saving_percent"
 	KeyBackupDays        = "backup_retention_days"
-	KeyWindowStart       = "window_start" // HH:MM, empty for always
+	KeyWindowStart       = "window_start" // replaced by KeyProcessingSchedule; read once to migrate
 	KeyWindowEnd         = "window_end"
-	KeyEncoderPreference = "encoder_preference" // hardware, software
-	KeyMatchBitDepth     = "match_source_bit_depth"
-	KeyValidation        = "validation" // full, sampled
-	KeyX265Preset        = "x265_preset"
-	KeyQualityOverrides  = "quality_overrides" // JSON
-	KeyDefaultQuality    = "default_quality"
-	KeyQueuePaused       = "queue_paused"
+	// KeyProcessingSchedule is the weekly hour grid (see internal/timetable):
+	// 168 characters of 0 and 1, Monday 00:00 first. Empty means any time.
+	KeyProcessingSchedule = "processing_schedule"
+	KeyEncoderPreference  = "encoder_preference" // hardware, software
+	KeyMatchBitDepth      = "match_source_bit_depth"
+	KeyValidation         = "validation" // full, sampled
+	KeyX265Preset         = "x265_preset"
+	KeyQualityOverrides   = "quality_overrides" // JSON
+	KeyDefaultQuality     = "default_quality"
+	KeyQueuePaused        = "queue_paused"
 )
 
 // Settings is the typed view of the settings table with defaults applied.
@@ -53,12 +58,15 @@ type Settings struct {
 	BackupDays        int
 	WindowStart       string
 	WindowEnd         string
-	EncoderPreference string
-	MatchBitDepth     bool
-	Validation        string
-	X265Preset        string
-	QualityOverrides  string
-	DefaultQuality    string
+	// ProcessingSchedule is the stored weekly grid. When it has never been
+	// saved, it is derived from the old daily window so nothing changes.
+	ProcessingSchedule string
+	EncoderPreference  string
+	MatchBitDepth      bool
+	Validation         string
+	X265Preset         string
+	QualityOverrides   string
+	DefaultQuality     string
 }
 
 var settingDefaults = map[string]string{
@@ -153,30 +161,40 @@ func (s *Store) Settings(ctx context.Context) (Settings, error) {
 		return n
 	}
 	return Settings{
-		SetupComplete:     b(KeySetupComplete),
-		JellyfinURL:       m[KeyJellyfinURL],
-		HasAPIKey:         m[KeyJellyfinAPIKey] != "",
-		JellyfinServer:    m[KeyJellyfinServer],
-		DeviceID:          m[KeyDeviceID],
-		DryRun:            b(KeyDryRun),
-		WatchMode:         m[KeyWatchMode],
-		SyncIntervalHours: i(KeySyncIntervalHours),
-		SyncDailyAt:       m[KeySyncDailyAt],
-		DefaultCodec:      m[KeyDefaultCodec],
-		AutoProcess:       b(KeyAutoProcess),
-		Concurrency:       i(KeyConcurrency),
-		MinSavingPercent:  i(KeyMinSavingPercent),
-		BackupDays:        i(KeyBackupDays),
-		WindowStart:       m[KeyWindowStart],
-		WindowEnd:         m[KeyWindowEnd],
-		EncoderPreference: m[KeyEncoderPreference],
-		MatchBitDepth:     b(KeyMatchBitDepth),
-		Validation:        m[KeyValidation],
-		X265Preset:        m[KeyX265Preset],
-		QualityOverrides:  m[KeyQualityOverrides],
-		DefaultQuality:    m[KeyDefaultQuality],
+		SetupComplete:      b(KeySetupComplete),
+		JellyfinURL:        m[KeyJellyfinURL],
+		HasAPIKey:          m[KeyJellyfinAPIKey] != "",
+		JellyfinServer:     m[KeyJellyfinServer],
+		DeviceID:           m[KeyDeviceID],
+		DryRun:             b(KeyDryRun),
+		WatchMode:          m[KeyWatchMode],
+		SyncIntervalHours:  i(KeySyncIntervalHours),
+		SyncDailyAt:        m[KeySyncDailyAt],
+		DefaultCodec:       m[KeyDefaultCodec],
+		AutoProcess:        b(KeyAutoProcess),
+		Concurrency:        i(KeyConcurrency),
+		MinSavingPercent:   i(KeyMinSavingPercent),
+		BackupDays:         i(KeyBackupDays),
+		WindowStart:        m[KeyWindowStart],
+		WindowEnd:          m[KeyWindowEnd],
+		ProcessingSchedule: schedule(m),
+		EncoderPreference:  m[KeyEncoderPreference],
+		MatchBitDepth:      b(KeyMatchBitDepth),
+		Validation:         m[KeyValidation],
+		X265Preset:         m[KeyX265Preset],
+		QualityOverrides:   m[KeyQualityOverrides],
+		DefaultQuality:     m[KeyDefaultQuality],
 	}, nil
 }
 
 // FormatBool renders a bool as a setting value.
 func FormatBool(v bool) string { return strconv.FormatBool(v) }
+
+// schedule returns the stored grid, or one converted from the old daily
+// processing window when the grid has never been saved.
+func schedule(m map[string]string) string {
+	if s := m[KeyProcessingSchedule]; s != "" {
+		return s
+	}
+	return timetable.FromWindow(m[KeyWindowStart], m[KeyWindowEnd]).String()
+}

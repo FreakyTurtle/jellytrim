@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/freakyturtle/jellytrim/internal/encoder"
@@ -14,19 +12,22 @@ import (
 	"github.com/freakyturtle/jellytrim/internal/pipeline"
 	"github.com/freakyturtle/jellytrim/internal/plan"
 	"github.com/freakyturtle/jellytrim/internal/store"
+	"github.com/freakyturtle/jellytrim/internal/timetable"
 	"github.com/freakyturtle/jellytrim/internal/units"
 )
 
 // dispatch starts waiting jobs while there is capacity, the queue is not
-// paused, Dry Run is off and the time is inside the processing window.
+// paused, Dry Run is off and the processing schedule is active. When the
+// schedule turns inactive it stops running encodes (see enforceSchedule).
 func (q *Service) dispatch(ctx context.Context) {
 	defer q.wg.Done()
-	tick := time.NewTicker(15 * time.Second)
-	defer tick.Stop()
 	for {
+		wait := q.enforceSchedule(ctx)
 		q.startReady(ctx)
+		timer := time.NewTimer(wait)
 		select {
 		case <-ctx.Done():
+			timer.Stop()
 			q.mu.Lock()
 			for _, cancel := range q.running {
 				cancel()
@@ -34,14 +35,69 @@ func (q *Service) dispatch(ctx context.Context) {
 			q.mu.Unlock()
 			return
 		case <-q.wake:
-		case <-tick.C:
+		case <-timer.C:
+		}
+		timer.Stop()
+	}
+}
+
+// pollInterval bounds how long the dispatcher sleeps, so settings changes
+// and new jobs are noticed even without a wake-up.
+const pollInterval = 15 * time.Second
+
+// enforceSchedule stops running jobs when the schedule is inactive, and
+// returns how long to sleep: until the next schedule change or pollInterval,
+// whichever is sooner.
+func (q *Service) enforceSchedule(ctx context.Context) time.Duration {
+	_, active, next, changes := q.Schedule(ctx)
+	if !active {
+		q.stopForSchedule()
+	}
+	if changes {
+		if d := time.Until(next); d > 0 && d < pollInterval {
+			return d + 50*time.Millisecond
+		}
+	}
+	return pollInterval
+}
+
+// stopForSchedule cancels running jobs so they are requeued. A job that is
+// already replacing finishes its short, uninterruptible last step.
+func (q *Service) stopForSchedule() {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	for id, cancel := range q.running {
+		if !q.scheduleStopped[id] {
+			q.scheduleStopped[id] = true
+			q.log.Info("queue: stopping job outside the processing schedule", "job", id)
+			cancel()
 		}
 	}
 }
 
+// Schedule reports the processing schedule and its state now: whether it is
+// active, and when it next changes (changes is false for "any time" and
+// "never").
+func (q *Service) Schedule(ctx context.Context) (week timetable.Week, active bool, next time.Time, changes bool) {
+	st, err := q.store.Settings(ctx)
+	if err == nil {
+		week, err = timetable.Parse(st.ProcessingSchedule)
+	}
+	if err != nil {
+		// An unreadable schedule must not start encodes at the wrong time.
+		return timetable.Week{}, false, time.Time{}, false
+	}
+	now := q.now()
+	next, changes = week.NextChange(now)
+	return week, week.Active(now), next, changes
+}
+
 func (q *Service) startReady(ctx context.Context) {
 	st, err := q.store.Settings(ctx)
-	if err != nil || st.DryRun || q.Paused() || !InWindow(q.now(), st.WindowStart, st.WindowEnd) {
+	if err != nil || st.DryRun || q.Paused() {
+		return
+	}
+	if _, active, _, _ := q.Schedule(ctx); !active {
 		return
 	}
 	for {
@@ -73,39 +129,11 @@ func (q *Service) startReady(ctx context.Context) {
 			delete(q.running, j.ID)
 			delete(q.live, j.ID)
 			delete(q.cancelled, j.ID)
+			delete(q.scheduleStopped, j.ID)
 			q.mu.Unlock()
 			q.Wake()
 		}(j)
 	}
-}
-
-// InWindow reports whether now is inside the daily window [start, end)
-// given as "HH:MM" local times. An empty window means always. A window that
-// wraps midnight (22:00 to 06:00) works.
-func InWindow(now time.Time, start, end string) bool {
-	s, okS := parseClock(start)
-	e, okE := parseClock(end)
-	if !okS || !okE || s == e {
-		return true
-	}
-	m := now.Hour()*60 + now.Minute()
-	if s < e {
-		return m >= s && m < e
-	}
-	return m >= s || m < e
-}
-
-func parseClock(v string) (int, bool) {
-	h, m, ok := strings.Cut(strings.TrimSpace(v), ":")
-	if !ok {
-		return 0, false
-	}
-	hh, err1 := strconv.Atoi(h)
-	mm, err2 := strconv.Atoi(m)
-	if err1 != nil || err2 != nil || hh < 0 || hh > 23 || mm < 0 || mm > 59 {
-		return 0, false
-	}
-	return hh*60 + mm, true
 }
 
 // process runs one job from analysis to its final state.
@@ -120,6 +148,11 @@ func (q *Service) process(ctx context.Context, j store.Job) {
 	}
 	defer unlock()
 	a, err := q.library.Reassess(ctx, j.ItemID)
+	if err != nil && ctx.Err() != nil {
+		// Stopped while analysing: nothing was written; run it again later.
+		q.record(j, pipeline.Job{}, pipeline.Result{Outcome: pipeline.Interrupted}, 0)
+		return
+	}
 	if err != nil {
 		finish(store.JobSkipped, "JellyTrim could not re-check the file before starting: "+err.Error(), pipeline.Diagnostics{Step: "analysing", Error: err.Error()})
 		return
@@ -227,7 +260,13 @@ func (q *Service) record(j store.Job, pj pipeline.Job, res pipeline.Result, back
 		byUser := q.cancelled[j.ID]
 		q.mu.Unlock()
 		if !byUser {
-			_ = q.store.RequeueJob(context.WithoutCancel(q.baseCtx()), j.ID, "Interrupted by a restart; it will run again.")
+			summary := "Interrupted by a restart; it will run again."
+			q.mu.Lock()
+			if q.scheduleStopped[j.ID] {
+				summary = "Stopped because the processing schedule ended. It will start again in the next active hour; the original is unchanged."
+			}
+			q.mu.Unlock()
+			_ = q.store.RequeueJob(context.WithoutCancel(q.baseCtx()), j.ID, summary)
 			return
 		}
 		o.Status, o.Summary = store.JobCancelled, "Cancelled while running. The original is unchanged."

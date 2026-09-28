@@ -349,6 +349,18 @@ func (s *Server) dashProblems(ctx context.Context, totals store.OutcomeTotals) (
 	if p, ok := s.dashSyncProblem(ctx); ok {
 		out = append(out, p)
 	}
+	sc, err := s.scheduleNow(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if sc.week.Empty() {
+		out = append(out, views.DashProblem{
+			Lamp:   "warn",
+			Text:   "No processing hours are switched on, so nothing will be encoded.",
+			Href:   "/settings#schedule",
+			Action: "Choose hours in Settings",
+		})
+	}
 	if n := totals.ByOutcome["skipped"]; n > 0 {
 		rows, _, err := s.Store.LibraryList(ctx, store.LibraryFilter{Outcome: "skipped", Limit: 5})
 		if err != nil {

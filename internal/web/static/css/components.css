@@ -1267,6 +1267,197 @@ input[type="radio"] {
   padding: 0 var(--space-5) var(--space-5);
 }
 
+/* ---------- Schedule grid ---------- */
+
+/* A week of hour cells. In a narrow container hours run down and days
+   across, so a phone shows the whole week with no sideways scrolling and
+   cells big enough to tap. From 46rem the grid turns: days down, hours
+   across. Every element carries --d (day) and --h (hour) and is placed
+   from them, so one list of cells serves both layouts. */
+.schedule {
+  display: grid;
+  gap: var(--space-3);
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.schedule__legend {
+  margin-block-end: var(--space-1);
+  padding: 0;
+  font-weight: 700;
+}
+
+.schedule__hint {
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+html:not(.js) .schedule__hint-js {
+  display: none;
+}
+
+.schedule__frame {
+  container-type: inline-size;
+  min-inline-size: 0;
+}
+
+.schedule__grid {
+  display: grid;
+  grid-template-columns: max-content repeat(7, minmax(0, 1fr));
+  gap: 2px;
+  user-select: none;
+}
+
+.schedule__corner,
+.schedule__day {
+  position: sticky;
+  inset-block-start: var(--topbar-height);
+  z-index: 3;
+  grid-row: 1;
+  background: var(--surface);
+  border-block-end: var(--border-strong);
+}
+
+.schedule__corner {
+  grid-column: 1;
+}
+
+.schedule__day {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  grid-column: calc(var(--d) + 2);
+  padding-block: var(--space-2) var(--space-1);
+  font-size: var(--text-label);
+  font-weight: 500;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
+.schedule__hour {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  grid-row: calc(var(--h) + 2);
+  grid-column: 1;
+  padding-inline: var(--space-1);
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 00, 06, 12 and 18 are printed darker, like the long marks on a ruler. */
+.schedule__hour--major {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+/* Now: the day and hour labels are inverted, and the current cell carries
+   a small ink square. */
+.schedule__day--now,
+.schedule__hour--now {
+  background: var(--ink);
+  color: var(--surface);
+}
+
+.schedule__cell {
+  position: relative;
+  display: block;
+  grid-row: calc(var(--h) + 2);
+  grid-column: calc(var(--d) + 2);
+  min-block-size: var(--touch-target);
+  cursor: pointer;
+  touch-action: manipulation;
+  /* The cell's own fill change is the feedback; the grey tap flash hid it. */
+  -webkit-tap-highlight-color: transparent;
+}
+
+.schedule__input {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  opacity: 0;
+}
+
+/* Off: an unlit square with a matching edge. On: lit accent with an ink
+   edge, so on and off differ in edge as well as fill. */
+.schedule__box {
+  position: absolute;
+  inset: 0;
+  background: var(--surface-sunk);
+  border: 1px solid var(--rule-soft);
+  transition: background-color var(--dur) var(--ease);
+}
+
+.schedule__cell:hover .schedule__box {
+  border-color: var(--ink);
+}
+
+.schedule__input:checked + .schedule__box {
+  background: var(--accent);
+  border-color: var(--ink);
+}
+
+.schedule__cell--now .schedule__box::after {
+  position: absolute;
+  inset: calc(50% - 3px);
+  background: var(--ink);
+  content: "";
+}
+
+/* The accent focus ring would vanish against lit neighbours, so the grid
+   draws an ink ring, raised above the cells around it. */
+.schedule__cell:has(.schedule__input:focus-visible) {
+  z-index: 2;
+}
+
+.schedule__input:focus-visible + .schedule__box {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+@container (min-width: 46rem) {
+  .schedule__grid {
+    grid-template-columns: max-content repeat(24, minmax(0, 1fr));
+  }
+
+  .schedule__corner,
+  .schedule__day {
+    position: static;
+    border-block-end: 0;
+  }
+
+  .schedule__day {
+    align-items: center;
+    justify-content: flex-start;
+    grid-row: calc(var(--d) + 2);
+    grid-column: 1;
+    padding: 0 var(--space-3) 0 var(--space-1);
+  }
+
+  .schedule__hour {
+    align-items: flex-end;
+    justify-content: center;
+    grid-row: 1;
+    grid-column: calc(var(--h) + 2);
+    padding: 0 0 var(--space-1);
+  }
+
+  .schedule__cell {
+    grid-row: calc(var(--d) + 2);
+    grid-column: calc(var(--h) + 2);
+    min-block-size: 0;
+    aspect-ratio: 1;
+  }
+}
+
 /* ---------- Reduced motion ---------- */
 
 @media (prefers-reduced-motion: reduce) {

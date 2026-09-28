@@ -17,6 +17,11 @@ import (
 func (p *Pipeline) validate(ctx context.Context, j Job, partial string, diag *Diagnostics) (*media.File, Result, bool) {
 	diag.Step = "validating"
 	fail := func(outcome Outcome, summary string) (*media.File, Result, bool) {
+		if ctx.Err() != nil {
+			// Stopped (shutdown, cancel or the processing schedule), not a
+			// fault in the new file.
+			outcome, summary = Interrupted, "Stopped before finishing. The original is unchanged."
+		}
 		p.removePartial(context.WithoutCancel(ctx), j.ID, partial, diag)
 		return nil, Result{Outcome: outcome, Summary: summary, Diagnostics: *diag}, false
 	}

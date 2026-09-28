@@ -422,7 +422,8 @@ func TestSetupDefaultsRejectsPlannedCodec(t *testing.T) {
 	e := newSetupEnv(t)
 	res, body := e.post("/setup/defaults", url.Values{"quality": {"high"}, "codec": {"av1"}, "encoder": {"hardware"}}, false)
 	expectStatus(t, res, body, http.StatusUnprocessableEntity)
-	expectContains(t, body, "Choose a quality, a codec and an encoder.")
+	expectContains(t, body, "Choose a quality, a codec and an encoder.",
+		"Encoding runs at any time by default. You can limit it to certain hours in Settings.")
 }
 
 func TestSetupUnknownStep(t *testing.T) {

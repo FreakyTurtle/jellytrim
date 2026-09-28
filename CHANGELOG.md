@@ -14,7 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Library and item detail pages: filters, streams, and every decision explained line by line.
 - A policy engine with scope, conditions and precedence, an editor, a live preview, and starter policies created by the setup wizard.
 - Safe encoding with x265 and Intel Quick Sync: hardware probed by test encode, a journalled pipeline (encode to a partial file, validate, hard-link backup, atomic replace), and crash recovery.
-- A queue with progress, pause, resume, cancel and retry, and a scheduler for periodic sync, re-evaluation and a processing window.
+- A queue with progress, pause, resume, cancel and retry, a scheduler for periodic sync and re-evaluation, and a weekly processing schedule in hour blocks (Monday to Sunday) that stops running encodes when an hour ends.
 - History with technical details, and Restore while a backup exists.
 - Settings for every configurable behaviour, Dry Run (on by default), and the setup wizard.
 - `scripts/devseed` for seeding a local config against the dev Jellyfin without repeating the wizard by hand.
