@@ -173,7 +173,7 @@ func TestOptimiseRestoreAndExclude(t *testing.T) {
 	}
 
 	e.lib.Wait()
-	must(t, e.q.Restore(ctx, jobID))
+	must(t, e.q.Restore(ctx, jobID, false))
 	b, _ = os.ReadFile(e.alpha)
 	if sha256.Sum256(b) != e.hash {
 		t.Fatal("restore did not put the original back")
@@ -243,11 +243,11 @@ func TestRestoreRefusedWhileItemBusy(t *testing.T) {
 	if !ok {
 		t.Fatal("could not take the item lock")
 	}
-	if err := e.q.Restore(ctx, jobID); err != ErrItemBusy {
+	if err := e.q.Restore(ctx, jobID, false); err != ErrItemBusy {
 		t.Fatalf("restore while busy: %v", err)
 	}
 	unlock()
-	must(t, e.q.Restore(ctx, jobID))
+	must(t, e.q.Restore(ctx, jobID, false))
 	b, _ := os.ReadFile(e.alpha)
 	if sha256.Sum256(b) != e.hash {
 		t.Fatal("restore did not put the original back")

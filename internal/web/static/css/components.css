@@ -1487,6 +1487,48 @@ html:not(.js) .schedule__hint-js {
   }
 }
 
+/* ---------- Number in a sentence ---------- */
+
+/* "Ignore accounts not used for more than [90] days": the sentence is the
+   label and wraps round the box on a phone. */
+.inline-number {
+  display: grid;
+  gap: var(--space-1);
+  min-inline-size: 0;
+}
+
+.inline-number__line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  font-weight: 500;
+}
+
+.inline-number__input {
+  inline-size: 7ch;
+  margin: 0;
+  text-align: end;
+}
+
+.inline-number .field__hint,
+.inline-number .field__error {
+  max-inline-size: var(--measure);
+}
+
+/* ---------- Counted mark ---------- */
+
+.counted {
+  display: grid;
+  gap: var(--space-1);
+  justify-items: start;
+}
+
+.counted__why {
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
 /* ---------- Below 720px ---------- */
 
 @media (max-width: 719.98px) {

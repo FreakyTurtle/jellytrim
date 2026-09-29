@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/freakyturtle/jellytrim/internal/jellyfin"
+	"github.com/freakyturtle/jellytrim/internal/library"
 	"github.com/freakyturtle/jellytrim/internal/media"
 	"github.com/freakyturtle/jellytrim/internal/plan"
 	"github.com/freakyturtle/jellytrim/internal/policy"
@@ -51,6 +52,9 @@ type libraryQuery struct {
 	Watched   []string
 	Sort      string
 	Page      int
+	// watch is the watch rule from the settings, so the Watched filter
+	// and columns agree with the policies. Nil reads any enabled user.
+	watch *store.WatchCount
 }
 
 func libraryAllowed(values []string, allowed []views.Option) []string {
@@ -154,7 +158,7 @@ func (q libraryQuery) href(page int, sortBy string) string {
 // the results; the store takes one value per group, so each combination is
 // a separate filter whose results do not overlap.
 func (q libraryQuery) filters() []store.LibraryFilter {
-	base := store.LibraryFilter{HDR: q.HDR, LibraryID: q.LibraryID, Search: q.Search, Sort: q.Sort}
+	base := store.LibraryFilter{HDR: q.HDR, LibraryID: q.LibraryID, Search: q.Search, Sort: q.Sort, Watch: q.watch}
 	if len(q.Watched) == 1 {
 		base.Watched = q.Watched[0]
 	}
@@ -304,6 +308,16 @@ func libraryFilterView(q libraryQuery, libs []store.Library) views.LibraryFilter
 
 func (s *Server) libraryResults(ctx context.Context, q libraryQuery) (views.LibraryResults, error) {
 	res := views.LibraryResults{Sort: q.Sort, Filtered: q.active() > 0}
+	if s.Library != nil {
+		// The Watched filter and columns follow the same rule as the
+		// policies: whose watch state counts, and how many must have
+		// watched.
+		wc, err := s.Library.WatchCount(ctx)
+		if err != nil {
+			return res, err
+		}
+		q.watch = wc
+	}
 	totals, err := s.Store.Totals(ctx)
 	if err != nil {
 		return res, err
@@ -628,7 +642,7 @@ func (s *Server) itemView(ctx context.Context, it store.Item) (views.ItemPageDat
 		v.Summary = "Not inspected yet. The next sync inspects this file."
 	}
 	v.Badges = libraryBadges(pr.Resolution, pr.VideoCodec, pr.HDR)
-	if v.Jellyfin, err = s.itemJellyfin(ctx, it); err != nil {
+	if v.Jellyfin, v.Watch, err = s.itemJellyfin(ctx, it); err != nil {
 		return v, err
 	}
 	if f != nil {
@@ -696,7 +710,7 @@ func (s *Server) itemDate(t *time.Time) string {
 	return t.Format("2 Jan 2006") + " (" + units.Ago(*t, s.Now()) + ")"
 }
 
-func (s *Server) itemJellyfin(ctx context.Context, it store.Item) ([]views.ItemStat, error) {
+func (s *Server) itemJellyfin(ctx context.Context, it store.Item) ([]views.ItemStat, views.ItemWatch, error) {
 	out := []views.ItemStat{{Label: "Type", Value: itemType(it.Type)}, {Label: "Library", Value: it.LibraryName}}
 	if it.SeriesName != "" {
 		out = append(out, views.ItemStat{Label: "Series", Value: it.SeriesName}, views.ItemStat{Label: "Season", Value: it.SeasonName})
@@ -705,9 +719,9 @@ func (s *Server) itemJellyfin(ctx context.Context, it store.Item) ([]views.ItemS
 		}
 	}
 	out = append(out, views.ItemStat{Label: "Added", Value: s.itemDate(it.DateAdded)})
-	watch, err := s.itemWatch(ctx, it.ID)
+	watch, rows, err := s.itemWatch(ctx, it.ID)
 	if err != nil {
-		return nil, err
+		return nil, views.ItemWatch{}, err
 	}
 	out = append(out, watch...)
 	out = append(out,
@@ -715,7 +729,7 @@ func (s *Server) itemJellyfin(ctx context.Context, it store.Item) ([]views.ItemS
 		views.ItemStat{Label: "Genres", Value: itemList(it.Genres)},
 		views.ItemStat{Label: "Jellyfin path", Value: it.JellyfinPath, Mono: true},
 	)
-	return out, nil
+	return out, rows, nil
 }
 
 func itemList(vs []string) string {
@@ -725,44 +739,49 @@ func itemList(vs []string) string {
 	return strings.Join(vs, ", ")
 }
 
-// itemWatch describes watch state for each user whose state counts.
-func (s *Server) itemWatch(ctx context.Context, itemID string) ([]views.ItemStat, error) {
-	users, err := s.Store.SelectedUsers(ctx)
+// itemWatch sums up the counted people's watch state for the Jellyfin
+// panel and lists every Jellyfin user for the Watch history panel.
+func (s *Server) itemWatch(ctx context.Context, itemID string) ([]views.ItemStat, views.ItemWatch, error) {
+	var w views.ItemWatch
+	if s.Library == nil {
+		return nil, w, nil
+	}
+	st, err := s.Store.Settings(ctx)
 	if err != nil {
-		return nil, err
+		return nil, w, err
 	}
-	if len(users) == 0 {
-		return []views.ItemStat{{Label: "Watched", Value: "No users chosen. Choose whose watch state counts in Settings."}}, nil
-	}
-	all, err := s.Store.AllUserData(ctx)
+	state, err := s.Library.ItemWatchState(ctx, itemID)
 	if err != nil {
-		return nil, err
+		return nil, w, err
 	}
-	byUser := map[string]store.UserData{}
-	for _, d := range all[itemID] {
-		byUser[d.UserID] = d
-	}
-	var out []views.ItemStat
-	plays := 0
-	var favs []string
+	var counted, favs []string
+	played := 0
 	var last *time.Time
-	for _, u := range users {
-		d := byUser[u.ID]
-		value := "Not watched"
-		if d.Played {
-			value = "Watched"
-			if d.LastPlayedAt != nil {
-				value += ", " + units.Ago(*d.LastPlayedAt, s.Now())
+	for _, u := range state {
+		w.Rows = append(w.Rows, s.itemWatchRow(u))
+		if !u.Counted && !u.Inactive {
+			continue
+		}
+		if u.Counted {
+			counted = append(counted, u.User.Name)
+			if u.Played {
+				played++
 			}
 		}
-		out = append(out, views.ItemStat{Label: "Watched by " + u.Name, Value: value})
-		plays += d.PlayCount
-		if d.Favourite {
-			favs = append(favs, u.Name)
+		if u.Favourite {
+			favs = append(favs, u.User.Name)
 		}
-		if d.LastPlayedAt != nil && (last == nil || d.LastPlayedAt.After(*last)) {
-			last = d.LastPlayedAt
+		if u.LastPlayed != nil && (last == nil || u.LastPlayed.After(*last)) {
+			last = u.LastPlayed
 		}
+	}
+	w.Rule = watchRuleSentence(st.WatchPercent, counted)
+	if len(state) == 0 {
+		w.Rule = "No Jellyfin users are known yet. They are read from Jellyfin at the next sync."
+		return nil, w, nil
+	}
+	if len(counted) == 0 {
+		return []views.ItemStat{{Label: "Watched by", Value: "Nobody's watch history counts. Choose whose counts in Settings."}}, w, nil
 	}
 	lastText := "Never"
 	if last != nil {
@@ -772,11 +791,35 @@ func (s *Server) itemWatch(ctx context.Context, itemID string) ([]views.ItemStat
 	if len(favs) > 0 {
 		fav = "Yes (" + strings.Join(favs, ", ") + ")"
 	}
-	return append(out,
-		views.ItemStat{Label: "Last watched", Value: lastText},
-		views.ItemStat{Label: "Play count", Value: strconv.Itoa(plays)},
-		views.ItemStat{Label: "Favourite", Value: fav},
-	), nil
+	return []views.ItemStat{
+		{Label: "Watched by", Value: strconv.Itoa(played) + " of " + libraryCount(len(counted)) + " counted " + itemPeople(len(counted))},
+		{Label: "Last watched", Value: lastText},
+		{Label: "Favourite", Value: fav},
+	}, w, nil
+}
+
+func itemPeople(n int) string {
+	if n == 1 {
+		return "person"
+	}
+	return "people"
+}
+
+// itemWatchRow is one Jellyfin user's view of the item.
+func (s *Server) itemWatchRow(u library.ItemWatch) views.ItemWatchRow {
+	r := views.ItemWatchRow{
+		Name: u.User.Name, Played: u.Played, Favourite: u.Favourite,
+		Counted: u.Counted, Why: watchWhy(u.WatchUser),
+	}
+	var parts []string
+	if u.PlayCount > 0 {
+		parts = append(parts, backlogWord(u.PlayCount, "1 play", libraryCount(u.PlayCount)+" plays"))
+	}
+	if u.LastPlayed != nil {
+		parts = append(parts, "last "+units.Ago(*u.LastPlayed, s.Now()))
+	}
+	r.When = strings.Join(parts, ", ")
+	return r
 }
 
 // itemSource describes the file as inspected, and the facts behind its HDR

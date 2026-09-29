@@ -42,7 +42,7 @@ JellyTrim is one Go binary. It serves a server-rendered web UI, keeps its state 
 | `internal/policy` | Policy model, scope and condition evaluation, explanations | `media` (pure) |
 | `internal/plan` | Turns a matched policy and a media file into an encode plan or a skip with reasons; size estimates | `media`, `policy` (pure) |
 | `internal/pipeline` | Safe execution: encode to a partial file, validate, back up, replace, notify; journal and recovery | `encoder`, `ffmpeg`, `media`, `store`, `jellyfin` |
-| `internal/queue` | Job lifecycle and the worker pool | `pipeline`, `store` |
+| `internal/queue` | Job lifecycle and the worker pool; waiting for playback to end and the last checks before replacing | `pipeline`, `library`, `jellyfin`, `store` |
 | `internal/library` | Sync from Jellyfin, probe caching, evaluation of every item, Dry Run summary | `jellyfin`, `pathmap`, `ffmpeg`, `media`, `policy`, `plan`, `store` |
 | `internal/scheduler` | Periodic sync and re-evaluation; auto-enqueue | `library`, `queue` |
 | `internal/timetable` | The weekly processing schedule: 7 days of 24 hour blocks, each on or off (pure) | stdlib |
@@ -56,7 +56,7 @@ JellyTrim is one Go binary. It serves a server-rendered web UI, keeps its state 
 
 1. `library.Sync` records the attempt in `sync_runs` first, so every attempt, including one that fails at once (Jellyfin down, nothing selected), is recorded and the scheduler backs off. It then lists the libraries and users from Jellyfin (`/Library/VirtualFolders`, `/Users`). An empty answer is refused while libraries or users are stored, so a faulty reply cannot cascade-delete the library.
 2. For each managed library it pages through movies and episodes (`/Items`) without a user ID: the API key is an administrator's, so the list does not depend on one user's library access. A managed library that comes back empty while items are stored for it fails the sync, so nothing is swept.
-3. For each selected user it pages through user data only. Collections are read as each selected user sees them and merged; a box set's members are stored as reported, which may be a series or season rather than episodes.
+3. For each user whose history may count (every enabled user in "everyone" mode, the ticked users in "selected" mode) it pages through user data only, and removes stored data for anyone else. Which of them are counted (the inactive-account filter) and how their history combines (the share that must have watched) are applied at evaluation time, so changing those settings needs no resync; see `docs/POLICIES.md`. Collections are read as each of these users sees them and merged; a box set's members are stored as reported, which may be a series or season rather than episodes.
 4. It maps each Jellyfin path to a local path (`pathmap`) and checks it is inside a configured root.
 5. It writes items, user data, tags and collection membership to the store. Items not seen in a **complete** sync are removed afterwards (mark and sweep).
 6. For each item whose file identity (device, inode, size, mtime) changed since the last probe, it runs ffprobe (two passes: streams and format, then the first frame's side data) and stores the raw JSON.
@@ -79,14 +79,18 @@ Waiting ─► Analysing ─► Encoding ─► Validating ─► Replacing ─�
                                                      Attention (needs a person to check)
 
 Any of Waiting, Analysing, Encoding or Validating ─► Cancelled (by the user)
+Replacing, before the last checks pass           ─► Cancelled (by the user)
+                                                 ─► Waiting (gave up waiting for playback, Dry Run turned on, or JellyTrim restarted)
+                                                 ─► Skipped (no longer chosen, the original changed, or gave up for the third time)
+                                                 ─► Failed (the new file could not be deleted after a give-up or discard)
 ```
 
-The user can cancel a job at any point up to Replacing; the original file is unchanged either way. Attention is reached only through recovery after an interruption during Replacing, when the original's usual place is occupied by something else; it does not block the queue, but it blocks new jobs for that item and file until a person resolves it.
+The user can cancel a job at any point up to Replacing, and during Replacing until its last checks pass; the original file is unchanged either way. From then on the job is committed (`queue.Live.Committed`) and Cancel returns `queue.ErrTooLate`. Attention is reached only through recovery after an interruption during Replacing, when the original's usual place is occupied by something else; it does not block the queue, but it blocks new jobs for that item and file until a person resolves it.
 
-1. **Analysing:** re-probe the source, check identity against the job, re-run the plan (the file may have changed), check free space, take the path lock.
+1. **Analysing:** read the item's watch state from Jellyfin again (`library.RefreshItemUserData`; the last sync's is used if Jellyfin cannot answer), re-probe the source, check identity against the job, re-run the plan (the file may have changed), check free space, take the path lock.
 2. **Encoding:** `encoder` builds arguments from the plan; `ffmpeg` runs them, writing `.<name>.jellytrim-<job>.partial` in the source directory. Progress, speed and ETA are stored. Early abort if the projected size is too large.
-3. **Validating:** probe the output and compare it with the plan and the source; decode check; size rule.
-4. **Replacing:** set mode and owner, fsync, re-check source identity, hard-link a backup, rename the partial over the original, fsync the directory.
+3. **Validating:** probe the output and compare it with the plan and the source; decode check; size rule. Record the partial file's identity (device, inode, size, mtime).
+4. **Replacing:** the pipeline calls the job's `BeforeReplace` hook, which the queue implements: wait until nobody is playing the item in Jellyfin (polling `GET /Sessions` every 30 seconds, up to 6 hours; two "not playing" answers in a row once someone was seen; the queue shows who is watching), then the last checks: Dry Run still off, the item's watch state re-read, the item's decision made again (`library.Reassess`), which must still choose the same plan, and one more ask that nobody has started playing it. The hook ends the job with a `pipeline.StopError` (its own outcome and summary) or a plain error (Interrupted, back to Waiting); either way the partial is deleted, and if it cannot be, the job fails and names the file. If every check passes the job is committed. Then re-check source identity and the partial's identity against validation, set mode and owner, fsync, hard-link a backup, rename the partial over the original, fsync the directory. A job gives up waiting after 6 hours (and ends as Skipped the third time); it never replaces unchecked after seeing the item playing, or when Jellyfin rejects the key.
 5. **Complete:** record the saving and the `optimised` identity, notify Jellyfin, poll until it reflects the change.
 
 See `docs/TRANSCODING.md` for the rules at each step.
@@ -101,7 +105,7 @@ Times are Unix seconds (`INTEGER`, UTC) unless named `_ns`. JSON columns are `TE
 | `settings` | Key/value settings, including the Jellyfin URL and API key | `key`, `value` |
 | `path_mappings` | Jellyfin prefix to local prefix | `id`, `jellyfin_prefix`, `local_prefix`, `position` |
 | `libraries` | Jellyfin libraries and whether JellyTrim manages them | `id` (Jellyfin ItemId), `name`, `collection_type`, `locations` (JSON), `managed` |
-| `jellyfin_users` | Users and whether their watch state counts | `id`, `name`, `disabled`, `selected` |
+| `jellyfin_users` | Users, whether they are ticked, and their last activity (for the inactive-account filter) | `id`, `name`, `disabled`, `selected`, `hidden`, `last_activity_at` |
 | `items` | Movies and episodes from Jellyfin | `id`, `library_id`, `type`, `name`, `series_id`, `series_name`, `season_id`, `season_name`, `season_number`, `episode_number`, `year`, `jellyfin_path`, `local_path`, `date_added`, `runtime_ticks`, `tags`, `genres`, `sync_skip_reason`, `seen_sync_id` |
 | `item_user_data` | Watch state per user | `item_id`, `user_id`, `played`, `play_count`, `favorite`, `last_played_at` |
 | `collections`, `collection_items` | Jellyfin collections and membership. `collection_items.item_id` is a movie, episode, series or season ID as Jellyfin reports it, so it has no foreign key to `items` | `collection_id`, `item_id` |
@@ -145,7 +149,7 @@ This avoids queueing jobs, or letting the scheduler enqueue them, against a plan
 The weekly schedule (`internal/timetable`) is a grid of 168 hour blocks, Monday 00:00 first, stored as one setting. Hours are read in the server's local time (the container's `TZ`). The queue's dispatcher:
 
 - starts no job while the current hour is inactive;
-- when an hour turns inactive, cancels running jobs. A job still analysing, encoding or validating stops, its partial file is removed, and it goes back to Waiting with a note saying the schedule stopped it; the original is untouched. A job already replacing finishes its last step, which is short and never interrupted;
+- when an hour turns inactive, cancels running jobs. A job still analysing, encoding or validating stops, its partial file is removed, and it goes back to Waiting with a note saying the schedule stopped it; the original is untouched. A job already replacing is left alone: if it is waiting for playback to end it keeps waiting (its encode is done, so it uses no encoder), and its last step is short and never interrupted;
 - sleeps until the next change of the schedule (or 15 seconds, whichever is sooner), so stopping and starting happen on the hour.
 
 A stopped encode starts again from the beginning in the next active hour. The old daily "processing window" setting is converted to the grid the first time settings are read.
@@ -159,7 +163,7 @@ On SIGTERM or SIGINT, or when the HTTP server fails, `app` cancels the run conte
 4. waits for background library runs; `library` refuses to start new ones once the context is done;
 5. closes the database.
 
-A job interrupted during Replacing is never cancelled mid-step: the replace sequence is short and finishes first.
+A job interrupted during Replacing is never cancelled mid-step: the replace sequence is short and finishes first. A job still waiting for playback to end, or still in its last checks, has not started that sequence, so it stops, its new file is removed and it goes back to Waiting.
 
 ## Recovery on start
 

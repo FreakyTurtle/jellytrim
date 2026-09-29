@@ -14,3 +14,5 @@ Short records of decisions that are not obvious from the code. Add one with `/ad
 | [0008](0008-no-built-in-auth.md) | No built-in authentication | Accepted |
 | [0009](0009-probe-compression-dictionary.md) | Stored ffprobe output is compressed with a fixed dictionary | Accepted |
 | [0010](0010-policies-from-probe-summaries.md) | Policies are evaluated from stored probe summaries | Accepted |
+| [0011](0011-watch-history-rule.md) | Watch history: everyone by default, a share that must have watched, inactive accounts ignored | Accepted |
+| [0012](0012-no-replacement-while-playing.md) | Never replace a file while someone is playing it | Accepted |

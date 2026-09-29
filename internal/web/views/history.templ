@@ -184,7 +184,13 @@ templ HistoryJobPage(v HistoryJobData) {
 		@PageHeader(v.Title, v.Subtitle) {
 			@historyJobActions(v)
 		}
-		if v.Problem != nil {
+		if v.Problem != nil && v.Problem.RestoreAnyway && v.CanRestore {
+			@CalloutWith(CalloutProps{Variant: v.Problem.Variant, Title: v.Problem.Title, Text: v.Problem.Text, Alert: v.Problem.Alert}) {
+				@CalloutActions() {
+					<a class="btn btn--danger" id="history-restore-anyway-open" href="#history-restore-anyway" data-dialog-open="history-restore-anyway" aria-haspopup="dialog">Restore anyway</a>
+				}
+			}
+		} else if v.Problem != nil {
 			@QueueNoticeCallout(*v.Problem)
 		}
 		@CalloutWith(CalloutProps{Variant: v.Summary.Variant, Title: v.Summary.Title, Text: v.Summary.Text, Alert: v.JustRestored}) {
@@ -252,6 +258,9 @@ templ HistoryJobPage(v HistoryJobData) {
 		</div>
 		if v.CanRestore {
 			@historyRestoreDialog(v)
+			if v.Problem != nil && v.Problem.RestoreAnyway {
+				@historyRestoreAnywayDialog(v)
+			}
 		}
 	}
 }
@@ -289,6 +298,26 @@ templ historyRestoreDialog(v HistoryJobData) {
 				@DialogCancel("Keep the optimised file")
 				<a class="btn btn--secondary queue-nojs" href="#main">Keep the optimised file</a>
 				<button class="btn btn--danger" type="submit">Restore original</button>
+			}
+		</form>
+	}
+}
+
+// historyRestoreAnywayDialog is the second step when Jellyfin could not say
+// whether the file is playing. It restores without that check; if Jellyfin
+// does answer and reports playback, Restore still refuses.
+templ historyRestoreAnywayDialog(v HistoryJobData) {
+	@Dialog("history-restore-anyway", "Restore without checking?") {
+		<form class="queue-dialog__form" method="post" action={ templ.SafeURL(v.RestoreAction) }>
+			<input type="hidden" name="anyway" value="1"/>
+			@DialogBody() {
+				<p>JellyTrim cannot tell whether someone is watching this. If they are, their player may stop or jump when the file changes.</p>
+				<p>Put the original back anyway? The optimised file will be deleted and JellyTrim will leave this item alone until you allow it again.</p>
+			}
+			@DialogActions() {
+				@DialogCancel("Keep the optimised file")
+				<a class="btn btn--secondary queue-nojs" href="#main">Keep the optimised file</a>
+				<button class="btn btn--danger" type="submit">Restore anyway</button>
 			}
 		</form>
 	}

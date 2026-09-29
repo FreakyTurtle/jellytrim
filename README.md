@@ -15,6 +15,8 @@ JellyTrim has not reached version 1.0, but it is feature-complete for its MVP: c
 ## Features
 
 - **Policies that use Jellyfin data.** Watched state, last watched date, favourites, date added, library, series, collection, tag, resolution, codec and bitrate.
+- **Households with several users.** Choose whose watch history counts and how many of them must have watched something (any one, a majority, everyone, or a percentage). One person's favourite is enough for the *Protect favourites* policy. Inactive accounts are left out.
+- **Never swaps a file mid-film.** JellyTrim asks Jellyfin what is playing and waits until nobody is watching before it replaces a file.
 - **A policy editor that reads like a sentence.** "In Movies, when watched and last watched more than 90 days ago, convert to 1080p HEVC at High quality."
 - **Every decision explained.** Each item shows which policy matched and why, line by line.
 - **A useful Dry Run.** Counts, planned changes and estimated savings for the whole library and for each policy, before anything changes.

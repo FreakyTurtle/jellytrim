@@ -34,7 +34,8 @@ Generated `*_templ.go` files are committed. The pre-commit hook stops you commit
 ```
 task dev:fixtures    # generate small test clips into dev/media (never real media)
 task dev:stack       # Jellyfin on :8096, JellyTrim (built from the Dockerfile) on :8097
-task dev:bootstrap   # set up Jellyfin: user dev/dev, libraries, some items watched, API key
+task dev:bootstrap   # set up Jellyfin: users dev/dev, alex/alex, sam/sam, robin/robin with different
+                     # watch states (it prints who watched what), libraries, API key
 ```
 
 Jellyfin sees the media at `/media/movies` and `/media/tv`; JellyTrim sees it at `/mnt/media/movies` and `/mnt/media/tv`, so the path mapping step is exercised for real. The API key is written to `dev/jellyfin-api-key`. JellyTrim itself runs on `http://localhost:8097` in the dev stack (the same port as `task dev`; `:8080` is the default only inside the shipped image). Everything under `dev/` is gitignored.

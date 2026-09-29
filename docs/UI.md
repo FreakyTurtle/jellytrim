@@ -501,6 +501,9 @@ A callout reports a problem, a warning or useful information. Errors say what ha
 - Focus: the standard focus ring.
 - Invalid: `aria-invalid="true"`, 2px `--bad` border, the error shown below with a `✗` and added to `aria-describedby`. Validation runs on submit and on blur, not on every key press.
 - Inline sentence slots (in the policy editor) are a variant: `.field--slot`, an inline control with a 2px bottom border only.
+- **Number in a sentence** (`InlineNumber`): a short boxed number inside a sentence, such as "Ignore accounts not used for more than [90] days". The whole sentence is the `<label>`, so it reads as one phrase; the hint and any error follow below and are linked with `aria-describedby`. The sentence wraps round the box on a phone. It is a text input with `inputmode="numeric"`, like the other Settings numbers, so the server's error message is the only validation.
+
+**Counted mark** (`Counted`). Whether a Jellyfin user's watch state counts: an ok lamp and "Counted", or an idle lamp and "Not counted", with the reason ("disabled in Jellyfin", "not selected", "inactive for 124 days; favourites and plays still count", "never used Jellyfin; favourites and plays still count") or a note on a counted user below it in `--ink-2`. Used in the Settings people table and on the item page.
 
 ### Dialog
 
@@ -586,10 +589,7 @@ Route: `/setup`. Shown on first run, and again if the Jellyfin connection is rem
 **3. Libraries and watched state.**
 
 - A checklist of Jellyfin libraries: name, type (Movies, Shows), item count and folder locations (Plex Mono, `--ink-2`). Movie and show libraries are ticked by default. Other types are listed but cannot be selected, with the reason ("Music libraries are not supported").
-- "Whose watched state counts?" A segmented control: "One user" or "Several users".
-  - One user: a select of enabled Jellyfin users.
-  - Several users: a checklist of users, then a segmented control "Any of them" or "All of them".
-- A sentence under the choice restates it: "An item counts as watched when any of Alice, Sam has watched it."
+- The watched state controls, the same as in Settings (see **Watched state** there). Until the user chooses, Everyone is picked, and every enabled user is ticked under "Only these people" in case they switch to it.
 
 **4. Path mappings.**
 
@@ -699,6 +699,7 @@ The title in Plex Sans 500, the rest in Plex Mono. Failed and skipped entries sh
 - "Waiting for free space: Blade Runner 2049 needs about 18.2 GB in /mnt/media/films and 9.1 GB is free. JellyTrim will start it when space is freed, for example when backups expire." when the queue is holding the next job back for space. [Open the queue] [Change how long backups are kept]
 - "The queue needs about 1.2 TB on /mnt/media, but only 800 GB is free while backups are kept for 7 days." for each filesystem the waiting jobs may not fit on (the queue's space outlook, read once per page load). [Change how long backups are kept] links to `/settings#safety`; [Open the queue].
 - "No processing hours are switched on, so nothing will be encoded." [Choose hours in Settings], when the processing schedule has no active hours.
+- "No users are counted (2 not selected), so watched and favourite conditions never match." (the Watched state summary) when Jellyfin users are known but nobody's watch state counts. [Choose whose viewing counts] links to `/settings#watched`.
 
 With nothing to report: an ok lamp and "No problems."
 
@@ -745,7 +746,8 @@ Header: poster (120px wide), title, year or episode code, library, and badges fo
 
 Sections, as panels in this order (two columns at 1080px and above: Jellyfin and Source on the left, Policy, Proposed and Estimate on the right):
 
-- **Jellyfin.** A stat row: type, library, series and season, date added, watched (per counted user: "Alice: watched 12 Mar 2026. Sam: not watched"), last watched, play count, favourite, tags, collections, Jellyfin path (Plex Mono).
+- **Jellyfin.** A stat row: type, library, series and season, date added, watched by ("2 of 3 counted people"), last watched (the latest play by any counted person), favourite ("Yes (sam)" when any counted person favourited it), tags, collections, Jellyfin path (Plex Mono).
+- **Watch history** (below Jellyfin). The rule in words first: "A file counts as watched when a majority of the counted people have watched it (3 counted, so 2 needed)." (Any one and Everyone say only "(3 counted)"; with one counted person, "... when dev has watched it, the only person counted."; with nobody counted, "Nobody's watch history counts, so watched and favourite conditions never match.") Then a collapsing table with every known Jellyfin user, by name: Person, Watched ("Yes" with "2 plays, last 12 days ago" below in Plex Mono, or "No"), Favourite, and Counts (the Counted mark with its reason). Names of people who are not counted are in `--ink-2`. Disabled and unselected users are not read from Jellyfin, so they show "No". A note under it: "Favourites and "last watched" use any counted person. People who are not counted do not affect this file."
 - **Source.** A stat row: local path, container, size, duration, video codec and profile, resolution, bit depth, frame rate, video bitrate (with its source: "from the stream", "estimated from file size"), HDR type. Then a **streams table** for audio and subtitles:
 
   | # | Type | Language | Codec | Channels | Title | Flags |
@@ -792,7 +794,7 @@ Route: `/policies`. The ordered list of policies, and the editor.
 - Each bracket is an inline slot (`.field--slot`): a native `<select>` or `<input>` with a visually hidden label ("Scope", "Condition 2", "Days"), so each section also reads correctly with a screen reader.
 - Conditions join with "and". Each condition has a remove button (`✗`, `aria-label="Remove condition: last watched"`).
 - "+ Add condition" adds a new condition slot and moves focus to it.
-- Watched conditions follow the watched-state setting ("watched by any of Alice, Sam").
+- Watched conditions follow the watched state setting in Settings, and their explanation lines say so ("watched by 2 of 3 users (majority needed)").
 - The action is a segmented control: "Convert" or "Protect (never change)". Protect replaces the "convert to" part with "never change these items."
 - "More options" (`<details>`): one combined HDR checkbox, "Allow HDR10+ and Dolby Vision to be reduced to HDR10", off by default, with one sentence on what is lost. There is no separate opt-in per HDR type.
 - Name field above the sections. Enable toggle, Save (primary) and Delete (danger, with a dialog titled with the policy's name: `Delete "Protect favourites"?`) below them. The list's Delete buttons use the same dialog.
@@ -823,6 +825,8 @@ Route: `/queue`. What is running, what is waiting, and control over both.
 - Title and a link to the item.
 - The change in Plex Mono: `2160p H.264 → 1080p HEVC · High`.
 - A stage strip: Analysing › Encoding › Validating › Replacing, with the current stage lit and done stages ticked.
+- **Waiting for a viewer.** When the new file is ready but someone is playing the original, the job stays in Replacing (for up to 6 hours) and a note sits under the stage strip on a `--warn-tint` strip with a 2px ink left rule: a warn lamp and the queue's note ("Waiting: alex is watching this on Living Room TV", "Waiting: checking with Jellyfin that nobody is watching this.", "Waiting: checking that they have finished watching." while it waits for a second "not playing" answer, or "Checking the watch state again before replacing the file."), then "The new file is ready. It replaces the original once nobody is watching. JellyTrim waits up to 6 hours, then tries again later." The meter readout says "New file ready". Cancel stays available.
+- **Replacing the file.** Once the last checks have passed, the job is committed: the meter readout says "Replacing the file" and the Cancel button and its dialog are not shown. If a Cancel arrives from a page loaded earlier, the queue shows an info callout, "Too late to cancel" with "JellyTrim is replacing the file now. The original is kept as a backup."
 - The segmented meter and the readout: `38% · 2.4× · 12 min left`. Elapsed time. Projected size: "~ 13.9 GB (saving ~ 34 GB)".
 - The encoder, named in plain words ("Intel QSV", not the ffmpeg encoder name), and the policy that chose the job.
 - "Cancel" (danger), with a dialog: "Cancel this job? The original file is kept. The partial file is deleted."
@@ -836,7 +840,7 @@ Route: `/queue`. What is running, what is waiting, and control over both.
 - For each filesystem the waiting jobs may not fit on, a warn callout follows the panel: "The queue may run out of space" with the same sentence as the Dashboard problem, "Jobs wait for space rather than fail, but the queue slows down.", and a link to the backups setting.
 - It totals every waiting job and reads free space, so it is not part of the 2-second poll. It refreshes itself every 60 seconds (`/queue/backlog`) while anything is waiting, and after a Cancel or Pause over HTMX it is swapped out of band. Inside the polled fragment it sits in a slot with `hx-preserve`, so each poll keeps the one already on the page.
 
-**Waiting.** A table: position, title, change, estimated saving, policy, and a Cancel button per row. Above it: "Showing the first 100 of 1,432 waiting jobs." (or "3 jobs waiting." when all are shown) and the run order, "Manual jobs first, then the biggest savings." The list shows the first 100 in run order; "Show more" adds 100 at a time (`/queue?waiting=200`, up to 1,000). Over HTMX it swaps the fragment and pushes the new address; without JavaScript it is a plain link. The length is kept on `#queue-live` through `hx-vals`, so polls and actions keep it. The total is a count query and only the listed jobs are loaded, so the 2-second poll stays light however long the queue is. A job that was stopped and queued again shows why under its title in `--ink-2`: "Stopped because the processing schedule ended. It will start again in the next active hour; the original is unchanged." or "Interrupted by a restart; it will run again." Empty: "Nothing waiting." There is no "Cancel all waiting" action; cancel jobs one at a time.
+**Waiting.** A table: position, title, change, estimated saving, policy, and a Cancel button per row. Above it: "Showing the first 100 of 1,432 waiting jobs." (or "3 jobs waiting." when all are shown) and the run order, "Manual jobs first, then the biggest savings." The list shows the first 100 in run order; "Show more" adds 100 at a time (`/queue?waiting=200`, up to 1,000). Over HTMX it swaps the fragment and pushes the new address; without JavaScript it is a plain link. The length is kept on `#queue-live` through `hx-vals`, so polls and actions keep it. The total is a count query and only the listed jobs are loaded, so the 2-second poll stays light however long the queue is. A job that was stopped and queued again shows why under its title in `--ink-2`: "Stopped because the processing schedule ended. It will start again in the next active hour; the original is unchanged." or "Interrupted by a restart; it will run again." or, when its file was playing as it was about to start, "Not started: alex is watching this on Living Room TV. JellyTrim will try again in 30 min; other jobs go first." The title, library and note sit in one wrapper, so they stay together beside the label when the table collapses. Empty: "Nothing waiting." There is no "Cancel all waiting" action; cancel jobs one at a time.
 
 **Failed in the last hour.** A panel below the waiting table lists jobs that failed in the last hour, each with a "Retry" button and a link to History. It is not shown when nothing has failed recently.
 
@@ -865,10 +869,12 @@ Route: `/history`. Every finished job.
 - Filters: status (All, Complete, Skipped, Failed, Cancelled, Needs attention), library, and search. GET form, as on the Library page.
 - A table: finished (date and time), title, change (Plex Mono), size before → after, saving, status (lamp and word), reason (for skipped and failed: one plain sentence).
 - Each row links to a job detail page, which shows:
-  - **Checks and warnings.** The validation checks (pass or fail, as an explanation list), and any warnings such as "Could not set the file's group to match the original."
+  - **Checks and warnings.** The validation checks (pass or fail, as an explanation list), and any warnings such as "Could not set the file's group to match the original." or, when Jellyfin could not be asked whether the file was playing, "Jellyfin could not be asked whether the file was playing; it was replaced anyway."
   - **Technical details:** the exact ffmpeg command (Plex Mono, wrapped, with a Copy button), the last lines of ffmpeg's error output, and the encoder.
   - **Skipped jobs** that set an item aside show where: "Kept at `<path>` until `<date>`."
   - **Restore original** (danger button style, since it deletes the converted file) while the backup exists: "Backup kept until 4 Oct 2026." A dialog confirms: "Restore the original file? The converted file is deleted and Jellyfin is asked to rescan." After a restore the row status reads "Restored".
+  - Restore asks Jellyfin first whether anyone is playing the item. If someone is, or Jellyfin does not answer, nothing changes and the page comes back (409) with a warn callout above the job, not the generic failure: "Not restored while someone is watching" with "Someone is watching this right now (alex on Living Room TV). Try again when they have finished. Nothing was changed and the backup is kept.", or "Not restored: Jellyfin did not answer" with "JellyTrim could not check with Jellyfin whether this is playing. Try again in a moment. Nothing was changed and the backup is kept. If you know nobody is watching it, you can restore it anyway."
+  - **Restore anyway.** The "Jellyfin did not answer" callout carries a "Restore anyway" button (danger), so a Jellyfin that stays down does not block a restore until the backup expires. It opens a second dialog, "Restore without checking?": "JellyTrim cannot tell whether someone is watching this. If they are, their player may stop or jump when the file changes." and "Put the original back anyway? The optimised file will be deleted and JellyTrim will leave this item alone until you allow it again.", with "Keep the optimised file" and "Restore anyway". It posts the same form with `anyway=1`, which skips only the playback check: if Jellyfin answers and reports someone watching, Restore still refuses. The "someone is watching" callout never offers it.
   - **Retry**, for a failed, skipped or cancelled job. It is the primary button for a failed job and a secondary one otherwise.
 - The command and error output never include the Jellyfin API key.
 
@@ -878,11 +884,16 @@ Route: `/settings`. One page with sections. At 1080px and above an in-page conte
 
 Each section is its own form and saves on its own. After saving, the section shows an ok lamp and "Saved at 14:02". Unsaved changes show "Not saved yet" in `--warn` beside the Save button.
 
-Saving **Libraries**, **Watched state** or **Path mappings** starts a full sync, because it changes which items or files JellyTrim reads. Saving **Dry Run**, **Saving and backups** or **Advanced** only re-evaluates the existing items against the policies; it does not sync with Jellyfin again.
+Saving **Libraries** or **Path mappings** starts a full sync, because it changes which items or files JellyTrim reads. Saving **Watched state** starts a sync only when whose history counts changed (Everyone to Only these people or back, or different ticks), because watch state is read from Jellyfin only for the people who may count; a change of share or of the inactive filter only re-evaluates. Saving **Dry Run**, **Saving and backups** or **Advanced** only re-evaluates the existing items against the policies; it does not sync with Jellyfin again.
 
 - **Jellyfin.** Address, and the API key. The key field is always empty. Beside it: "An API key is saved. Enter a new key only to replace it." "Test connection" as in setup. Values set by environment variables are read-only and say which variable set them.
 - **Libraries.** The library checklist from setup.
-- **Watched state.** Whose watched state counts, as in setup.
+- **Watched state** (`#watched`, posts to `/settings/users`). The rules are in `docs/POLICIES.md`, "Whose watch state counts".
+  - **Whose watch history counts:** two radios, "Everyone, including people added later" (the default) and "Only these people:". Under the second, indented behind a 2px ink rule, a checklist of every known Jellyfin user; disabled users are listed greyed, cannot be ticked, and say "disabled in Jellyfin". The list hides while Everyone is chosen (CSS `:has()`; without it the list always shows). "Choose at least one person whose viewing counts, or choose Everyone." applies only to Only these people. Choosing Everyone keeps the last ticks for later.
+  - **A file counts as watched when:** a segmented control, Any one (0%), A majority (51%), Everyone (100%) or Custom. Custom shows "At least [ ] % of the counted people" (1 to 100). Each option's hint says what it means ("Watched when more than half of the counted people have watched it: 2 of 3, or 3 of 4."), and a standing hint says "Whatever you choose, one counted person's favourite is enough to protect a file, and a new play by any counted person resets "last watched"." A saved 51 or 100 shows as A majority or Everyone. An install that only has the old any/all mode shows Any one or Everyone.
+  - **Ignore accounts not used for more than [90] days** (0 to 3650; 0 counts every account), with the hint "An unused account would otherwise stop files counting as watched by everyone or a majority."
+  - Saving writes `watch_users`, `watch_percent` and `watch_inactive_days` (and the ticks with Only these people), never the old `watch_mode`.
+  - **Counted now**, under a 2px rule below the form: the summary sentence from what is saved ("Counting 3 of 4 users (1 inactive). A file counts as watched when a majority of them have watched it."), then a collapsing table of every Jellyfin user: Person (with a Hidden badge for users hidden from Jellyfin's sign-in screen), Watch state (the Counted mark and reason), and Last used Jellyfin ("3 days ago" or "never").
 - **Path mappings.** The mapping rows and live check from setup.
 - **Dry Run** (`.panel--emphasis`, with an accent left bar while on). A large toggle, twice the normal size, labelled "Dry Run". Text: "While Dry Run is on, JellyTrim evaluates everything and changes nothing." Turning it off opens a dialog: "Turn off Dry Run? JellyTrim will start replacing files that match enabled policies. Originals are kept as backups for 7 days." Buttons: Cancel (focused) and "Turn off Dry Run" (danger). Turning it on needs no confirmation.
 - **Sync** (`#sync`). Sync with Jellyfin: every [6] hours, or daily at [time] (leave the time empty to use the interval). "Sync now" and the time of the last sync.

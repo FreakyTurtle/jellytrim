@@ -104,6 +104,21 @@
   overflow-wrap: anywhere;
 }
 
+/* Why a job with its new file ready is waiting: someone is watching. */
+.queue-job__note {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  background: var(--warn-tint);
+  border-inline-start: var(--border-strong);
+  overflow-wrap: anywhere;
+}
+
+.queue-job__note-detail {
+  max-inline-size: var(--measure);
+  font-size: var(--text-sm);
+}
+
 .queue-job__stats {
   max-inline-size: 40rem;
 }

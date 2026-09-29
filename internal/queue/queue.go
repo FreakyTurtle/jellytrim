@@ -15,6 +15,7 @@ import (
 
 	"github.com/freakyturtle/jellytrim/internal/encoder"
 	"github.com/freakyturtle/jellytrim/internal/ffmpeg"
+	"github.com/freakyturtle/jellytrim/internal/jellyfin"
 	"github.com/freakyturtle/jellytrim/internal/library"
 	"github.com/freakyturtle/jellytrim/internal/pipeline"
 	"github.com/freakyturtle/jellytrim/internal/plan"
@@ -36,6 +37,15 @@ type Live struct {
 	Speed    float64
 	ETA      time.Duration
 	Encoder  string
+	// Note says why the job is waiting, in plain words ("Waiting: alex is
+	// watching this on Living Room TV"). It is set only while a job whose
+	// new file is ready waits for playback to end (Status is replacing
+	// then), and is empty otherwise.
+	Note string
+	// Committed is set once the job has passed its last checks and is
+	// replacing the file. Cancel refuses from then on (ErrTooLate): the
+	// remaining steps are short, and stopping half-way helps nobody.
+	Committed bool
 }
 
 // Service is the queue. It is safe for concurrent use.
@@ -53,9 +63,16 @@ type Service struct {
 	cancelled map[int64]bool // cancelled by the user rather than shut down
 	live      map[int64]Live
 	itemBusy  map[string]bool // items with a job or Restore in progress
+	// deferred holds items back until a time, after a playback conflict.
+	deferred map[string]time.Time
 	// scheduleStopped marks running jobs stopped because the schedule ended.
 	scheduleStopped map[int64]bool
-	wake            chan struct{}
+	// giveUps counts, per job, how often it gave up waiting for playback
+	// to end. In memory only: a restart gives every job a fresh count.
+	giveUps map[int64]int
+	// playingFn, when set, replaces asking Jellyfin what is playing (tests).
+	playingFn func(ctx context.Context, itemID string) (*jellyfin.Playing, error)
+	wake      chan struct{}
 	// space reads free space; hold is the job held back for space, logged
 	// at holdLogged; reserved is the space each running job may still use.
 	space      SpaceFS
@@ -64,6 +81,7 @@ type Service struct {
 	reserved   map[int64]reservation
 	wg         sync.WaitGroup
 	base       context.Context
+	playback   PlaybackWait
 }
 
 // Options configure the queue.
@@ -77,6 +95,9 @@ type Options struct {
 	// Space reads free space and filesystem IDs; nil uses the real
 	// filesystem.
 	Space SpaceFS
+	// Playback sets how a finished encode waits for people to stop
+	// watching the original. Zero fields take the defaults.
+	Playback PlaybackWait
 }
 
 // New builds the queue.
@@ -84,8 +105,8 @@ func New(o Options) *Service {
 	q := &Service{
 		store: o.Store, library: o.Library, registry: o.Registry, log: o.Log, now: o.Now,
 		running: map[int64]context.CancelFunc{}, cancelled: map[int64]bool{}, live: map[int64]Live{},
-		scheduleStopped: map[int64]bool{}, reserved: map[int64]reservation{},
-		wake: make(chan struct{}, 1), space: o.Space,
+		scheduleStopped: map[int64]bool{}, reserved: map[int64]reservation{}, giveUps: map[int64]int{},
+		wake: make(chan struct{}, 1), space: o.Space, playback: o.Playback.withDefaults(),
 	}
 	if q.space == nil {
 		q.space = osSpace{}
@@ -248,23 +269,35 @@ func (q *Service) EnqueueMatching(ctx context.Context) (int, error) {
 }
 
 // Cancel cancels a waiting job, or stops a running one before it replaces
-// anything. The original is never affected.
+// anything; the original is not affected. Once a job has started replacing
+// the file (see commit), Cancel returns ErrTooLate and the job finishes.
 func (q *Service) Cancel(ctx context.Context, jobID int64) error {
 	ok, err := q.store.CancelJob(ctx, jobID)
 	if err != nil || ok {
+		q.forgetGiveUps(jobID)
 		return err
 	}
 	q.mu.Lock()
 	cancel, running := q.running[jobID]
-	if running {
+	committed := running && q.live[jobID].Committed
+	if running && !committed {
 		q.cancelled[jobID] = true
 	}
 	q.mu.Unlock()
-	if !running {
+	switch {
+	case !running:
 		return ErrNotCancelled
+	case committed:
+		return ErrTooLate
 	}
 	cancel()
 	return nil
+}
+
+func (q *Service) forgetGiveUps(jobID int64) {
+	q.mu.Lock()
+	delete(q.giveUps, jobID)
+	q.mu.Unlock()
 }
 
 // Retry queues a finished job's item again, re-evaluating it first.

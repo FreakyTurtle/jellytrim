@@ -252,22 +252,11 @@ func (s *Server) setupLibrariesView(ctx context.Context) (views.SetupLibrariesVi
 			return v, err
 		}
 	}
-	users, err := s.Store.Users(ctx)
-	if err != nil {
-		return v, err
-	}
-	st, err := s.Store.Settings(ctx)
-	if err != nil {
-		return v, err
-	}
-	// Until the user chooses, every film and show library and every enabled
-	// user is ticked.
+	// Until the user chooses, every film and show library is ticked.
 	anyManaged := slices.ContainsFunc(libs, func(l store.Library) bool { return l.Managed })
 	v.Libraries = setupLibraryViews(libs, func(l store.Library) bool { return l.Managed || !anyManaged })
-	anySelected := slices.ContainsFunc(users, func(u store.JellyfinUser) bool { return u.Selected && !u.Disabled })
-	v.Users = setupUserViews(users, func(u store.JellyfinUser) bool { return u.Selected || !anySelected })
-	v.WatchMode = st.WatchMode
-	return v, nil
+	v.Watch, err = s.watchFormSaved(ctx, true)
+	return v, err
 }
 
 func (s *Server) setupSaveLibraries(w http.ResponseWriter, r *http.Request) {
@@ -277,38 +266,28 @@ func (s *Server) setupSaveLibraries(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
-	userChoice, err := s.setupParseUsers(ctx, r.PostForm)
+	watch, err := s.watchParse(ctx, r.PostForm)
 	if err != nil {
 		s.serverError(w, r, err)
 		return
 	}
-	if libChoice.Error != "" || userChoice.Error != "" {
-		v := views.SetupLibrariesView{
-			Libraries: libChoice.Views, LibraryError: libChoice.Error,
-			Users: userChoice.Views, UserError: userChoice.Error, WatchMode: userChoice.Mode,
-		}
+	if libChoice.Error != "" || watch.invalid() {
+		v := views.SetupLibrariesView{Libraries: libChoice.Views, LibraryError: libChoice.Error, Watch: watch.Form}
 		s.setupRender(w, r, http.StatusUnprocessableEntity, views.SetupLibraries(v, assetVersion()))
 		return
 	}
-	if err := s.setupSaveLibraryChoice(ctx, libChoice, userChoice); err != nil {
+	if err := s.setupSaveLibraryChoice(ctx, libChoice, watch); err != nil {
 		s.serverError(w, r, err)
 		return
 	}
 	redirect(w, r, "/setup/paths")
 }
 
-func (s *Server) setupSaveLibraryChoice(ctx context.Context, libs setupLibraryChoice, users setupUserChoice) error {
+func (s *Server) setupSaveLibraryChoice(ctx context.Context, libs setupLibraryChoice, watch watchChoice) error {
 	if err := s.Store.SetManagedLibraries(ctx, libs.IDs); err != nil {
 		return err
 	}
-	return s.setupSaveUserChoice(ctx, users)
-}
-
-func (s *Server) setupSaveUserChoice(ctx context.Context, users setupUserChoice) error {
-	if err := s.Store.SetSelectedUsers(ctx, users.IDs); err != nil {
-		return err
-	}
-	return s.Store.SetSetting(ctx, store.KeyWatchMode, users.Mode)
+	return s.watchSave(ctx, watch)
 }
 
 // ---------- Path mappings ----------
@@ -767,29 +746,11 @@ func setupLibraryViews(libs []store.Library, checked func(store.Library) bool) [
 	return out
 }
 
-func setupUserViews(users []store.JellyfinUser, checked func(store.JellyfinUser) bool) []views.SetupUser {
-	var out []views.SetupUser
-	for _, u := range users {
-		if !u.Disabled {
-			out = append(out, views.SetupUser{ID: u.ID, Name: u.Name, Checked: checked(u)})
-		}
-	}
-	return out
-}
-
 // setupLibraryChoice is the libraries ticked in a form, checked against
 // what Jellyfin reported.
 type setupLibraryChoice struct {
 	IDs   []string
 	Views []views.SetupLibrary
-	Error string
-}
-
-// setupUserChoice is the users ticked in a form and the any or all choice.
-type setupUserChoice struct {
-	IDs   []string
-	Mode  string
-	Views []views.SetupUser
 	Error string
 }
 
@@ -808,28 +769,6 @@ func (s *Server) setupParseLibraries(ctx context.Context, form url.Values) (setu
 	}
 	if len(c.IDs) == 0 {
 		c.Error = "Choose at least one library."
-	}
-	return c, nil
-}
-
-func (s *Server) setupParseUsers(ctx context.Context, form url.Values) (setupUserChoice, error) {
-	c := setupUserChoice{Mode: form.Get("watch_mode")}
-	users, err := s.Store.Users(ctx)
-	if err != nil {
-		return c, err
-	}
-	c.Views = setupUserViews(users, func(u store.JellyfinUser) bool { return slices.Contains(form["user"], u.ID) })
-	for _, v := range c.Views {
-		if v.Checked {
-			c.IDs = append(c.IDs, v.ID)
-		}
-	}
-	switch {
-	case len(c.IDs) == 0:
-		c.Error = "Choose at least one person whose viewing counts."
-	case !setupValid(c.Mode, "any", "all"):
-		c.Mode = "any"
-		c.Error = "Choose whether any or all of them must have watched an item."
 	}
 	return c, nil
 }

@@ -39,6 +39,7 @@ var historyFilters = []views.Option{
 // queueNotices are the messages a redirect back to /queue can carry.
 var queueNotices = map[string]views.QueueNotice{
 	"cancelled":      {Variant: "ok", Title: "Job cancelled", Text: "The original file is not affected."},
+	"toolate":        {Variant: "info", Title: "Too late to cancel", Text: "JellyTrim is replacing the file now. The original is kept as a backup."},
 	"notcancellable": {Variant: "warn", Title: "That job could not be cancelled", Text: "It is no longer running. If it finished, its result is in History."},
 }
 
@@ -208,6 +209,19 @@ func (s *Server) queueRunningView(j store.Job, l queue.Live) views.QueueRunning 
 		v.Percent = int(frac * 100)
 		v.Readout = queueReadout(frac, speed, eta)
 	}
+	if l.Note != "" {
+		// The new file is ready and the job waits for people to stop
+		// watching the original before swapping it in.
+		v.Note = l.Note
+		v.NoteDetail = "The new file is ready. It replaces the original once nobody is watching. JellyTrim waits up to " +
+			strconv.Itoa(int(queue.DefaultPlaybackLimit.Hours())) + " hours, then tries again later."
+		v.Readout = "New file ready"
+	}
+	if l.Committed {
+		// Past the last check: Cancel would be refused, so it is not offered.
+		v.Committed = true
+		v.Readout = "Replacing the file"
+	}
 	if j.StartedAt != nil {
 		v.Elapsed = units.Duration(s.Now().Sub(*j.StartedAt))
 	}
@@ -360,6 +374,8 @@ func (s *Server) cancelJob(w http.ResponseWriter, r *http.Request) {
 	notice := "cancelled"
 	if err := s.Queue.Cancel(r.Context(), id); errors.Is(err, queue.ErrNotCancelled) {
 		notice = "notcancellable"
+	} else if errors.Is(err, queue.ErrTooLate) {
+		notice = "toolate"
 	} else if err != nil {
 		s.serverError(w, r, err)
 		return
@@ -449,7 +465,9 @@ func (s *Server) restoreJob(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	err := s.Queue.Restore(r.Context(), id)
+	// "anyway" comes from the second step offered when Jellyfin could not
+	// say whether the file is playing. It skips only that check.
+	err := s.Queue.Restore(r.Context(), id, r.FormValue("anyway") == "1")
 	switch {
 	case err == nil:
 		redirect(w, r, "/history/"+strconv.FormatInt(id, 10)+"?restored=1")
@@ -472,6 +490,15 @@ func restoreProblem(err error) *views.QueueNotice {
 	case errors.Is(err, queue.ErrItemBusy):
 		p.Title = "Another job is working on this item"
 		p.Text = "Nothing was changed. Try again when that job has finished; the Queue page shows its progress."
+	case errors.Is(err, queue.ErrInUse):
+		// The error names who is watching and where, when Jellyfin says.
+		p.Title = "Not restored while someone is watching"
+		p.Text = err.Error() + " Nothing was changed and the backup is kept."
+	case errors.Is(err, queue.ErrPlaybackUnknown):
+		p.Title = "Not restored: Jellyfin did not answer"
+		p.Text = err.Error() + " Nothing was changed and the backup is kept. " +
+			"If you know nobody is watching it, you can restore it anyway."
+		p.RestoreAnyway = true
 	case errors.Is(err, pipeline.ErrNotOurFile):
 		p.Title = "The file has changed since JellyTrim optimised it"
 		p.Text = "Something else, such as a new download, replaced the file. Restoring would delete it, so nothing was changed. The backup is kept until backups expire."

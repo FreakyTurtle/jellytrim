@@ -106,7 +106,7 @@ Domain packages (`media`, `pathmap`, `policy`, `plan`) are pure: no files, netwo
 | `task check` | Everything CI runs: generate check, vet, lint, test, ai:check, public check |
 | `task dev:fixtures` | Generate synthetic media into `dev/media` and ffprobe JSON into testdata |
 | `task dev:stack` | Start Jellyfin 12 and JellyTrim in Docker on the fixtures |
-| `task dev:bootstrap` | Set up the dev Jellyfin (user `dev`/`dev`, libraries, API key in `dev/jellyfin-api-key`) |
+| `task dev:bootstrap` | Set up the dev Jellyfin (user `dev`/`dev` plus `alex`, `sam` and `robin` (password = name) with different watched and favourite states, libraries, API key in `dev/jellyfin-api-key`) |
 | `go run ./scripts/devseed -config tmp/config` | Seed a config directory against the dev Jellyfin as if setup had been completed, without using the wizard (see `docs/DEVELOPMENT.md`) |
 | `task ai:sync` / `task ai:check` | Regenerate / check the Codex copies of agents and skills |
 

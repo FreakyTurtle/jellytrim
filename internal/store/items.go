@@ -305,10 +305,12 @@ func (s *Store) ManagedItems(ctx context.Context) ([]Item, error) {
 	return out, rows.Err()
 }
 
-// AllUserData returns watch state for selected users, keyed by item ID.
+// AllUserData returns the stored watch state of every enabled user, keyed
+// by item ID. Sync stores it only for users who may count; callers narrow it
+// to the users who count now (see internal/library).
 func (s *Store) AllUserData(ctx context.Context) (map[string][]UserData, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT d.item_id, d.user_id, d.played, d.play_count, d.favorite, d.last_played_at
-		FROM item_user_data d JOIN jellyfin_users u ON u.id = d.user_id WHERE u.selected = 1 AND u.disabled = 0`)
+		FROM item_user_data d JOIN jellyfin_users u ON u.id = d.user_id WHERE u.disabled = 0`)
 	if err != nil {
 		return nil, err
 	}
@@ -324,11 +326,12 @@ func (s *Store) AllUserData(ctx context.Context) (map[string][]UserData, error) 
 	return out, rows.Err()
 }
 
-// ItemUserData returns one item's watch state for the selected users.
+// ItemUserData returns one item's stored watch state for every enabled
+// user, as AllUserData does.
 func (s *Store) ItemUserData(ctx context.Context, itemID string) ([]UserData, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT d.item_id, d.user_id, d.played, d.play_count, d.favorite, d.last_played_at
 		FROM item_user_data d JOIN jellyfin_users u ON u.id = d.user_id
-		WHERE d.item_id = ? AND u.selected = 1 AND u.disabled = 0`, itemID)
+		WHERE d.item_id = ? AND u.disabled = 0`, itemID)
 	if err != nil {
 		return nil, fmt.Errorf("reading watch state for %s: %w", itemID, err)
 	}

@@ -37,6 +37,24 @@ type SettingsSchedulePreset struct {
 	Current bool
 }
 
+// WatchPerson is one Jellyfin user in the Watched state table.
+type WatchPerson struct {
+	Name         string
+	Hidden       bool // hidden from Jellyfin's sign-in screen; shown only
+	Counted      bool
+	Why          string // why not counted, or a note on a counted user
+	LastActivity string // "3 days ago" or "never"
+}
+
+func watchAnyHidden(people []WatchPerson) bool {
+	for _, p := range people {
+		if p.Hidden {
+			return true
+		}
+	}
+	return false
+}
+
 // SettingsView is everything the Settings page shows. Numbers are strings
 // so an invalid entry is shown back exactly as typed.
 type SettingsView struct {
@@ -50,9 +68,12 @@ type SettingsView struct {
 	ServerName string
 
 	Libraries []SetupLibrary
-	Users     []SetupUser
-	WatchMode string
-	Paths     SetupPathsView
+	Watch     WatchForm
+	// WatchSummary is one or two sentences on whose watch state counts
+	// now, from what is saved.
+	WatchSummary string
+	WatchPeople  []WatchPerson
+	Paths        SetupPathsView
 
 	DryRun           bool
 	ConfirmDryRunOff bool
@@ -234,12 +255,57 @@ templ settingsLibraries(v SettingsView) {
 
 templ settingsWatched(v SettingsView) {
 	@Panel("Watched state", "watched") {
-		<form class="settings-form" method="post" action="/settings/users">
+		<form class="settings-form" method="post" action="/settings/users" novalidate>
 			@settingsFeedback(v, "users")
-			@SetupUserList(v.Users, v.WatchMode, settingsErr(v, "user"), "settings")
+			@WatchFields(v.Watch, "settings")
 			@settingsSave("Save watched state")
 		</form>
+		@settingsWatchPeople(v)
 	}
+}
+
+// settingsWatchPeople is the summary of whose watch state counts now, and
+// every Jellyfin user with the reason when they do not count.
+templ settingsWatchPeople(v SettingsView) {
+	<section class="watch-people" aria-labelledby="watch-people-title">
+		<h3 class="watch-people__title" id="watch-people-title">Counted now</h3>
+		if v.WatchSummary != "" {
+			<p class="watch-people__summary">{ v.WatchSummary }</p>
+		}
+		if len(v.WatchPeople) > 0 {
+			<div class="table-wrap">
+				<table class="table watch-people__table" role="table">
+					<caption class="visually-hidden">Jellyfin users and whether their watch state counts</caption>
+					<thead role="rowgroup">
+						<tr role="row">
+							<th scope="col" role="columnheader">Person</th>
+							<th scope="col" role="columnheader">Watch state</th>
+							<th scope="col" role="columnheader">Last used Jellyfin</th>
+						</tr>
+					</thead>
+					<tbody role="rowgroup">
+						for _, p := range v.WatchPeople {
+							<tr role="row">
+								<td role="cell" class="watch-people__name">
+									<span class="watch-people__who">
+										{ p.Name }
+										if p.Hidden {
+											@Badge("Hidden", "muted")
+										}
+									</span>
+								</td>
+								<td role="cell" data-label="Watch state">@Counted(p.Counted, p.Why)</td>
+								<td role="cell" data-label="Last used Jellyfin">{ p.LastActivity }</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+			if watchAnyHidden(v.WatchPeople) {
+				<p class="setup-note">Hidden people are hidden from Jellyfin's sign-in screen. They count like anyone else.</p>
+			}
+		}
+	</section>
 }
 
 templ settingsPaths(v SettingsView) {

@@ -99,7 +99,8 @@ func (s *Service) syncAll(ctx context.Context, syncID int64) (int, error) {
 }
 
 // syncScope returns the managed libraries and the users whose view of the
-// collections is read: the selected users, or else the first enabled user.
+// collections is read: the users whose watch state may count, or else the
+// first enabled user.
 func (s *Service) syncScope(ctx context.Context) ([]store.Library, []store.JellyfinUser, error) {
 	all, err := s.store.Libraries(ctx)
 	if err != nil {
@@ -114,26 +115,26 @@ func (s *Service) syncScope(ctx context.Context) ([]store.Library, []store.Jelly
 	if len(libs) == 0 {
 		return nil, nil, errors.New("no libraries are selected for JellyTrim to manage")
 	}
-	users, err := s.store.SelectedUsers(ctx)
+	st, err := s.store.Settings(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
-	if len(users) == 0 {
-		// Collections are still read through any enabled user. With no
-		// selected users, watched and favourite conditions never match and
-		// the explanation says why; this user's watch state is not stored.
-		all, err := s.store.Users(ctx)
-		if err != nil {
-			return nil, nil, err
-		}
-		for _, u := range all {
-			if !u.Disabled {
-				return libs, []store.JellyfinUser{{ID: u.ID, Name: u.Name}}, nil
-			}
-		}
-		return nil, nil, errors.New("Jellyfin has no enabled users")
+	users, err := s.store.Users(ctx)
+	if err != nil {
+		return nil, nil, err
 	}
-	return libs, users, nil
+	if c := candidates(users, st); len(c) > 0 {
+		return libs, c, nil
+	}
+	// Collections are still read through any enabled user. With nobody
+	// counted, watched and favourite conditions never match and the
+	// explanation says why; this user's watch state is not stored.
+	for _, u := range users {
+		if !u.Disabled {
+			return libs, []store.JellyfinUser{u}, nil
+		}
+	}
+	return nil, nil, errors.New("Jellyfin has no enabled users")
 }
 
 // syncItems lists every managed library without a user: the API key is an
@@ -237,12 +238,20 @@ func skipReason(it jellyfin.Item) string {
 	return ""
 }
 
-// syncUserData stores watch state for the selected users only.
+// syncUserData stores watch state for every user whose watch state may
+// count (see isCandidate), inactive or not, and removes it for everyone
+// else. Users added in Jellyfin since the last sync are included, because
+// RefreshServerInfo has just read them.
 func (s *Service) syncUserData(ctx context.Context, c *jellyfin.Client, libs []store.Library) error {
-	users, err := s.store.SelectedUsers(ctx)
+	st, err := s.store.Settings(ctx)
 	if err != nil {
 		return err
 	}
+	all, err := s.store.Users(ctx)
+	if err != nil {
+		return err
+	}
+	users := candidates(all, st)
 	keep := make([]string, 0, len(users))
 	for i, u := range users {
 		s.setPhase("Reading watch state", i, len(users))

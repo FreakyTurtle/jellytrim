@@ -589,6 +589,82 @@ templ Field(f FieldProps) {
 	</div>
 }
 
+// InlineNumberProps describes a number typed into a sentence, such as
+// "Ignore accounts not used for more than [90] days".
+type InlineNumberProps struct {
+	ID     string
+	Name   string
+	Before string // the words before the box; with After, the label
+	After  string
+	Value  string
+	Hint   string
+	Error  string
+}
+
+func inlineNumberHintID(p InlineNumberProps) string {
+	if p.Hint == "" {
+		return ""
+	}
+	return p.ID + "-hint"
+}
+
+func inlineNumberErrorID(p InlineNumberProps) string {
+	if p.Error == "" {
+		return ""
+	}
+	return p.ID + "-error"
+}
+
+// InlineNumber is a short number box inside a sentence. The whole sentence
+// is the label; the hint and any error follow it.
+templ InlineNumber(p InlineNumberProps) {
+	<div class="inline-number">
+		<label class="inline-number__line" for={ p.ID }>
+			<span>{ p.Before }</span>
+			<input
+				class="field__input inline-number__input mono"
+				id={ p.ID }
+				name={ p.Name }
+				type="text"
+				inputmode="numeric"
+				autocomplete="off"
+				value={ p.Value }
+				if p.Error != "" {
+					aria-invalid="true"
+				}
+				if d := describedBy(inlineNumberHintID(p), inlineNumberErrorID(p)); d != "" {
+					aria-describedby={ d }
+				}
+			/>
+			<span>{ p.After }</span>
+		</label>
+		if p.Hint != "" {
+			<p class="field__hint" id={ inlineNumberHintID(p) }>{ p.Hint }</p>
+		}
+		if p.Error != "" {
+			<p class="field__error" id={ inlineNumberErrorID(p) }><span aria-hidden="true">✗</span> { p.Error }</p>
+		}
+	</div>
+}
+
+// ---------- Counted mark ----------
+
+// Counted says whether a Jellyfin user's watch state counts: an ok lamp and
+// "Counted", or an idle lamp and "Not counted", with the reason or a note
+// below in --ink-2.
+templ Counted(counted bool, why string) {
+	<span class="counted">
+		if counted {
+			@Status("ok", "Counted")
+		} else {
+			@Status("idle", "Not counted")
+		}
+		if why != "" {
+			<span class="counted__why">{ why }</span>
+		}
+	</span>
+}
+
 // ---------- Dialog ----------
 
 func dialogTitleID(id string) string {

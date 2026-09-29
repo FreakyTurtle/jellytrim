@@ -206,41 +206,71 @@ func condition(c Condition, it Item, f Facts, now time.Time) Line {
 	return Line{false, "unknown condition " + c.Field}
 }
 
-// watchedState combines the selected users' played flags.
+// noWatchers explains a watched condition that cannot match.
+const noWatchers = "no Jellyfin users are counted for watch state"
+
+// watchedState applies the watch rule to the active users' played flags.
+// With one counted user, or the "any one" rule, the text is just "watched"
+// or "not watched"; otherwise it gives the count and what was needed.
 func watchedState(it Item) (bool, string) {
-	if len(it.Users) == 0 {
-		return false, "no Jellyfin users are selected for watch state"
-	}
-	played := 0
+	n, played := 0, 0
 	for _, u := range it.Users {
+		if u.Inactive {
+			continue
+		}
+		n++
 		if u.Played {
 			played++
 		}
 	}
-	if it.WatchMode == WatchAll {
-		if played == len(it.Users) {
-			return true, "watched by every selected user"
+	if n == 0 {
+		return false, noWatchers
+	}
+	pct := it.Watch.percent()
+	if pct == WatchAnyOne || n == 1 {
+		if played > 0 {
+			return true, "watched"
 		}
-		return false, fmt.Sprintf("watched by %d of %d selected users", played, len(it.Users))
+		return false, "not watched"
 	}
-	if played > 0 {
-		return true, "watched"
+	pass := played >= it.Watch.Needed(n)
+	switch pct {
+	case WatchMajority:
+		return pass, fmt.Sprintf("watched by %d of %d users (majority needed)", played, n)
+	case WatchEveryone:
+		if pass {
+			return true, "watched by every counted user"
+		}
+		return false, fmt.Sprintf("watched by %d of %d users (everyone needed)", played, n)
 	}
-	return false, "not watched"
+	return pass, fmt.Sprintf("watched by %d of %d users (%d%%; %d%% needed)", played, n, shareShown(played, n, pass), pct)
+}
+
+// shareShown is the percentage of n users who played, as shown next to the
+// percentage needed. It is rounded to the nearest whole number, except that
+// a share short of the rule is rounded down: 2 of 3 is 66.7%, which must not
+// read as meeting a 67% rule.
+func shareShown(played, n int, pass bool) int {
+	if pass {
+		return (played*200 + n) / (2 * n)
+	}
+	return played * 100 / n
 }
 
 func checkWatched(c Condition, it Item) Line {
 	want := c.Bool != nil && *c.Bool
 	got, text := watchedState(it)
-	if len(it.Users) == 0 {
+	if text == noWatchers {
 		return Line{false, text}
 	}
 	return Line{got == want, text}
 }
 
-// favouriteState is true when any selected user marked the item as a
-// favourite, whatever the watch mode. A favourite usually protects an item,
-// so requiring every user to agree would quietly weaken that protection.
+// favouriteState is true when any counted user marked the item as a
+// favourite, whatever the watch rule and even if that user is inactive. A
+// favourite usually protects an item, so requiring every user to agree, or
+// dropping an absent user's favourites, would quietly weaken that
+// protection.
 func favouriteState(it Item) (bool, string) {
 	for _, u := range it.Users {
 		if u.Favourite {
@@ -254,13 +284,14 @@ func checkFavourite(c Condition, it Item) Line {
 	want := c.Bool != nil && *c.Bool
 	got, text := favouriteState(it)
 	if len(it.Users) == 0 {
-		return Line{false, "no Jellyfin users are selected for favourites"}
+		return Line{false, "no Jellyfin users are counted for favourites"}
 	}
 	return Line{got == want, text}
 }
 
-// lastPlayed is the most recent play by any selected user, whatever the
-// watch mode: a recent viewing by anyone resets the clock.
+// lastPlayed is the most recent play by any counted user, whatever the
+// watch rule and including inactive users: a viewing by anyone resets the
+// clock.
 func lastPlayed(it Item) (time.Time, bool) {
 	var last time.Time
 	for _, u := range it.Users {

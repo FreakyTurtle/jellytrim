@@ -2,6 +2,7 @@ package policy
 
 import (
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -34,7 +35,6 @@ func baseItem() Item {
 		ID: "i1", Name: "Interstellar", Type: "Movie", LibraryID: "lib-movies", LibraryName: "Movies",
 		DateAdded: daysAgo(203),
 		Users:     []UserState{{UserID: "u1", Name: "alex", Played: true, LastPlayed: daysAgo(143)}},
-		WatchMode: WatchAny,
 		File:      file(media.CodecH264, 3840, 2160, 48_200_000),
 	}
 }
@@ -105,40 +105,133 @@ func TestDayBoundaries(t *testing.T) {
 	}
 }
 
-func TestWatchModes(t *testing.T) {
-	two := []UserState{{UserID: "a", Played: true, LastPlayed: daysAgo(200)}, {UserID: "b", Played: false}}
+// users returns n counted users, the first played of them having played.
+func users(n, played int) []UserState {
+	out := make([]UserState, n)
+	for i := range out {
+		out[i] = UserState{UserID: fmt.Sprintf("u%d", i+1), Played: i < played}
+		if out[i].Played {
+			out[i].LastPlayed = daysAgo(200)
+		}
+	}
+	return out
+}
+
+func TestWatchRuleNeeded(t *testing.T) {
+	cases := []struct {
+		percent, counted, want int
+	}{
+		{0, 0, 0}, {51, 0, 0}, {100, 0, 0},
+		{0, 1, 1}, {0, 5, 1},
+		{51, 1, 1}, {51, 2, 2}, {51, 3, 2}, {51, 4, 3}, {51, 5, 3},
+		{51, 51, 26}, {51, 101, 51}, {51, 102, 52}, // more than half, not 51% rounded up
+		{67, 1, 1}, {67, 2, 2}, {67, 3, 3}, {67, 4, 3}, {67, 5, 4},
+		{100, 1, 1}, {100, 2, 2}, {100, 3, 3}, {100, 4, 4}, {100, 5, 5},
+		{60, 3, 2}, {1, 5, 1}, {-10, 3, 1}, {150, 3, 3},
+	}
+	for _, c := range cases {
+		if got := (WatchRule{Percent: c.percent}).Needed(c.counted); got != c.want {
+			t.Errorf("%d%% of %d users: needed %d, want %d", c.percent, c.counted, got, c.want)
+		}
+	}
+}
+
+func TestWatchRuleLabel(t *testing.T) {
+	for p, want := range map[int]string{0: "any one", 51: "a majority", 100: "everyone", 60: "at least 60%", 50: "at least 50%"} {
+		if got := (WatchRule{Percent: p}).Label(); got != want {
+			t.Errorf("%d: %q, want %q", p, got, want)
+		}
+	}
+}
+
+func TestWatchedByShareOfUsers(t *testing.T) {
+	cases := []struct {
+		name             string
+		percent, n, seen int
+		pass             bool
+		text             string
+	}{
+		{"any one: one of three watched", 0, 3, 1, true, "watched"},
+		{"any one: nobody watched", 0, 3, 0, false, "not watched"},
+		{"one counted user keeps the short text under majority", 51, 1, 1, true, "watched"},
+		{"one counted user keeps the short text under everyone", 100, 1, 0, false, "not watched"},
+		{"majority: 1 of 2 is not enough", 51, 2, 1, false, "watched by 1 of 2 users (majority needed)"},
+		{"majority: 2 of 2", 51, 2, 2, true, "watched by 2 of 2 users (majority needed)"},
+		{"majority: 2 of 3", 51, 3, 2, true, "watched by 2 of 3 users (majority needed)"},
+		{"majority: 1 of 3", 51, 3, 1, false, "watched by 1 of 3 users (majority needed)"},
+		{"majority: 2 of 4 is only half", 51, 4, 2, false, "watched by 2 of 4 users (majority needed)"},
+		{"majority: 3 of 4", 51, 4, 3, true, "watched by 3 of 4 users (majority needed)"},
+		{"majority: 3 of 5", 51, 5, 3, true, "watched by 3 of 5 users (majority needed)"},
+		{"majority: 2 of 5", 51, 5, 2, false, "watched by 2 of 5 users (majority needed)"},
+		{"everyone: 2 of 2", 100, 2, 2, true, "watched by every counted user"},
+		{"everyone: 1 of 2", 100, 2, 1, false, "watched by 1 of 2 users (everyone needed)"},
+		{"everyone: 4 of 5", 100, 5, 4, false, "watched by 4 of 5 users (everyone needed)"},
+		{"everyone: 5 of 5", 100, 5, 5, true, "watched by every counted user"},
+		{"67%: 2 of 3 is short and shown rounded down", 67, 3, 2, false, "watched by 2 of 3 users (66%; 67% needed)"},
+		{"67%: 3 of 3", 67, 3, 3, true, "watched by 3 of 3 users (100%; 67% needed)"},
+		{"67%: 3 of 4", 67, 4, 3, true, "watched by 3 of 4 users (75%; 67% needed)"},
+		{"67%: 1 of 2", 67, 2, 1, false, "watched by 1 of 2 users (50%; 67% needed)"},
+		{"60%: 2 of 3", 60, 3, 2, true, "watched by 2 of 3 users (67%; 60% needed)"},
+		{"60%: 1 of 3", 60, 3, 1, false, "watched by 1 of 3 users (33%; 60% needed)"},
+		{"60%: 3 of 5 is exactly 60%", 60, 5, 3, true, "watched by 3 of 5 users (60%; 60% needed)"},
+		{"60%: 1 of 2 is short", 60, 2, 1, false, "watched by 1 of 2 users (50%; 60% needed)"},
+		{"34%: 1 of 3 is just short", 34, 3, 1, false, "watched by 1 of 3 users (33%; 34% needed)"},
+		{"33%: 1 of 3 passes", 33, 3, 1, true, "watched by 1 of 3 users (33%; 33% needed)"},
+		{"10% still needs one user", 10, 4, 0, false, "watched by 0 of 4 users (0%; 10% needed)"},
+	}
 	watched := Condition{Field: FieldWatched, Op: OpIs, Bool: B(true)}
-	it := baseItem()
-	it.Users = two
-	it.WatchMode = WatchAny
-	if !checkCondition(watched, it, now).Pass {
-		t.Fatal("any: one user watched should count as watched")
-	}
-	it.WatchMode = WatchAll
-	l := checkCondition(watched, it, now)
-	if l.Pass || l.Text != "watched by 1 of 2 selected users" {
-		t.Fatalf("all: %+v", l)
-	}
-	it.Users = nil
-	if checkCondition(watched, it, now).Pass {
-		t.Fatal("no users selected must never match watched")
-	}
 	notWatched := Condition{Field: FieldWatched, Op: OpIs, Bool: B(false)}
-	if checkCondition(notWatched, it, now).Pass {
-		t.Fatal("no users selected must not match 'not watched' either")
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			it := baseItem()
+			it.Users, it.Watch = users(c.n, c.seen), WatchRule{Percent: c.percent}
+			l := checkCondition(watched, it, now)
+			if l.Pass != c.pass || l.Text != c.text {
+				t.Fatalf("watched: got %v %q, want %v %q", l.Pass, l.Text, c.pass, c.text)
+			}
+			if l := checkCondition(notWatched, it, now); l.Pass == c.pass || l.Text != c.text {
+				t.Fatalf("not watched: got %v %q", l.Pass, l.Text)
+			}
+		})
+	}
+}
+
+func TestNoCountedUsersNeverMatchWatched(t *testing.T) {
+	for _, p := range []int{0, 51, 100, 60} {
+		it := baseItem()
+		it.Users, it.Watch = nil, WatchRule{Percent: p}
+		for _, want := range []bool{true, false} {
+			l := checkCondition(Condition{Field: FieldWatched, Op: OpIs, Bool: B(want)}, it, now)
+			if l.Pass || l.Text != "no Jellyfin users are counted for watch state" {
+				t.Errorf("%d%%, watched is %v: %+v", p, want, l)
+			}
+		}
 	}
 }
 
 func TestLastWatchedUsesMostRecentPlayByAnyone(t *testing.T) {
-	it := baseItem()
-	it.WatchMode = WatchAll
-	it.Users = []UserState{
-		{UserID: "a", Played: true, LastPlayed: daysAgo(200)},
-		{UserID: "b", Played: true, LastPlayed: daysAgo(3)},
-	}
-	c := Condition{Field: FieldLastWatched, Op: OpMoreThanDays, Number: 90}
-	if checkCondition(c, it, now).Pass {
-		t.Fatal("a recent play by any user must reset the clock")
+	more := Condition{Field: FieldLastWatched, Op: OpMoreThanDays, Number: 90}
+	for _, p := range []int{0, 51, 100, 60} {
+		it := baseItem()
+		it.Watch = WatchRule{Percent: p}
+		it.Users = []UserState{
+			{UserID: "a", Played: true, LastPlayed: daysAgo(200)},
+			{UserID: "b", Played: true, LastPlayed: daysAgo(3)},
+			{UserID: "c"},
+		}
+		if l := checkCondition(more, it, now); l.Pass || l.Text != "last watched 3 days ago (not more than 90)" {
+			t.Errorf("%d%%: a recent play by any user must reset the clock: %+v", p, l)
+		}
+		// A play by one user is enough to date the last viewing, even
+		// when the rule says the item is not watched yet.
+		it.Users = []UserState{{UserID: "a", Played: true, LastPlayed: daysAgo(120)}, {UserID: "b"}, {UserID: "c"}}
+		if l := checkCondition(more, it, now); !l.Pass || l.Text != "last watched 120 days ago (more than 90)" {
+			t.Errorf("%d%%: one user's play: %+v", p, l)
+		}
+		it.Users = nil
+		if l := checkCondition(more, it, now); l.Pass || l.Text != "never watched" {
+			t.Errorf("%d%%: no counted users: %+v", p, l)
+		}
 	}
 }
 
@@ -150,28 +243,32 @@ func TestFavourites(t *testing.T) {
 	if !checkCondition(fav, it, now).Pass || checkCondition(notFav, it, now).Pass {
 		t.Fatal("any: one user's favourite protects the item")
 	}
-	// "All selected users" applies to watched state only: one user's
-	// favourite still counts, so Protect favourites is never weakened.
-	it.WatchMode = WatchAll
-	if l := checkCondition(fav, it, now); !l.Pass || l.Text != "a favourite" {
-		t.Fatalf("all: one user's favourite must still count: %+v", l)
-	}
-	if checkCondition(notFav, it, now).Pass {
-		t.Fatal("all: 'not a favourite' must not match when one user favourited it")
+	// The watch rule applies to watched state only: one user's favourite
+	// still counts, so Protect favourites is never weakened.
+	for _, p := range []int{51, 100, 60} {
+		it.Watch = WatchRule{Percent: p}
+		if l := checkCondition(fav, it, now); !l.Pass || l.Text != "a favourite" {
+			t.Fatalf("%d%%: one user's favourite must still count: %+v", p, l)
+		}
+		if checkCondition(notFav, it, now).Pass {
+			t.Fatalf("%d%%: 'not a favourite' must not match when one user favourited it", p)
+		}
 	}
 	it.Users = []UserState{{UserID: "a"}, {UserID: "b"}}
 	if l := checkCondition(notFav, it, now); !l.Pass || l.Text != "not a favourite" {
 		t.Fatalf("all: nobody's favourite: %+v", l)
 	}
 	it.Users = nil
-	if checkCondition(fav, it, now).Pass || checkCondition(notFav, it, now).Pass {
-		t.Fatal("no users selected must match neither favourite nor not favourite")
+	for _, c := range []Condition{fav, notFav} {
+		if l := checkCondition(c, it, now); l.Pass || l.Text != "no Jellyfin users are counted for favourites" {
+			t.Fatalf("no counted users must match neither favourite nor not favourite: %+v", l)
+		}
 	}
 }
 
-func TestProtectFavouritesWinsInAllMode(t *testing.T) {
+func TestProtectFavouritesWinsWhenEveryoneMustWatch(t *testing.T) {
 	it := baseItem()
-	it.WatchMode = WatchAll
+	it.Watch = WatchRule{Percent: WatchEveryone}
 	it.Users = []UserState{{UserID: "a", Favourite: true}, {UserID: "b"}}
 	res := Evaluate(Starter()[:1], it, now)
 	if res.Winner == nil || res.Winner.Action.Kind != KindProtect {
@@ -386,5 +483,30 @@ func TestDescribe(t *testing.T) {
 	}
 	if got := Describe(Starter()[0], n); got != "In every managed library, when a favourite: never change these files." {
 		t.Fatalf("protect: %q", got)
+	}
+}
+
+func TestInactiveUsersKeepFavouritesAndLastWatched(t *testing.T) {
+	now := time.Date(2026, 9, 29, 12, 0, 0, 0, time.UTC)
+	recent := now.Add(-5 * 24 * time.Hour)
+	it := Item{Watch: WatchRule{Percent: WatchEveryone}, Users: []UserState{
+		{UserID: "a", Name: "alex", Played: true},
+		{UserID: "s", Name: "sam", Favourite: true, Played: false, LastPlayed: &recent, Inactive: true},
+	}}
+	if got, text := watchedState(it); !got || text != "watched" {
+		t.Errorf("an inactive user must not count towards the share: %v %q", got, text)
+	}
+	if got, _ := favouriteState(it); !got {
+		t.Error("an inactive user's favourite must still count")
+	}
+	if last, ok := lastPlayed(it); !ok || !last.Equal(recent) {
+		t.Errorf("an inactive user's play must still reset last watched: %v %v", last, ok)
+	}
+	onlyInactive := Item{Users: []UserState{{UserID: "s", Favourite: true, Inactive: true}}}
+	if l := checkWatched(Condition{Field: FieldWatched, Op: OpIs, Bool: B(false)}, onlyInactive); l.Pass {
+		t.Errorf("with nobody counted towards the share, watched conditions never match: %+v", l)
+	}
+	if l := checkFavourite(Condition{Field: FieldFavourite, Op: OpIs, Bool: B(true)}, onlyInactive); !l.Pass {
+		t.Errorf("an inactive user's favourite must match: %+v", l)
 	}
 }

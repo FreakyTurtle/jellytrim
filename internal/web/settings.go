@@ -150,10 +150,6 @@ func (s *Server) settingsLibraryParts(ctx context.Context, v *views.SettingsView
 	if err != nil {
 		return err
 	}
-	users, err := s.Store.Users(ctx)
-	if err != nil {
-		return err
-	}
 	locs, err := s.setupLibraryLocations(ctx)
 	if err != nil {
 		return err
@@ -163,14 +159,16 @@ func (s *Server) settingsLibraryParts(ctx context.Context, v *views.SettingsView
 		return err
 	}
 	v.Libraries = setupLibraryViews(libs, func(l store.Library) bool { return l.Managed })
-	v.Users = setupUserViews(users, func(u store.JellyfinUser) bool { return u.Selected })
 	v.Paths = views.SetupPathsView{Rows: rows}
-	return nil
+	if v.Watch, err = s.watchFormSaved(ctx, false); err != nil {
+		return err
+	}
+	v.WatchSummary, v.WatchPeople, err = s.watchPeople(ctx)
+	return err
 }
 
 // settingsFromStore fills the plain settings.
 func settingsFromStore(v *views.SettingsView, st store.Settings) {
-	v.WatchMode = st.WatchMode
 	v.DryRun = st.DryRun
 	v.KeepDays = st.BackupDays
 	v.SyncInterval = strconv.Itoa(st.SyncIntervalHours)
@@ -261,6 +259,13 @@ func (s *Server) saveSettings(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
+	var watchBefore watchSaved
+	if section == "users" {
+		if watchBefore, err = s.watchSavedNow(r.Context()); err != nil {
+			s.serverError(w, r, err)
+			return
+		}
+	}
 	status, err := s.settingsSave(r.Context(), section, r.PostForm, &v)
 	if err != nil {
 		s.serverError(w, r, err)
@@ -270,7 +275,11 @@ func (s *Server) saveSettings(w http.ResponseWriter, r *http.Request) {
 		s.setupRender(w, r, status, views.SettingsPage(v))
 		return
 	}
-	s.settingsReevaluate(section)
+	if section == "users" {
+		s.watchFollowUp(r.Context(), watchBefore)
+	} else {
+		s.settingsReevaluate(section)
+	}
 	redirect(w, r, target)
 }
 
@@ -301,14 +310,15 @@ func (s *Server) settingsSave(ctx context.Context, section string, form url.Valu
 }
 
 // settingsReevaluate brings the library up to date after a change that
-// affects decisions. Which libraries, users and folders are read needs a
-// full sync; the rest only needs the policies evaluated again.
+// affects decisions. Which libraries and folders are read needs a full
+// sync; the rest only needs the policies evaluated again. The watched state
+// decides for itself (watchFollowUp).
 func (s *Server) settingsReevaluate(section string) {
 	if s.Library == nil {
 		return
 	}
 	switch section {
-	case "libraries", "users", "paths":
+	case "libraries", "paths":
 		s.Library.RunAsync()
 	case "dryrun", "safety", "advanced":
 		s.Library.EvaluateAsync()
@@ -341,15 +351,15 @@ func (s *Server) settingsSaveLibraries(ctx context.Context, form url.Values, v *
 }
 
 func (s *Server) settingsSaveUsers(ctx context.Context, form url.Values, v *views.SettingsView) (int, error) {
-	c, err := s.setupParseUsers(ctx, form)
+	c, err := s.watchParse(ctx, form)
 	if err != nil {
 		return 0, err
 	}
-	if c.Error != "" {
-		v.Users, v.WatchMode, v.Errors["user"] = c.Views, c.Mode, c.Error
+	if c.invalid() {
+		v.Watch = c.Form
 		return http.StatusUnprocessableEntity, nil
 	}
-	return 0, s.setupSaveUserChoice(ctx, c)
+	return 0, s.watchSave(ctx, c)
 }
 
 func (s *Server) settingsSavePaths(ctx context.Context, form url.Values, v *views.SettingsView) (int, error) {

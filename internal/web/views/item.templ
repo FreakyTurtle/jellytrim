@@ -20,6 +20,7 @@ type ItemPageData struct {
 	ProbeError    string // why the file could not be inspected, technical
 	Probed        bool
 	Jellyfin      []ItemStat
+	Watch         ItemWatch
 	Source        []ItemStat
 	HDRFacts      []string
 	Audio         []ItemStream
@@ -36,6 +37,23 @@ type ItemStat struct {
 	Label string
 	Value string
 	Mono  bool
+}
+
+// ItemWatch is every Jellyfin user's watch state for the item, with the
+// rule that decides whether it counts as watched.
+type ItemWatch struct {
+	Rule string // "A file counts as watched when a majority of ..."
+	Rows []ItemWatchRow
+}
+
+// ItemWatchRow is one Jellyfin user's watch state for the item.
+type ItemWatchRow struct {
+	Name       string
+	Played     bool
+	When       string // "3 plays, last 12 days ago"; empty when never played
+	Favourite  bool
+	Counted    bool
+	Why        string // why not counted, or a note on a counted user
 }
 
 // ItemStream is one audio or subtitle stream.
@@ -123,6 +141,9 @@ templ ItemPage(v ItemPageData) {
 			<div class="item-grid__col">
 				@Panel("Jellyfin", "item-jellyfin") {
 					@itemStats(v.Jellyfin)
+				}
+				if v.Watch.Rule != "" {
+					@itemWatch(v.Watch)
 				}
 				if v.Probed {
 					@Panel("Source", "item-source") {
@@ -241,6 +262,57 @@ templ itemStats(rows []ItemStat) {
 	@Stats() {
 		for _, r := range rows {
 			@StatRow(r.Label, r.Value, r.Mono)
+		}
+	}
+}
+
+// itemWatch lists each Jellyfin user's watch state for the item and
+// whether it counts, under the rule in words.
+templ itemWatch(w ItemWatch) {
+	@Panel("Watch history", "item-watch") {
+		<p class="item-watch__rule">{ w.Rule }</p>
+		if len(w.Rows) > 0 {
+			<div class="table-wrap">
+				<table class="table item-watch__table" role="table">
+					<caption class="visually-hidden">Watch history by person</caption>
+					<thead role="rowgroup">
+						<tr role="row">
+							<th scope="col" role="columnheader">Person</th>
+							<th scope="col" role="columnheader">Watched</th>
+							<th scope="col" role="columnheader">Favourite</th>
+							<th scope="col" role="columnheader">Counts</th>
+						</tr>
+					</thead>
+					<tbody role="rowgroup">
+						for _, r := range w.Rows {
+							<tr role="row" class={ templ.KV("item-watch__row--off", !r.Counted) }>
+								<td role="cell" class="item-watch__name">{ r.Name }</td>
+								<td role="cell" data-label="Watched">
+									<span class="item-watch__played">
+										if r.Played {
+											<span class="item-watch__yes">Yes</span>
+										} else {
+											<span class="missing">No</span>
+										}
+										if r.When != "" {
+											<span class="item-watch__when mono">{ r.When }</span>
+										}
+									</span>
+								</td>
+								<td role="cell" data-label="Favourite">
+									if r.Favourite {
+										Yes
+									} else {
+										<span class="missing">No</span>
+									}
+								</td>
+								<td role="cell" data-label="Counts">@Counted(r.Counted, r.Why)</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+			<p class="item-note">Favourites and "last watched" use any counted person, and inactive people too. Other people who are not counted do not affect this file.</p>
 		}
 	}
 }

@@ -37,7 +37,9 @@ type Candidate struct {
 type evalContext struct {
 	settings store.Settings
 	policies []policy.Policy
-	users    []store.JellyfinUser
+	users    []store.JellyfinUser // the users whose favourites and plays count
+	inactive map[string]bool      // users left out of the watched share
+	watch    policy.WatchRule
 	cols     map[string][]string // collection IDs by member ID
 	roots    []string            // resolved local roots
 	libs     map[string]store.Library
@@ -50,13 +52,18 @@ type evalContext struct {
 func (s *Service) loadEvalContext(ctx context.Context) (evalContext, error) {
 	var ec evalContext
 	var err error
-	if ec.settings, err = s.store.Settings(ctx); err != nil {
+	var w watchers
+	if w, ec.settings, err = s.loadWatchers(ctx); err != nil {
 		return ec, err
+	}
+	ec.users, ec.watch = w.history, w.rule
+	ec.inactive = make(map[string]bool)
+	for _, u := range w.users {
+		if u.Inactive {
+			ec.inactive[u.User.ID] = true
+		}
 	}
 	if ec.policies, err = s.Policies(ctx); err != nil {
-		return ec, err
-	}
-	if ec.users, err = s.store.SelectedUsers(ctx); err != nil {
 		return ec, err
 	}
 	if ec.cols, err = s.store.ItemCollections(ctx); err != nil {
@@ -117,7 +124,7 @@ func (ec *evalContext) baseCandidate(it store.Item, ud []store.UserData) Candida
 	c.Policy = policy.Item{
 		ID: it.ID, Name: it.Name, Type: it.Type, LibraryID: it.LibraryID, LibraryName: ec.libs[it.LibraryID].Name,
 		SeriesID: it.SeriesID, SeriesName: it.SeriesName, SeasonNumber: it.SeasonNumber, Collections: ec.collectionsFor(it),
-		Tags: it.Tags, Genres: it.Genres, DateAdded: it.DateAdded, WatchMode: policy.WatchMode(ec.settings.WatchMode),
+		Tags: it.Tags, Genres: it.Genres, DateAdded: it.DateAdded, Watch: ec.watch,
 		Size: it.JellyfinSize,
 	}
 	if len(ec.users) > 0 {
@@ -132,7 +139,7 @@ func (ec *evalContext) baseCandidate(it store.Item, ud []store.UserData) Candida
 			}
 		}
 		c.Policy.Users = append(c.Policy.Users, policy.UserState{UserID: u.ID, Name: u.Name, Played: d.Played,
-			Favourite: d.Favourite, LastPlayed: d.LastPlayedAt})
+			Favourite: d.Favourite, LastPlayed: d.LastPlayedAt, Inactive: ec.inactive[u.ID]})
 	}
 	return c
 }

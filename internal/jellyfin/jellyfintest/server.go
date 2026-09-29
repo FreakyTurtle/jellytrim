@@ -53,6 +53,7 @@ type Server struct {
 	updates     []MediaUpdate
 	updateRaw   [][]byte
 	refreshes   []Refresh
+	sessions    []Session
 }
 
 // Request is a request the fake server received.

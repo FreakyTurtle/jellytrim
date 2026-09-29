@@ -47,3 +47,11 @@ Curate this file: keep it under 150 lines, one fact per bullet, date each entry 
 - 2026-09-28: the store has no running-jobs query; InterruptedJobs filtered by `Active()` avoids ActiveJobs, which loads every waiting job.
 - 2026-09-28: to test SpaceHold, Start a queue with a fake SpaceFS (tiny Free) and Dry Run off; it holds the job without encoding anything.
 - 2026-09-28: never put throwaway Go programs (seeders, harnesses) under the repo's tmp/ or dev/: `./...` includes them and lint fails. Put them in the session scratchpad, outside the module.
+- 2026-09-29: `.meter__readout` is `flex: none` and mono; a long readout overflows at 390px. Keep readouts to a few words and put explanations in a note block.
+- 2026-09-29: `libraryTestEnv.get` fails when the Jellyfin URL appears, and Settings shows it in the connection form; fetch Settings with a raw httptest request that checks only the API key.
+- 2026-09-29: `store.Setting` returns the default for a missing key; to prove a key is never written, set a sentinel first and check it survives.
+- 2026-09-29: with the library tests' clock (2027-01-01) the fixture user dev is "inactive for 95 days", so the default 90-day watch filter leaves dev out.
+- 2026-09-29: templ `//` comments inside element children are dropped from the output, so they are safe for notes in markup.
+- 2026-09-29: progressive disclosure without JS: hide a sub-control with `.parent:has(input[value="x"]:not(:checked)) .child { display: none }`; old browsers just show it (watched state people list, custom share).
+- 2026-09-29: the setup Jellyfin form starts with a hidden default "Continue" submit, so Playwright's click by text times out; press Enter in a field instead.
+- 2026-09-29: to screenshot states the dev stack cannot reach (a running job's note, a restore conflict), render the fragment from a temporary env-gated test into the scratchpad, inject it with page.evaluate, then delete the test.

@@ -202,9 +202,10 @@ func TestSetupWizardEndToEnd(t *testing.T) {
 	movies, tv, user := e.connect()
 	res, body = e.get("/setup/libraries", false)
 	expectStatus(t, res, body, http.StatusOK)
-	expectContains(t, body, "Movies", "/media/tv", "dev", `name="watch_mode"`)
+	expectContains(t, body, "Movies", "/media/tv", "dev", `name="watch_users"`, `name="watch_rule"`, `name="watch_inactive_days"`)
 
-	res, body = e.post("/setup/libraries", url.Values{"library": {movies, tv}, "user": {user}, "watch_mode": {"all"}}, false)
+	res, body = e.post("/setup/libraries", url.Values{"library": {movies, tv}, "user": {user}, "watch_users": {"selected"},
+		"watch_rule": {"everyone"}, "watch_inactive_days": {"30"}}, false)
 	e.expectRedirect(res, body, "/setup/paths")
 	libs, _ := e.st.Libraries(ctx)
 	for _, l := range libs {
@@ -212,8 +213,11 @@ func TestSetupWizardEndToEnd(t *testing.T) {
 			t.Errorf("library %s not managed", l.Name)
 		}
 	}
-	if st, _ := e.st.Settings(ctx); st.WatchMode != "all" {
-		t.Errorf("watch mode %q", st.WatchMode)
+	if st, _ := e.st.Settings(ctx); st.WatchUsers != store.WatchUsersSelected || st.WatchPercent != 100 || st.WatchInactiveDays != 30 {
+		t.Errorf("watch settings %q %d %d", st.WatchUsers, st.WatchPercent, st.WatchInactiveDays)
+	}
+	if sel, _ := e.st.SelectedUsers(ctx); len(sel) != 1 || sel[0].ID != user {
+		t.Errorf("selected users %+v", sel)
 	}
 
 	res, body = e.get("/setup/paths", false)
@@ -349,7 +353,8 @@ func TestSetupStartResumes(t *testing.T) {
 	movies, _, user := e.connect()
 	res, body = e.get("/setup", false)
 	e.expectRedirect(res, body, "/setup/libraries")
-	e.post("/setup/libraries", url.Values{"library": {movies}, "user": {user}, "watch_mode": {"any"}}, false)
+	e.post("/setup/libraries", url.Values{"library": {movies}, "user": {user}, "watch_users": {"everyone"},
+		"watch_rule": {"any"}, "watch_inactive_days": {"90"}}, false)
 	res, body = e.get("/setup", false)
 	e.expectRedirect(res, body, "/setup/paths")
 	e.post("/setup/paths", e.mappingForm(), false)
@@ -360,9 +365,11 @@ func TestSetupStartResumes(t *testing.T) {
 func TestSetupLibrariesValidation(t *testing.T) {
 	e := newSetupEnv(t)
 	e.connect()
-	res, body := e.post("/setup/libraries", url.Values{"library": {"not-a-library"}, "watch_mode": {"sometimes"}}, false)
+	res, body := e.post("/setup/libraries", url.Values{"library": {"not-a-library"}, "watch_users": {"selected"},
+		"watch_rule": {"sometimes"}, "watch_inactive_days": {"-1"}}, false)
 	expectStatus(t, res, body, http.StatusUnprocessableEntity)
-	expectContains(t, body, "Choose at least one library.", "Choose at least one person")
+	expectContains(t, body, "Choose at least one library.", "Choose at least one person",
+		"Choose when a file counts as watched.", "Enter a whole number of days from 0 to 3650.")
 	libs, _ := e.st.Libraries(context.Background())
 	for _, l := range libs {
 		if l.Managed {

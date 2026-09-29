@@ -40,15 +40,73 @@ All conditions must pass (AND). A policy with no conditions matches everything i
 
 ### Whose watch state counts
 
-Jellyfin keeps watched state and favourites per user. In Settings, the user chooses which Jellyfin users count and how:
+Jellyfin keeps watched state and favourites per user. Three settings decide whose watch state JellyTrim counts and when a file counts as watched. They are in Settings and in the setup wizard, and apply to every policy.
 
-- **Any selected user** (default): watched if any of them watched it.
-- **All selected users**: watched only if every one of them watched it.
+**Whose history counts** (`watch_users`):
 
-The mode applies to watched state only. Two things always use any selected user, because that is the cautious choice:
+- **Everyone** (default): every enabled Jellyfin user. Users added in Jellyfin later are picked up at the next sync and count from then on, with no change in JellyTrim.
+- **Selected users**: only the users ticked in Settings. A user added in Jellyfin later does not count until ticked.
 
-- **Favourite** is true if any selected user favourited the item, so one person's favourite is enough for *Protect favourites* to keep it.
-- **Last watched** uses the most recent play by any selected user, so a recent viewing by anyone resets the clock.
+Disabled Jellyfin users never count. Users hidden from Jellyfin's sign-in screen count like any other user; the hidden flag is only shown.
+
+**Share that must have watched** (`watch_percent`, 0 to 100):
+
+| Choice | Value | Watched when |
+|---|---|---|
+| Any one | 0 | at least one counted user played it |
+| Majority | 51 | more than half of the counted users played it |
+| Everyone | 100 | every counted user played it |
+| Custom | 1 to 100 | at least that share of the counted users played it |
+
+The number of users needed is the share of the counted users, rounded up, and always at least one. With N counted users, a rule of P% needs ceil(P × N / 100) of them. Majority is the exception: it always means more than half, N / 2 + 1 rounded down, so 26 of 51 rather than 27. A custom 51% is stored the same way as Majority and behaves the same.
+
+| Counted users | Majority (51%) | Everyone | 60% | 67% |
+|---|---|---|---|---|
+| 1 | 1 | 1 | 1 | 1 |
+| 2 | 2 | 2 | 2 | 2 |
+| 3 | 2 | 3 | 2 | 3 |
+| 4 | 3 | 4 | 3 | 3 |
+| 5 | 3 | 5 | 3 | 4 |
+
+A worked example with four counted users (dev, alex, sam and robin):
+
+| Item | Played by | Any one | Majority | Everyone | 60% |
+|---|---|---|---|---|---|
+| Alpha | alex | watched | not watched | not watched | not watched |
+| Golf | dev, sam (sam's favourite) | watched | not watched (2 of 4, 3 needed) | not watched | not watched (50%) |
+| Charlie | dev, alex, sam | watched | watched (3 of 4) | not watched | watched (75%) |
+| Echo | all four | watched | watched | watched | watched |
+| Bravo | nobody | not watched | not watched | not watched | not watched |
+
+(The dev bootstrap script sets up this spread on the dev Jellyfin; see `docs/DEVELOPMENT.md`.)
+
+**Ignore inactive accounts** (`watch_inactive_days`, default 90, 0 turns it off): a user whose last activity in Jellyfin is more than this many days ago is left out of the share, so an old account nobody uses cannot stop items from counting as watched. Their favourites and plays still count (see below), so an absent person's favourites keep protecting files. A user who has never used Jellyfin counts as inactive while the filter is on. JellyTrim reads each user's last activity at every sync and applies the filter each time it evaluates, so changing the number takes effect without a sync.
+
+The filter never leaves nobody. If every user who would otherwise count is inactive, the filter is not applied and all of them count; Settings says so ("None of them has been active in the last 90 days, so inactive users are counted").
+
+Settings shows one line summing this up, for example "Counting 3 of 4 users (1 inactive). A file counts as watched when a majority of them have watched it.", and lists every Jellyfin user as counted or not counted with the reason: disabled in Jellyfin, not selected, inactive for N days, or never used Jellyfin. An item's page shows each user's watch state the same way.
+
+**Favourites and last watched use any counted user, including inactive ones**, whatever the share. Two things are always the cautious choice:
+
+- **Favourite** is true if any counted or inactive user favourited the item, so one person's favourite is enough for *Protect favourites* to keep it, even after that person has been away for months.
+- **Last watched** is the most recent play by any counted or inactive user, so a viewing by anyone resets the clock. It is dated by that play even when the share rule says the item is not watched yet.
+
+A user who is disabled or not selected affects neither. The item's page marks an inactive user "inactive for N days; favourites and plays still count".
+
+**Explanations.** With the Any one rule, or when only one user counts, the watched line reads "watched" or "not watched". Otherwise it gives the count and what was needed:
+
+- Majority: "watched by 2 of 3 users (majority needed)", "watched by 1 of 3 users (majority needed)"
+- Everyone: "watched by every counted user", "watched by 1 of 2 users (everyone needed)"
+- Custom: "watched by 2 of 3 users (67%; 60% needed)". A share short of the rule is rounded down, so 2 of 3 under a 67% rule reads "66%; 67% needed", never "67%".
+
+The line does not name the users left out; the item's page lists counted and not counted users. When nobody counts (for example Selected users with nobody ticked), watched and favourite conditions never match, and the lines say "no Jellyfin users are counted for watch state" and "no Jellyfin users are counted for favourites".
+
+**Upgrading from an older version.** Older versions had "any selected user" and "all selected users". On upgrade:
+
+- "any" becomes Any one (0) and "all" becomes Everyone (100).
+- If some users were ticked and at least one enabled user was not, the install keeps Selected users with the same ticks. Otherwise (every enabled user ticked, or none) it becomes Everyone.
+- Ignore inactive accounts starts at 90 days. Users' last activity is read at the first sync after the upgrade. Until then no user has any, so the filter is not applied (see above). After that sync, with Everyone or Majority, an inactive user no longer holds back the share, so some items can start counting as watched. Their favourites keep counting.
+- An install with every enabled user ticked becomes Everyone, so users added to Jellyfin later count from then on. An install with nobody ticked (where watched and favourite conditions never matched) also becomes Everyone, so those conditions start matching.
 
 (Per-policy choice of users is planned.)
 

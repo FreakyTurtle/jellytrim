@@ -39,7 +39,7 @@ task setup
 | `task dev` | Runs JellyTrim locally with templ in watch mode. State goes in `./tmp/config`. |
 | `task dev:fixtures` | Generates synthetic test media into `dev/media` and ffprobe JSON into testdata. |
 | `task dev:stack` | Starts a Jellyfin 12 container and a JellyTrim container on the fixtures. |
-| `task dev:bootstrap` | Sets up the dev Jellyfin: user `dev` with password `dev`, libraries, and an API key written to `dev/jellyfin-api-key`. |
+| `task dev:bootstrap` | Sets up the dev Jellyfin: users `dev`, `alex`, `sam` and `robin` (each password is the name) with different watched and favourite states, libraries, and an API key written to `dev/jellyfin-api-key`. |
 
 A typical first run:
 

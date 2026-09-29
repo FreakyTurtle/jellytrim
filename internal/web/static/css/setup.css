@@ -143,6 +143,87 @@
   color: var(--ink-2);
 }
 
+/* ---------- Watched state ---------- */
+
+/* Whose history counts: two radios, the second opening the people. The
+   people hide while Everyone is chosen; without :has() they always show. */
+.watch-who {
+  display: grid;
+  gap: var(--space-1);
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.watch-who__choice {
+  display: flex;
+  font-weight: 500;
+}
+
+.watch-who__people {
+  min-inline-size: 0;
+  margin: 0 0 0 calc(1.125rem + var(--space-2));
+  padding: var(--space-1) 0 var(--space-1) var(--space-4);
+  border: 0;
+  border-inline-start: var(--border-strong);
+}
+
+.watch-who__people .setup-checklist__list {
+  border: 0;
+}
+
+.watch-who:has(input[name="watch_users"][value="everyone"]:checked) .watch-who__people {
+  display: none;
+}
+
+.watch-who__reason {
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+/* When a file counts as watched, and the custom share under it. */
+.watch-rule {
+  display: grid;
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+
+.watch-rule:has(.segmented__input[value="custom"]:not(:checked)) .watch-rule__custom {
+  display: none;
+}
+
+/* Who counts now: the summary and the table of people. */
+.watch-people {
+  display: grid;
+  gap: var(--space-3);
+  min-inline-size: 0;
+  margin-block-start: var(--space-6);
+  padding-block-start: var(--space-4);
+  border-block-start: var(--border-strong);
+}
+
+.watch-people__title {
+  color: var(--ink-2);
+  font-size: var(--text-label);
+  font-weight: 500;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
+.watch-people__summary {
+  max-inline-size: var(--measure);
+  font-weight: 500;
+}
+
+.watch-people__who {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 500;
+}
+
 /* ---------- Path mapping rows ---------- */
 
 .setup-paths {

@@ -23,6 +23,7 @@ func (s *Server) handler() http.Handler {
 	mux.HandleFunc("GET /Items/{id}/Images/{type}", s.auth(s.getImage))
 	mux.HandleFunc("POST /Items/{id}/Refresh", s.auth(s.refresh))
 	mux.HandleFunc("POST /Library/Media/Updated", s.auth(s.mediaUpdated))
+	mux.HandleFunc("GET /Sessions", s.auth(s.listSessions))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fault, hasFault, delay := s.record(r)
 		if delay > 0 {

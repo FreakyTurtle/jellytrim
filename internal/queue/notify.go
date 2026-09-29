@@ -161,8 +161,13 @@ var (
 	ErrItemBusy = errors.New("another job is working on this item; try again when it has finished")
 )
 
-// Restore puts a completed job's original back and tells Jellyfin.
-func (q *Service) Restore(ctx context.Context, jobID int64) error {
+// Restore puts a completed job's original back and tells Jellyfin. It
+// refuses with an error matching ErrInUse while someone is playing the item,
+// and with ErrPlaybackUnknown when Jellyfin cannot say, unless anyway is
+// set: the user chose to restore without the check, for example because
+// Jellyfin is down and the backup is about to expire. Playback that Jellyfin
+// does report always refuses.
+func (q *Service) Restore(ctx context.Context, jobID int64, anyway bool) error {
 	j, err := q.store.Job(ctx, jobID)
 	if err != nil {
 		return err
@@ -180,6 +185,12 @@ func (q *Service) Restore(ctx context.Context, jobID int64) error {
 		return ErrItemBusy
 	}
 	defer unlock()
+	// Renaming over a file someone is watching is safe for an open handle
+	// on Linux, but a player that re-opens the path (seeking, changing
+	// audio) would jump to a different file. Ask Jellyfin first.
+	if err := q.checkNotPlaying(ctx, j.ItemID, anyway); err != nil {
+		return err
+	}
 	var out store.FileIdentity
 	_ = json.Unmarshal([]byte(j.OutputIdentity), &out)
 	expect := fileid.Info{Dev: out.Dev, Inode: out.Inode, Size: out.Size, MtimeNs: out.MtimeNs}

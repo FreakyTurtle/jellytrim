@@ -98,7 +98,12 @@ func TestSettingsValidationErrors(t *testing.T) {
 		{"advanced", url.Values{"preset": {"slow"}, "bit_depth": {"10"}, "q-x265-high": {"60"}}, "Enter a whole number from 1 to 51"},
 		{"advanced", url.Values{"preset": {"placebo"}, "bit_depth": {"10"}}, "Choose a speed preset"},
 		{"libraries", url.Values{}, "Choose at least one library."},
-		{"users", url.Values{"watch_mode": {"any"}}, "Choose at least one person"},
+		{"users", url.Values{"watch_users": {"selected"}, "watch_rule": {"any"}, "watch_inactive_days": {"90"}}, "Choose at least one person"},
+		{"users", url.Values{"watch_users": {"everyone"}, "watch_rule": {"custom"}, "watch_percent": {"0"}, "watch_inactive_days": {"90"}}, "Enter a whole number from 1 to 100."},
+		{"users", url.Values{"watch_users": {"everyone"}, "watch_rule": {"custom"}, "watch_percent": {"101"}, "watch_inactive_days": {"90"}}, "Enter a whole number from 1 to 100."},
+		{"users", url.Values{"watch_users": {"everyone"}, "watch_rule": {"any"}, "watch_inactive_days": {"3651"}}, "Enter a whole number of days from 0 to 3650."},
+		{"users", url.Values{"watch_users": {"everyone"}, "watch_rule": {"any"}, "watch_inactive_days": {"ninety"}}, "Enter a whole number of days from 0 to 3650."},
+		{"users", url.Values{"watch_users": {"some"}, "watch_rule": {"any"}, "watch_inactive_days": {"90"}}, "Choose whose watch history counts."},
 		{"jellyfin", url.Values{"url": {"ftp://jellyfin"}}, "Enter an address starting with http://"},
 	}
 	for _, c := range cases {
@@ -208,10 +213,11 @@ func TestSettingsLibrariesUsersAndPaths(t *testing.T) {
 	res, body := e.post("/settings/libraries", url.Values{"library": {libs[0].ID}}, false)
 	e.expectRedirect(res, body, "/settings?saved=libraries#libraries")
 	e.waitIdle()
-	res, body = e.post("/settings/users", url.Values{"user": {users[0].ID}, "watch_mode": {"all"}}, false)
+	res, body = e.post("/settings/users", url.Values{"user": {users[0].ID}, "watch_users": {"selected"},
+		"watch_rule": {"everyone"}, "watch_inactive_days": {"90"}}, false)
 	e.expectRedirect(res, body, "/settings?saved=users#watched")
 	e.waitIdle()
-	if sel, _ := e.st.SelectedUsers(ctx); len(sel) != 1 || e.settings().WatchMode != "all" {
+	if sel, _ := e.st.SelectedUsers(ctx); len(sel) != 1 || e.settings().WatchPercent != 100 {
 		t.Fatalf("users not saved: %v", sel)
 	}
 	form := e.mappingForm()

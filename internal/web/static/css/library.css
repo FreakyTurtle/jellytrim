@@ -406,6 +406,31 @@
   font-size: var(--text-sm);
 }
 
+/* Watch history: each person's viewing of this file, under the rule. */
+.item-watch__rule {
+  max-inline-size: var(--measure);
+  font-weight: 500;
+}
+
+.item-watch__name {
+  font-weight: 500;
+}
+
+.item-watch__row--off .item-watch__name {
+  color: var(--ink-2);
+  font-weight: 400;
+}
+
+.item-watch__played {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.item-watch__when {
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
 .item-facts,
 .item-policy__group {
   display: grid;

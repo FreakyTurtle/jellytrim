@@ -261,6 +261,9 @@ func (q *Service) nextStartable(ctx context.Context) (store.Job, reservation, bo
 	}
 	var held *SpaceHold
 	for _, j := range jobs {
+		if q.isDeferred(j.ItemID) {
+			continue
+		}
 		r, h := q.roomFor(j)
 		if h == nil {
 			q.setHold(held)

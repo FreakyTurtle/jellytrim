@@ -16,6 +16,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Safe encoding with x265 and Intel Quick Sync: hardware probed by test encode, a journalled pipeline (encode to a partial file, validate, hard-link backup, atomic replace), and crash recovery.
 - A queue with progress, pause, resume, cancel and retry, a scheduler for periodic sync and re-evaluation, and a weekly processing schedule in hour blocks (Monday to Sunday) that stops running encodes when an hour ends.
 - History with technical details, and Restore while a backup exists.
+- Watch history from several Jellyfin users: count everyone (including users added later) or chosen users, require any one, a majority, everyone or a set percentage to have watched, and leave accounts inactive for more than a set number of days (90 by default) out of that share. Everyone's favourites still count.
+- A playback check: JellyTrim does not start encoding a file someone is playing, waits (up to 6 hours) before replacing a file that is playing, and Restore refuses while a file is playing.
 - Settings for every configurable behaviour, Dry Run (on by default), and the setup wizard.
 - `scripts/devseed` for seeding a local config against the dev Jellyfin without repeating the wizard by hand.
 

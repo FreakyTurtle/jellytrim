@@ -75,11 +75,60 @@ type LibraryFilter struct {
 	Codec      string
 	HDR        bool
 	Watched    string // "yes", "no"
-	LibraryID  string
-	Search     string
-	Sort       string // "name" (default), "size", "saving"
-	Limit      int
-	Offset     int
+	// Watch decides what Watched and the rows' Watched and Favourite
+	// mean. Nil reads any enabled user whose watch state is stored.
+	Watch     *WatchCount
+	LibraryID string
+	Search    string
+	Sort      string // "name" (default), "size", "saving"
+	Limit     int
+	Offset    int
+}
+
+// WatchCount says whose watch state the Library list reads and how many of
+// them must have played an item for it to count as watched, so the list can
+// agree with the policies (internal/library builds it from the settings).
+type WatchCount struct {
+	// Users are the IDs of the users counted towards the watched share.
+	// Empty means nothing is watched.
+	Users []string
+	// Needed is how many of Users must have played an item.
+	Needed int
+	// Favourites are the IDs of the users whose favourites count: Users
+	// plus users left out of the share only for being inactive. Empty
+	// means nothing is a favourite.
+	Favourites []string
+}
+
+// watchSQL returns SQL expressions for "the item i is watched" and "the
+// item i is a favourite", with the arguments each needs.
+func watchSQL(w *WatchCount) (watched string, watchedArgs []any, favourite string, favouriteArgs []any) {
+	if w == nil {
+		const base = `EXISTS (SELECT 1 FROM item_user_data d JOIN jellyfin_users u ON u.id = d.user_id
+			WHERE d.item_id = i.id AND u.disabled = 0 AND `
+		return base + `d.played = 1)`, nil, base + `d.favorite = 1)`, nil
+	}
+	watched, favourite = "0", "0"
+	if len(w.Users) > 0 {
+		marks, ids := inList(w.Users)
+		watched = `(SELECT COUNT(*) FROM item_user_data d WHERE d.item_id = i.id AND d.played = 1 AND d.user_id IN (` + marks + `)) >= ?`
+		watchedArgs = append(ids, max(w.Needed, 1))
+	}
+	if len(w.Favourites) > 0 {
+		marks, ids := inList(w.Favourites)
+		favourite = `EXISTS (SELECT 1 FROM item_user_data d WHERE d.item_id = i.id AND d.favorite = 1 AND d.user_id IN (` + marks + `))`
+		favouriteArgs = ids
+	}
+	return watched, watchedArgs, favourite, favouriteArgs
+}
+
+// inList returns placeholders and arguments for an SQL IN list of ids.
+func inList(ids []string) (string, []any) {
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+	return "?" + repeat(",?", len(ids)-1), args
 }
 
 // LibraryRow is one row of the Library list.
@@ -121,15 +170,15 @@ func (s *Store) LibraryList(ctx context.Context, f LibraryFilter) ([]LibraryRow,
 	if limit <= 0 || limit > 500 {
 		limit = 100
 	}
+	watched, watchedArgs, favourite, favouriteArgs := watchSQL(f.Watch)
 	q := `SELECT ` + itemColumns + `, COALESCE(NULLIF(p.size, 0), i.jellyfin_size, 0), COALESCE(p.video_codec, ''), COALESCE(p.width, 0),
 		COALESCE(p.height, 0), COALESCE(p.resolution, 0), COALESCE(p.hdr, ''), p.item_id IS NOT NULL, COALESCE(p.error, ''),
-		COALESCE(e.outcome, ''), COALESCE(e.summary, ''), e.est_min_bytes, e.est_max_bytes,
-		EXISTS (SELECT 1 FROM item_user_data d JOIN jellyfin_users u ON u.id = d.user_id WHERE d.item_id = i.id AND u.selected = 1 AND u.disabled = 0 AND d.played = 1),
-		EXISTS (SELECT 1 FROM item_user_data d JOIN jellyfin_users u ON u.id = d.user_id WHERE d.item_id = i.id AND u.selected = 1 AND u.disabled = 0 AND d.favorite = 1)
+		COALESCE(e.outcome, ''), COALESCE(e.summary, ''), e.est_min_bytes, e.est_max_bytes, ` + watched + `, ` + favourite + `
 		FROM items i JOIN libraries l ON l.id = i.library_id
 		LEFT JOIN probes p ON p.item_id = i.id LEFT JOIN evaluations e ON e.item_id = i.id ` + where +
-		` ORDER BY ` + order + ` LIMIT ? OFFSET ?` // #nosec G202 -- order comes from a fixed switch
-	rows, err := s.db.QueryContext(ctx, q, append(args, limit, max(f.Offset, 0))...)
+		` ORDER BY ` + order + ` LIMIT ? OFFSET ?` // #nosec G202 -- order comes from a fixed switch; the rest adds only placeholders
+	all := append(append(append(watchedArgs, favouriteArgs...), args...), limit, max(f.Offset, 0))
+	rows, err := s.db.QueryContext(ctx, q, all...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("listing library: %w", err)
 	}
@@ -172,13 +221,14 @@ func libraryWhere(f LibraryFilter) (string, []any) {
 	if f.HDR {
 		conds = append(conds, "p.hdr NOT IN ('', 'sdr')")
 	}
-	watched := `EXISTS (SELECT 1 FROM item_user_data d JOIN jellyfin_users u ON u.id = d.user_id
-		WHERE d.item_id = i.id AND u.selected = 1 AND u.disabled = 0 AND d.played = 1)`
+	watched, watchedArgs, _, _ := watchSQL(f.Watch)
 	switch f.Watched {
 	case "yes":
 		conds = append(conds, watched)
+		args = append(args, watchedArgs...)
 	case "no":
-		conds = append(conds, "NOT "+watched)
+		conds = append(conds, "NOT ("+watched+")")
+		args = append(args, watchedArgs...)
 	}
 	if f.LibraryID != "" {
 		conds = append(conds, "i.library_id = ?")

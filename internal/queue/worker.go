@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/freakyturtle/jellytrim/internal/encoder"
@@ -62,11 +63,16 @@ func (q *Service) enforceSchedule(ctx context.Context) time.Duration {
 }
 
 // stopForSchedule cancels running jobs so they are requeued. A job that is
-// already replacing finishes its short, uninterruptible last step.
+// already replacing is left alone: its encode is done, so it uses no
+// encoder while it waits for playback to end, and its last step is short
+// and uninterruptible.
 func (q *Service) stopForSchedule() {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	for id, cancel := range q.running {
+		if q.live[id].Status == store.JobReplacing {
+			continue
+		}
 		if !q.scheduleStopped[id] {
 			q.scheduleStopped[id] = true
 			q.log.Info("queue: stopping job outside the processing schedule", "job", id)
@@ -151,6 +157,29 @@ func (q *Service) process(ctx context.Context, j store.Job) {
 		return
 	}
 	defer unlock()
+	p, err := q.playingAtStart(ctx, j.ItemID)
+	if err != nil {
+		delay := q.playback.StartDelay
+		q.deferItem(j.ItemID, delay)
+		_ = q.store.RequeueJob(context.WithoutCancel(ctx), j.ID,
+			fmt.Sprintf("%s JellyTrim will try again in %s.", err.Error(), units.Duration(delay)))
+		return
+	}
+	if p != nil {
+		// Someone is watching it: encoding now would only end in a long
+		// wait before the replacement. Let other jobs go first.
+		delay := q.playback.StartDelay
+		q.deferItem(j.ItemID, delay)
+		_ = q.store.RequeueJob(context.WithoutCancel(ctx), j.ID,
+			fmt.Sprintf("Not started: %s. JellyTrim will try again in %s; other jobs go first.",
+				strings.TrimPrefix(waitingNote(*p), "Waiting: "), units.Duration(delay)))
+		return
+	}
+	// The decision must not rest on watch state from the last sync, which
+	// can be hours old. If Jellyfin cannot answer, the stored state is used.
+	if err := q.library.RefreshItemUserData(ctx, j.ItemID); err != nil {
+		q.log.Warn("queue: could not re-read watch state; using the last sync's", "job", j.ID, "err", err)
+	}
 	a, err := q.library.Reassess(ctx, j.ItemID)
 	if err != nil && ctx.Err() != nil {
 		// Stopped while analysing: nothing was written; run it again later.
@@ -192,6 +221,7 @@ func (q *Service) process(ctx context.Context, j store.Job) {
 			return encoder.BuildArgs(backend, encoder.Job{Plan: pl, Source: a.Candidate.File, Input: in, Output: out, JobID: j.ID, Overrides: overrides})
 		},
 	}
+	pj.BeforeReplace = func(ctx context.Context) (string, error) { return q.beforeReplace(ctx, j, pj) }
 	identity, _ := json.Marshal(store.FileIdentity{Dev: a.Identity.Dev, Inode: a.Identity.Inode, Size: a.Identity.Size, MtimeNs: a.Identity.MtimeNs})
 	_ = q.store.SetJobStatusDetail(ctx, j.ID, store.JobAnalysing, string(identity), backend.Label())
 	_ = q.store.SetJobPartial(ctx, j.ID, pipeline.PartialPath(pj.Path, j.ID))
@@ -207,6 +237,7 @@ func (q *Service) hooks(ctx context.Context, jobID int64, total time.Duration, e
 			q.setLive(jobID, func(l *Live) { l.Status = status; l.Encoder = enc })
 			_ = q.store.SetJobStatus(context.WithoutCancel(ctx), jobID, status)
 		},
+		Note: func(note string) { q.setNote(jobID, note) },
 		Progress: func(p ffmpeg.Progress) {
 			var eta time.Duration
 			if p.Speed > 0 && total > 0 {
@@ -264,13 +295,7 @@ func (q *Service) record(j store.Job, pj pipeline.Job, res pipeline.Result, back
 		byUser := q.cancelled[j.ID]
 		q.mu.Unlock()
 		if !byUser {
-			summary := "Interrupted by a restart; it will run again."
-			q.mu.Lock()
-			if q.scheduleStopped[j.ID] {
-				summary = "Stopped because the processing schedule ended. It will start again in the next active hour; the original is unchanged."
-			}
-			q.mu.Unlock()
-			_ = q.store.RequeueJob(context.WithoutCancel(q.baseCtx()), j.ID, summary)
+			_ = q.store.RequeueJob(context.WithoutCancel(q.baseCtx()), j.ID, q.requeueSummary(j.ID, res))
 			return
 		}
 		o.Status, o.Summary = store.JobCancelled, "Cancelled while running. The original is unchanged."
@@ -283,7 +308,24 @@ func (q *Service) record(j store.Job, pj pipeline.Job, res pipeline.Result, back
 	}
 }
 
+// requeueSummary explains why an interrupted job is waiting again: the
+// schedule ended, JellyTrim is shutting down, or the pipeline's own reason
+// (someone kept watching the file).
+func (q *Service) requeueSummary(jobID int64, res pipeline.Result) string {
+	q.mu.Lock()
+	bySchedule := q.scheduleStopped[jobID]
+	q.mu.Unlock()
+	switch {
+	case bySchedule:
+		return "Stopped because the processing schedule ended. It will start again in the next active hour; the original is unchanged."
+	case q.baseCtx().Err() != nil || res.Summary == "":
+		return "Interrupted by a restart; it will run again."
+	}
+	return res.Summary
+}
+
 func (q *Service) finish(j store.Job, o store.JobOutcome) {
+	q.forgetGiveUps(j.ID)
 	ctx := context.WithoutCancel(q.baseCtx())
 	if err := q.store.FinishJob(ctx, j.ID, o); err != nil {
 		q.log.Error("queue: recording job result", "job", j.ID, "err", err)

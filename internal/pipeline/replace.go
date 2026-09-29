@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/freakyturtle/jellytrim/internal/fileid"
-	"github.com/freakyturtle/jellytrim/internal/media"
 )
 
 // busyRetries is how often a rename that fails with "busy" (common on SMB
@@ -23,15 +22,21 @@ var errChanged = errors.New("the original changed")
 // original under a hidden backup name. Each step is journalled first.
 //
 // Order of operations, with what is on disk if JellyTrim stops after each:
-//  1. re-check the original is unchanged      (original, partial)
+//  0. BeforeReplace: wait until nobody is playing the file, and confirm the
+//     job should still go ahead                (original, partial)
+//  1. re-check the original is unchanged, and the partial is the file that
+//     passed validation                        (original, partial)
 //  2. set the partial's mode and owner, fsync  (original, partial)
 //  3. hard-link the original to the backup     (original = backup, partial)
 //     or, if links are unsupported, rename it  (backup, partial; recovery restores)
 //  4. re-check the backup is the original, and the path still holds it
 //  5. rename the partial over the original     (new file, backup)
 //  6. fsync the directory
-func (p *Pipeline) replace(ctx context.Context, j Job, partial string, out *media.File, diag Diagnostics) Result {
+func (p *Pipeline) replace(ctx context.Context, j Job, partial string, checked validated, h Hooks, diag Diagnostics) Result {
 	diag.Step = "replacing"
+	if res, ok := p.beforeReplace(ctx, j, partial, h, &diag); !ok {
+		return res
+	}
 	// From here on a shutdown must not interrupt half-way; each step is short.
 	ctx = context.WithoutCancel(ctx)
 	fail := func(outcome Outcome, summary string) Result {
@@ -39,25 +44,9 @@ func (p *Pipeline) replace(ctx context.Context, j Job, partial string, out *medi
 		return Result{Outcome: outcome, Summary: summary, Diagnostics: diag}
 	}
 
-	cur, err := p.FS.Stat(j.Path)
-	if err != nil || !cur.Same(j.Identity) || cur.Nlink > 1 {
-		return fail(Skipped, "The original changed while JellyTrim was working on it, so the new file was discarded. The original is unchanged.")
-	}
-	if err := p.FS.Chmod(partial, cur.Mode.Perm()); err != nil {
-		diag.Error = err.Error()
-		return fail(Failed, "JellyTrim could not give the new file the original's permissions, so it was discarded. The original is unchanged.")
-	}
-	if err := p.FS.Chown(partial, cur.UID, cur.GID); err != nil {
-		diag.Warnings = append(diag.Warnings, "The new file could not be given the original's owner ("+err.Error()+"). Check that Jellyfin can still read it.")
-	}
-	if err := p.FS.SyncFile(partial); err != nil {
-		diag.Error = err.Error()
-		return fail(Failed, "The new file could not be written to disk safely, so it was discarded. The original is unchanged.")
-	}
-	partialInfo, err := p.FS.Stat(partial)
-	if err != nil {
-		diag.Error = err.Error()
-		return fail(Failed, "The new file could not be read before moving it into place, so it was discarded. The original is unchanged.")
+	partialInfo, outcome, summary := p.readyPartial(j, partial, checked.info, &diag)
+	if outcome != "" {
+		return fail(outcome, summary)
 	}
 
 	backup := BackupPath(j.Path, j.ID)
@@ -104,7 +93,87 @@ func (p *Pipeline) replace(ctx context.Context, j Job, partial string, out *medi
 	if err != nil {
 		diag.Warnings = append(diag.Warnings, "Could not read the new file's details: "+err.Error())
 	}
-	return Result{Outcome: Complete, Summary: "Optimised.", Diagnostics: diag, OutputSize: out.Size, Output: newInfo, BackupPath: backup}
+	return Result{Outcome: Complete, Summary: "Optimised.", Diagnostics: diag, OutputSize: checked.file.Size, Output: newInfo, BackupPath: backup}
+}
+
+// readyPartial re-checks the original is the file the job started on and
+// the partial is the file that passed validation, then gives the partial
+// the original's mode and owner and flushes it. It returns the partial's
+// identity, or an outcome and summary to stop with.
+func (p *Pipeline) readyPartial(j Job, partial string, checked fileid.Info, diag *Diagnostics) (fileid.Info, Outcome, string) {
+	cur, err := p.FS.Stat(j.Path)
+	if err != nil || !cur.Same(j.Identity) || cur.Nlink > 1 {
+		return fileid.Info{}, Skipped, "The original changed while JellyTrim was working on it, so the new file was discarded. The original is unchanged."
+	}
+	// A long wait for playback leaves the checked file sitting on disk.
+	// Only the exact file that passed validation may replace the original.
+	if now, err := p.FS.Stat(partial); err != nil || !now.Same(checked) || now.IsSymlink || now.Nlink > 1 {
+		diag.Error = "the new file is not the one that passed validation"
+		if err != nil {
+			diag.Error += ": " + err.Error()
+		}
+		return fileid.Info{}, Failed, "The new file changed after JellyTrim checked it, so it was discarded. The original is unchanged."
+	}
+	if err := p.FS.Chmod(partial, cur.Mode.Perm()); err != nil {
+		diag.Error = err.Error()
+		return fileid.Info{}, Failed, "JellyTrim could not give the new file the original's permissions, so it was discarded. The original is unchanged."
+	}
+	if err := p.FS.Chown(partial, cur.UID, cur.GID); err != nil {
+		diag.Warnings = append(diag.Warnings, "The new file could not be given the original's owner ("+err.Error()+"). Check that Jellyfin can still read it.")
+	}
+	if err := p.FS.SyncFile(partial); err != nil {
+		diag.Error = err.Error()
+		return fileid.Info{}, Failed, "The new file could not be written to disk safely, so it was discarded. The original is unchanged."
+	}
+	partialInfo, err := p.FS.Stat(partial)
+	if err != nil {
+		diag.Error = err.Error()
+		return fileid.Info{}, Failed, "The new file could not be read before moving it into place, so it was discarded. The original is unchanged."
+	}
+	return partialInfo, "", ""
+}
+
+// beforeReplace calls the job's BeforeReplace hook, which waits until
+// nobody is playing the file and confirms the job should still go ahead. It
+// runs before the identity re-check, so a file that changed during a long
+// wait is still caught. When the hook says stop, the partial file is
+// removed and the job ends with the hook's outcome (Interrupted for a plain
+// error). If the partial cannot be removed, the job fails instead of going
+// back to the queue, so the stray file is not forgotten.
+func (p *Pipeline) beforeReplace(ctx context.Context, j Job, partial string, h Hooks, diag *Diagnostics) (Result, bool) {
+	if j.BeforeReplace == nil {
+		return Result{}, true
+	}
+	warning, err := j.BeforeReplace(ctx)
+	h.note("")
+	if warning != "" {
+		diag.Warnings = append(diag.Warnings, warning)
+	}
+	if err == nil {
+		return Result{}, true
+	}
+	outcome, summary := stopReason(ctx, err, diag)
+	if rmErr := p.tryRemovePartial(context.WithoutCancel(ctx), j.ID, partial, diag); rmErr != nil {
+		diag.Error += "; removing the new file: " + rmErr.Error()
+		return Result{Outcome: Failed, Diagnostics: *diag, Summary: fmt.Sprintf(
+			"The new file was not used, but JellyTrim could not delete it. Delete %s yourself. The original is unchanged.", partial)}, false
+	}
+	return Result{Outcome: outcome, Summary: summary, Diagnostics: *diag}, false
+}
+
+// stopReason turns BeforeReplace's error into the job's outcome and summary.
+func stopReason(ctx context.Context, err error, diag *Diagnostics) (Outcome, string) {
+	var stop *StopError
+	switch {
+	case ctx.Err() != nil:
+		diag.Error = "stopped before replacing: " + ctx.Err().Error()
+		return Interrupted, "Stopped before finishing. The original is unchanged."
+	case errors.As(err, &stop):
+		diag.Error = "not replaced: " + stop.Summary
+		return stop.Outcome, stop.Summary
+	}
+	diag.Error = "waiting for playback to end: " + err.Error()
+	return Interrupted, err.Error() + " The original is unchanged."
 }
 
 // abandonReplace undoes the backup after the final rename failed. If the

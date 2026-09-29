@@ -12,13 +12,25 @@ import (
 
 // Setting keys. Values are stored as text.
 const (
-	KeySetupComplete     = "setup_complete"
-	KeyJellyfinURL       = "jellyfin_url"
-	KeyJellyfinAPIKey    = "jellyfin_api_key" // #nosec G101 -- a settings key name, not a credential
-	KeyJellyfinServer    = "jellyfin_server_name"
-	KeyDeviceID          = "device_id"
-	KeyDryRun            = "dry_run"
-	KeyWatchMode         = "watch_mode" // any, all
+	KeySetupComplete  = "setup_complete"
+	KeyJellyfinURL    = "jellyfin_url"
+	KeyJellyfinAPIKey = "jellyfin_api_key" // #nosec G101 -- a settings key name, not a credential
+	KeyJellyfinServer = "jellyfin_server_name"
+	KeyDeviceID       = "device_id"
+	KeyDryRun         = "dry_run"
+	// KeyWatchMode is the old any/all watch mode, replaced by
+	// KeyWatchPercent. It is read only to derive the percentage for an
+	// install that has not saved one.
+	KeyWatchMode = "watch_mode" // any, all
+	// KeyWatchUsers says whose watch state counts: WatchUsersEveryone or
+	// WatchUsersSelected.
+	KeyWatchUsers = "watch_users"
+	// KeyWatchPercent is the share of counted users (0 to 100) that must
+	// have watched an item; 0 means any one of them.
+	KeyWatchPercent = "watch_percent"
+	// KeyWatchInactiveDays leaves out users with no Jellyfin activity for
+	// more than this many days; 0 turns the filter off.
+	KeyWatchInactiveDays = "watch_inactive_days"
 	KeySyncIntervalHours = "sync_interval_hours"
 	KeySyncDailyAt       = "sync_daily_at" // HH:MM; empty means use the interval
 	KeyDefaultCodec      = "default_codec"
@@ -40,15 +52,33 @@ const (
 	KeyQueuePaused        = "queue_paused"
 )
 
+// Values of KeyWatchUsers.
+const (
+	// WatchUsersEveryone counts every enabled Jellyfin user, including
+	// users added later.
+	WatchUsersEveryone = "everyone"
+	// WatchUsersSelected counts only the users ticked in Settings.
+	WatchUsersSelected = "selected"
+)
+
 // Settings is the typed view of the settings table with defaults applied.
 type Settings struct {
-	SetupComplete     bool
-	JellyfinURL       string
-	HasAPIKey         bool
-	JellyfinServer    string
-	DeviceID          string
-	DryRun            bool
-	WatchMode         string
+	SetupComplete  bool
+	JellyfinURL    string
+	HasAPIKey      bool
+	JellyfinServer string
+	DeviceID       string
+	DryRun         bool
+	// WatchMode is the old any/all setting, kept readable for migration.
+	// Use WatchPercent.
+	WatchMode string
+	// WatchUsers is WatchUsersEveryone or WatchUsersSelected.
+	WatchUsers string
+	// WatchPercent is 0 to 100. When it was never saved it is derived from
+	// WatchMode: "all" gives 100, anything else 0.
+	WatchPercent int
+	// WatchInactiveDays is 0 (off) or more.
+	WatchInactiveDays int
 	SyncIntervalHours int
 	SyncDailyAt       string
 	DefaultCodec      string
@@ -72,6 +102,8 @@ type Settings struct {
 var settingDefaults = map[string]string{
 	KeyDryRun:            "true",
 	KeyWatchMode:         "any",
+	KeyWatchUsers:        WatchUsersEveryone,
+	KeyWatchInactiveDays: "90",
 	KeySyncIntervalHours: "6",
 	KeyAutoProcess:       "true",
 	KeyConcurrency:       "1",
@@ -168,6 +200,9 @@ func (s *Store) Settings(ctx context.Context) (Settings, error) {
 		DeviceID:           m[KeyDeviceID],
 		DryRun:             b(KeyDryRun),
 		WatchMode:          m[KeyWatchMode],
+		WatchUsers:         watchUsers(m[KeyWatchUsers]),
+		WatchPercent:       watchPercent(m),
+		WatchInactiveDays:  max(i(KeyWatchInactiveDays), 0),
 		SyncIntervalHours:  i(KeySyncIntervalHours),
 		SyncDailyAt:        m[KeySyncDailyAt],
 		DefaultCodec:       m[KeyDefaultCodec],
@@ -189,6 +224,32 @@ func (s *Store) Settings(ctx context.Context) (Settings, error) {
 
 // FormatBool renders a bool as a setting value.
 func FormatBool(v bool) string { return strconv.FormatBool(v) }
+
+// watchUsers reads KeyWatchUsers, treating anything unknown as everyone.
+func watchUsers(v string) string {
+	if v == WatchUsersSelected {
+		return v
+	}
+	return WatchUsersEveryone
+}
+
+// watchPercent reads KeyWatchPercent, or derives it from the old watch mode
+// when it was never saved. KeyWatchPercent has no default in settingDefaults
+// so that "never saved" can be told apart.
+func watchPercent(m map[string]string) int {
+	v, ok := m[KeyWatchPercent]
+	if !ok {
+		if m[KeyWatchMode] == "all" {
+			return 100
+		}
+		return 0
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		return 0
+	}
+	return min(max(n, 0), 100)
+}
 
 // schedule returns the stored grid, or one converted from the old daily
 // processing window when the grid has never been saved.

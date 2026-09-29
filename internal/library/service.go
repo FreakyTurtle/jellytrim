@@ -279,9 +279,18 @@ func (s *Service) RefreshServerInfo(ctx context.Context) error {
 	}
 	var us []store.JellyfinUser
 	for _, u := range users {
-		us = append(us, store.JellyfinUser{ID: u.ID, Name: u.Name, Disabled: u.Policy.IsDisabled})
+		us = append(us, store.JellyfinUser{ID: u.ID, Name: u.Name, Disabled: u.Policy.IsDisabled, Hidden: u.Policy.IsHidden,
+			LastActivityAt: utcPtr(u.LastActivityDate)})
 	}
 	return s.store.ReplaceUsers(ctx, us)
+}
+
+func utcPtr(t *time.Time) *time.Time {
+	if t == nil || t.IsZero() {
+		return nil
+	}
+	u := t.UTC()
+	return &u
 }
 
 // Mapper builds the path mapper from the saved mappings.

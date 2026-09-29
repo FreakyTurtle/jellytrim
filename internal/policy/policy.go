@@ -152,16 +152,60 @@ type UserState struct {
 	Played     bool
 	Favourite  bool
 	LastPlayed *time.Time
+	// Inactive users are left out of the watched share, but their
+	// favourites and plays still count: an old account must not stop
+	// items counting as watched, and must not lose its protection either.
+	Inactive bool
 }
 
-// WatchMode says how several users' watch states combine.
-type WatchMode string
+// WatchRule says how many of the counted users must have played an item
+// for it to count as watched.
+type WatchRule struct {
+	// Percent is the share of counted users, 0 to 100. 0 means any one
+	// user. Otherwise at least ceil(Percent% of the counted users) must
+	// have played it, and always at least one.
+	Percent int
+}
 
-// Watch modes.
+// Named watch rules. Majority is 51% so that it means "more than half":
+// 2 of 2, 2 of 3, 3 of 4.
 const (
-	WatchAny WatchMode = "any"
-	WatchAll WatchMode = "all"
+	WatchAnyOne   = 0
+	WatchMajority = 51
+	WatchEveryone = 100
 )
+
+// percent is Percent kept within 0 to 100.
+func (r WatchRule) percent() int { return min(max(r.Percent, 0), 100) }
+
+// Needed is how many of counted users must have played an item. It is 0
+// only when nobody is counted. A majority is more than half for any count;
+// 51% rounded up would ask for 27 of 51.
+func (r WatchRule) Needed(counted int) int {
+	if counted <= 0 {
+		return 0
+	}
+	if r.percent() == WatchMajority {
+		return counted/2 + 1
+	}
+	n := (r.percent()*counted + 99) / 100
+	return min(max(n, 1), counted)
+}
+
+// Label names the rule for people: "any one", "a majority", "everyone" or
+// "at least 60%".
+func (r WatchRule) Label() string {
+	switch p := r.percent(); p {
+	case WatchAnyOne:
+		return "any one"
+	case WatchMajority:
+		return "a majority"
+	case WatchEveryone:
+		return "everyone"
+	default:
+		return fmt.Sprintf("at least %d%%", p)
+	}
+}
 
 // Item is the snapshot a policy is evaluated against.
 type Item struct {
@@ -177,8 +221,8 @@ type Item struct {
 	Tags         []string
 	Genres       []string
 	DateAdded    *time.Time
-	Users        []UserState // only the users whose watch state counts
-	WatchMode    WatchMode
+	Users        []UserState // the users whose watch history counts, including inactive ones
+	Watch        WatchRule
 	// Facts are what the file conditions read. When Facts.Probed is false
 	// they are worked out from File instead, so callers holding a parsed
 	// file need not fill them.

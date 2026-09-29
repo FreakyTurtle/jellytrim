@@ -50,6 +50,7 @@ func TestEveryEndpointUsesOnlyTheHeader(t *testing.T) {
 		func() error { _, err := h.c.Item(ctx, u, "d15b890b81018d54a2b0f65fbee75563"); return err },
 		func() error { return h.c.RefreshItem(ctx, "d15b890b81018d54a2b0f65fbee75563") },
 		func() error { return h.c.NotifyMediaUpdated(ctx, "/media/movies/Alpha (2019)/Alpha (2019).mkv") },
+		func() error { _, err := h.c.NowPlaying(ctx); return err },
 	}
 	for i, call := range calls {
 		if err := call(); err != nil {

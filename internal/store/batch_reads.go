@@ -83,14 +83,14 @@ func (s *Store) ItemsByIDs(ctx context.Context, ids []string) (map[string]Item, 
 	return out, nil
 }
 
-// UserDataFor returns the selected users' watch state for the given items,
-// keyed by item ID, as AllUserData does for every item.
+// UserDataFor returns the stored watch state of every enabled user for the
+// given items, keyed by item ID, as AllUserData does for every item.
 func (s *Store) UserDataFor(ctx context.Context, ids []string) (map[string][]UserData, error) {
 	out := make(map[string][]UserData, len(ids))
 	err := inChunks(ids, func(marks string, args []any) error {
 		rows, err := s.db.QueryContext(ctx, `SELECT d.item_id, d.user_id, d.played, d.play_count, d.favorite, d.last_played_at
 			FROM item_user_data d JOIN jellyfin_users u ON u.id = d.user_id
-			WHERE d.item_id IN (`+marks+`) AND u.selected = 1 AND u.disabled = 0`, args...) // #nosec G202 -- only placeholders are added
+			WHERE d.item_id IN (`+marks+`) AND u.disabled = 0`, args...) // #nosec G202 -- only placeholders are added
 		if err != nil {
 			return err
 		}

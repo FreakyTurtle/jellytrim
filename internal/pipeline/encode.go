@@ -126,10 +126,17 @@ func firstLine(s string) string {
 }
 
 // removePartial deletes the job's own partial file, journalling it. It only
-// ever removes the exact path the job created.
+// ever removes the exact path the job created. A failure is kept as a
+// warning; callers that must not carry on after one use tryRemovePartial.
 func (p *Pipeline) removePartial(ctx context.Context, jobID int64, partial string, diag *Diagnostics) {
+	_ = p.tryRemovePartial(ctx, jobID, partial, diag)
+}
+
+// tryRemovePartial is removePartial, returning the error when the file is
+// still there afterwards.
+func (p *Pipeline) tryRemovePartial(ctx context.Context, jobID int64, partial string, diag *Diagnostics) error {
 	if !p.FS.Exists(partial) {
-		return
+		return nil
 	}
 	entry, err := p.Journal.JournalRecord(ctx, jobID, StepPartialDeleted, partial, "")
 	if err != nil {
@@ -138,9 +145,10 @@ func (p *Pipeline) removePartial(ctx context.Context, jobID int64, partial strin
 	if err := p.FS.Remove(partial); err != nil {
 		diag.Warnings = append(diag.Warnings, "Could not remove the partial file "+partial+": "+err.Error())
 		p.log().Warn("pipeline: removing partial", "path", partial, "err", err)
-		return
+		return err
 	}
 	if entry != 0 {
 		_ = p.Journal.JournalComplete(ctx, entry)
 	}
+	return nil
 }

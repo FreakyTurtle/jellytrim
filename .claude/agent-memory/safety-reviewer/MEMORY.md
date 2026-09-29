@@ -19,3 +19,11 @@ Curate this file: keep it under 150 lines, one fact per bullet, date each entry 
 - 2026-09-27: "Replaced" classification inferred from absence of the partial file only, without checking the inode at the original path.
 - 2026-09-27: Validation checks listed in docs but missing in code (colour matrix, attachment mimetype, cross-type stream order).
 - 2026-09-27: Safety tests inject one failure at a time; check for double-failure cases and for negative unit tests of every Validate check.
+- 2026-09-29: Any long wait inside a job (the playback wait before replace) makes start-time decisions stale; after it, re-check Dry Run, the policy decision and fresh per-item watch data before touching the original.
+- 2026-09-29: Reassess uses synced watch data (hours old); a feature that sees an item being watched must not then act on pre-viewing "last watched"/favourite data.
+- 2026-09-29: Safety valves (Restore) gated on Jellyfin answering, while destructive timers (backup expiry) keep running regardless.
+- 2026-09-29: Cancel accepted after the job's point of no return still reports "original not affected"; check Cancel against the commit point.
+- 2026-09-29: Watch-state filters (inactive users, counted set) can silently drop favourite protection; a counted user with no synced data reads as "never played, not favourite".
+- 2026-09-29: Fail-open paths that treat persistent errors (401, decode) and "last seen playing, now unreachable" the same as a plain outage.
+- 2026-09-29: Re-checks gated on an observed event (refresh watch state only if playback was seen during the wait) miss the same event earlier (during the encode).
+- 2026-09-29: Value-typed JSON sub-objects (Item.UserData) cannot tell "missing" from "false"; a refresh that stores them can wipe favourites.

@@ -66,6 +66,9 @@ type QueueNotice struct {
 	Text    string
 	Detail  string // technical detail, shown in a closed <details>
 	Alert   bool   // role="alert": only after the user acted
+	// RestoreAnyway offers "Restore anyway" on a job's History page, when
+	// Restore was refused because Jellyfin could not say what is playing.
+	RestoreAnyway bool
 }
 
 // QueueStage is one step in the running job's stage strip.
@@ -89,6 +92,14 @@ type QueueRunning struct {
 	Elapsed string
 	Encoder string
 	Saving  string // estimated range, without "~"
+	// Note says why the job is waiting while its new file is ready:
+	// "Waiting: alex is watching this on Living Room TV". NoteDetail
+	// says what happens next.
+	Note       string
+	NoteDetail string
+	// Committed is true once the job is replacing the file. It can no
+	// longer be cancelled, so the Cancel button is not shown.
+	Committed bool
 }
 
 // QueueWaiting is a job waiting its turn.
@@ -320,6 +331,16 @@ templ queueRunningPanel(r QueueRunning) {
 				<p class="queue-job__change mono">{ r.Change }</p>
 			}
 			@queueStageStrip(r.Stages)
+			if r.Note != "" {
+				<div class="queue-job__note">
+					<p>
+						@Status("warn", r.Note)
+					</p>
+					if r.NoteDetail != "" {
+						<p class="queue-job__note-detail">{ r.NoteDetail }</p>
+					}
+				</div>
+			}
 			@Meter(queueJobID("queue-job-progress-", r.ID), r.Percent, r.Readout)
 			<dl class="stats queue-job__stats">
 				@StatRow("Encoder", r.Encoder, false)
@@ -334,17 +355,21 @@ templ queueRunningPanel(r QueueRunning) {
 					</div>
 				}
 			</dl>
-			<div class="queue-job__actions">
-				<a
-					class="btn btn--danger"
-					id={ queueJobID("queue-cancel-open-", r.ID) }
-					href={ templ.SafeURL("#" + queueJobID("queue-cancel-", r.ID)) }
-					data-dialog-open={ queueJobID("queue-cancel-", r.ID) }
-					aria-haspopup="dialog"
-				>Cancel<span class="visually-hidden">{ " " + r.Title }</span></a>
-			</div>
+			if !r.Committed {
+				<div class="queue-job__actions">
+					<a
+						class="btn btn--danger"
+						id={ queueJobID("queue-cancel-open-", r.ID) }
+						href={ templ.SafeURL("#" + queueJobID("queue-cancel-", r.ID)) }
+						data-dialog-open={ queueJobID("queue-cancel-", r.ID) }
+						aria-haspopup="dialog"
+					>Cancel<span class="visually-hidden">{ " " + r.Title }</span></a>
+				</div>
+			}
 		</div>
-		@queueCancelDialog(r)
+		if !r.Committed {
+			@queueCancelDialog(r)
+		}
 	}
 }
 
@@ -450,13 +475,17 @@ templ queueWaitingTable(rows []QueueWaiting) {
 					<tr role="row">
 						<td role="cell" data-label="Position" class="num mono queue-table__pos">{ strconv.Itoa(w.Position) }</td>
 						<td role="cell" data-label="Title" class="queue-table__title">
-							<a href={ templ.SafeURL(w.Href) }>{ w.Title }</a>
-							if w.Library != "" {
-								<span class="queue-table__lib">{ w.Library }</span>
-							}
-							if w.Note != "" {
-								<span class="queue-table__note">{ w.Note }</span>
-							}
+							// One wrapper, so a collapsed row keeps the title,
+							// library and note together beside the label.
+							<span>
+								<a href={ templ.SafeURL(w.Href) }>{ w.Title }</a>
+								if w.Library != "" {
+									<span class="queue-table__lib">{ w.Library }</span>
+								}
+								if w.Note != "" {
+									<span class="queue-table__note">{ w.Note }</span>
+								}
+							</span>
 						</td>
 						<td role="cell" data-label="Change" class="mono">{ w.Change }</td>
 						<td role="cell" data-label="Policy">{ w.Policy }</td>

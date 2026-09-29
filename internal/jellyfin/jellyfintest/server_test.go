@@ -131,3 +131,47 @@ func TestFixturesLoad(t *testing.T) {
 		t.Errorf("Alpha should be played by the fixture user")
 	}
 }
+
+func TestSessionsShape(t *testing.T) {
+	s := New(t, WithFixtures())
+	if got := get(t, s, "/Sessions", nil).StatusCode; got != http.StatusUnauthorized {
+		t.Fatalf("no key: status %d", got)
+	}
+	s.AddSession(Session{UserName: "dev", DeviceName: "Firefox"})
+	s.SetPlaying("d15b890b81018d54a2b0f65fbee75563", "alex", "Living Room TV", true)
+	s.AddSession(Session{UserName: "old", DeviceName: "Old TV", ItemID: "x", Stale: true})
+	auth := func(r *http.Request) { r.Header.Set("Authorization", header(Token)) }
+	var all []map[string]any
+	if err := json.NewDecoder(get(t, s, "/Sessions", auth).Body).Decode(&all); err != nil {
+		t.Fatal(err)
+	}
+	if len(all) != 3 {
+		t.Fatalf("without activeWithinSeconds every session is listed, got %d", len(all))
+	}
+	var active []map[string]any
+	if err := json.NewDecoder(get(t, s, "/Sessions?activeWithinSeconds=960", auth).Body).Decode(&active); err != nil {
+		t.Fatal(err)
+	}
+	if len(active) != 2 {
+		t.Fatalf("stale session listed: %d sessions", len(active))
+	}
+	if _, ok := active[0]["NowPlayingItem"]; ok {
+		t.Error("an idle session has a NowPlayingItem")
+	}
+	if _, ok := active[0]["PlayState"].(map[string]any); !ok {
+		t.Error("an idle session has no PlayState")
+	}
+	np, _ := active[1]["NowPlayingItem"].(map[string]any)
+	ps, _ := active[1]["PlayState"].(map[string]any)
+	if np["Name"] != "Alpha (2019)" || ps["IsPaused"] != true || ps["MediaSourceId"] != np["Id"] {
+		t.Fatalf("playing session %+v", active[1])
+	}
+	s.StopPlaying("d15b890b-8101-8d54-a2b0-f65fbee75563")
+	active = nil
+	if err := json.NewDecoder(get(t, s, "/Sessions?activeWithinSeconds=960", auth).Body).Decode(&active); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := active[1]["NowPlayingItem"]; ok {
+		t.Error("StopPlaying left the item playing")
+	}
+}

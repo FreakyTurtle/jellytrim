@@ -30,12 +30,20 @@ type Library struct {
 	Managed        bool
 }
 
-// JellyfinUser is a Jellyfin user and whether their watch state counts.
+// JellyfinUser is a Jellyfin user as JellyTrim last read it.
 type JellyfinUser struct {
 	ID       string
 	Name     string
 	Disabled bool
+	// Selected is the user's tick in Settings. It decides whose watch state
+	// counts only when the watch_users setting is "selected".
 	Selected bool
+	// Hidden is Jellyfin's "hide from the sign-in screen" flag. It is shown
+	// but does not change whether the user counts.
+	Hidden bool
+	// LastActivityAt is Jellyfin's last activity date, nil when the user
+	// has never been active.
+	LastActivityAt *time.Time
 }
 
 // PathMapping pairs a Jellyfin prefix with a local prefix.
@@ -104,8 +112,8 @@ func (s *Store) SetManagedLibraries(ctx context.Context, ids []string) error {
 	})
 }
 
-// ReplaceUsers stores the Jellyfin users, keeping each user's selected flag
-// and removing users missing from the list. An empty list is refused with
+// ReplaceUsers stores the Jellyfin users, keeping each user's selected flag,
+// updating their last activity, and removing users missing from the list. An empty list is refused with
 // ErrNoUsers while users are stored.
 func (s *Store) ReplaceUsers(ctx context.Context, users []JellyfinUser) error {
 	return s.tx(ctx, func(tx *sql.Tx) error {
@@ -114,10 +122,11 @@ func (s *Store) ReplaceUsers(ctx context.Context, users []JellyfinUser) error {
 		}
 		ids := make([]any, 0, len(users))
 		for _, u := range users {
-			if _, err := tx.ExecContext(ctx, `INSERT INTO jellyfin_users (id, name, disabled, selected, updated_at)
-				VALUES (?, ?, ?, 0, ?)
-				ON CONFLICT(id) DO UPDATE SET name = excluded.name, disabled = excluded.disabled, updated_at = excluded.updated_at`,
-				u.ID, u.Name, u.Disabled, s.unix()); err != nil {
+			if _, err := tx.ExecContext(ctx, `INSERT INTO jellyfin_users (id, name, disabled, hidden, last_activity_at, selected, updated_at)
+				VALUES (?, ?, ?, ?, ?, 0, ?)
+				ON CONFLICT(id) DO UPDATE SET name = excluded.name, disabled = excluded.disabled, hidden = excluded.hidden,
+				last_activity_at = excluded.last_activity_at, updated_at = excluded.updated_at`,
+				u.ID, u.Name, u.Disabled, u.Hidden, unixPtr(u.LastActivityAt), s.unix()); err != nil {
 				return fmt.Errorf("saving user: %w", err)
 			}
 			ids = append(ids, u.ID)
@@ -128,7 +137,8 @@ func (s *Store) ReplaceUsers(ctx context.Context, users []JellyfinUser) error {
 
 // Users lists Jellyfin users by name.
 func (s *Store) Users(ctx context.Context) ([]JellyfinUser, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id, name, disabled, selected FROM jellyfin_users ORDER BY name COLLATE NOCASE`)
+	rows, err := s.db.QueryContext(ctx, `SELECT id, name, disabled, selected, hidden, last_activity_at
+		FROM jellyfin_users ORDER BY name COLLATE NOCASE, id`)
 	if err != nil {
 		return nil, fmt.Errorf("listing users: %w", err)
 	}
@@ -136,15 +146,19 @@ func (s *Store) Users(ctx context.Context) ([]JellyfinUser, error) {
 	var out []JellyfinUser
 	for rows.Next() {
 		var u JellyfinUser
-		if err := rows.Scan(&u.ID, &u.Name, &u.Disabled, &u.Selected); err != nil {
+		var last sql.NullInt64
+		if err := rows.Scan(&u.ID, &u.Name, &u.Disabled, &u.Selected, &u.Hidden, &last); err != nil {
 			return nil, err
 		}
+		u.LastActivityAt = timePtr(last)
 		out = append(out, u)
 	}
 	return out, rows.Err()
 }
 
-// SelectedUsers lists users whose watch state counts, excluding disabled ones.
+// SelectedUsers lists the ticked users, excluding disabled ones. Whose watch
+// state counts also depends on the watch settings; internal/library works
+// that out.
 func (s *Store) SelectedUsers(ctx context.Context) ([]JellyfinUser, error) {
 	all, err := s.Users(ctx)
 	if err != nil {
@@ -159,7 +173,7 @@ func (s *Store) SelectedUsers(ctx context.Context) ([]JellyfinUser, error) {
 	return out, nil
 }
 
-// SetSelectedUsers marks exactly the given users as counting for watch state.
+// SetSelectedUsers ticks exactly the given users (see JellyfinUser.Selected).
 func (s *Store) SetSelectedUsers(ctx context.Context, ids []string) error {
 	return s.tx(ctx, func(tx *sql.Tx) error {
 		if _, err := tx.ExecContext(ctx, `UPDATE jellyfin_users SET selected = 0`); err != nil {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -359,6 +360,11 @@ func (s *Server) dashProblems(ctx context.Context, totals store.OutcomeTotals) (
 	if p, ok := s.dashSyncProblem(ctx); ok {
 		out = append(out, p)
 	}
+	if p, ok, err := s.dashWatchProblem(ctx); err != nil {
+		return nil, err
+	} else if ok {
+		out = append(out, p)
+	}
 	sc, err := s.scheduleNow(ctx)
 	if err != nil {
 		return nil, err
@@ -406,6 +412,28 @@ func (s *Server) dashProblems(ctx context.Context, totals store.OutcomeTotals) (
 		})
 	}
 	return out, nil
+}
+
+// dashWatchProblem reports when Jellyfin users are known but nobody's
+// watch state counts, so watched and favourite conditions never match.
+func (s *Server) dashWatchProblem(ctx context.Context) (views.DashProblem, bool, error) {
+	if s.Library == nil {
+		return views.DashProblem{}, false, nil
+	}
+	users, err := s.Library.WatchUsers(ctx)
+	if err != nil || len(users) == 0 || slices.ContainsFunc(users, func(u library.WatchUser) bool { return u.Counted }) {
+		return views.DashProblem{}, false, err
+	}
+	summary, err := s.Library.WatchSummary(ctx)
+	if err != nil {
+		return views.DashProblem{}, false, err
+	}
+	return views.DashProblem{
+		Lamp:   "warn",
+		Text:   summary,
+		Href:   "/settings#watched",
+		Action: "Choose whose viewing counts",
+	}, true, nil
 }
 
 func (s *Server) dashSyncProblem(ctx context.Context) (views.DashProblem, bool) {

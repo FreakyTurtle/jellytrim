@@ -34,20 +34,33 @@ type SetupLibrary struct {
 	Checked   bool
 }
 
-// SetupUser is one enabled Jellyfin user in a checklist.
+// SetupUser is one Jellyfin user in the watched state checklist. A disabled
+// user is listed but cannot be ticked.
 type SetupUser struct {
-	ID      string
-	Name    string
-	Checked bool
+	ID       string
+	Name     string
+	Checked  bool
+	Disabled bool
+}
+
+// WatchForm is the watched state controls, shared by setup step 3 and
+// Settings. Numbers are strings so an invalid entry shows as typed.
+type WatchForm struct {
+	Users         []SetupUser
+	Who           string // "everyone" or "selected"
+	Rule          string // "any", "majority", "everyone" or "custom"
+	Percent       string // the custom share, 1 to 100
+	InactiveDays  string
+	UserError     string
+	RuleError     string
+	InactiveError string
 }
 
 // SetupLibrariesView is the libraries and watched state step.
 type SetupLibrariesView struct {
 	Libraries    []SetupLibrary
-	Users        []SetupUser
-	WatchMode    string // "any" or "all"
+	Watch        WatchForm
 	LibraryError string
-	UserError    string
 	LoadError    *SetupConnResult
 }
 
@@ -279,7 +292,7 @@ templ SetupLibraries(v SetupLibrariesView, assetVersion string) {
 				@SetupLibraryList(v.Libraries, v.LibraryError, "setup")
 			}
 			@Panel("Watched state", "setup-users") {
-				@SetupUserList(v.Users, v.WatchMode, v.UserError, "setup")
+				@WatchFields(v.Watch, "setup")
 			}
 			@setupActions("/setup/jellyfin")
 		</form>
@@ -330,64 +343,77 @@ templ SetupLibraryList(libs []SetupLibrary, errText string, from string) {
 	</fieldset>
 }
 
-func setupUserNames(users []SetupUser) string {
-	var names []string
-	for _, u := range users {
-		if u.Checked {
-			names = append(names, u.Name)
-		}
-	}
-	switch len(names) {
-	case 0:
-		return "the selected users"
-	case 1:
-		return names[0]
-	}
-	out := names[0]
-	for i := 1; i < len(names)-1; i++ {
-		out += ", " + names[i]
-	}
-	return out + " and " + names[len(names)-1]
+// watchRuleOptions are the choices for when a file counts as watched.
+var watchRuleOptions = []Option{
+	{Value: "any", Label: "Any one", Hint: "Watched as soon as one counted person has watched it."},
+	{Value: "majority", Label: "A majority", Hint: "Watched when more than half of the counted people have watched it: 2 of 3, or 3 of 4."},
+	{Value: "everyone", Label: "Everyone", Hint: "Watched only when every counted person has watched it."},
+	{Value: "custom", Label: "Custom", Hint: "Watched when at least this share of the counted people have watched it, rounded up to whole people."},
 }
 
-func setupWatchOptions(users []SetupUser) []Option {
-	names := setupUserNames(users)
-	return []Option{
-		{Value: "any", Label: "Any of them", Hint: "An item counts as watched when any of " + names + " has watched it."},
-		{Value: "all", Label: "All of them", Hint: "An item counts as watched only when all of " + names + " have watched it."},
-	}
-}
+const watchRuleHint = "Whatever you choose, one counted person's favourite is enough to protect a file, and a new play by any counted person resets \"last watched\"."
 
-// SetupUserList is the checklist of enabled Jellyfin users and the any or
-// all choice.
-templ SetupUserList(users []SetupUser, mode string, errText string, from string) {
-	<div class="setup-fields">
+// WatchFields is the watched state controls: whose watch history counts,
+// the share of them that must have watched a file, and the filter for
+// accounts nobody uses. Without CSS :has() the people and the custom share
+// always show.
+templ WatchFields(f WatchForm, from string) {
+	<div class="setup-fields watch-fields">
 		<fieldset
-			class="setup-checklist"
-			if errText != "" {
+			class="watch-who"
+			if f.UserError != "" {
 				aria-describedby={ from + "-user-error" }
 			}
 		>
-			<legend class="setup-checklist__legend">Whose watched state counts?</legend>
-			<p class="field__hint">Watched and favourite conditions in policies use these people's viewing.</p>
-			if errText != "" {
-				<p class="field__error" id={ from + "-user-error" }><span aria-hidden="true">✗</span> { errText }</p>
+			<legend class="setup-checklist__legend">Whose watch history counts</legend>
+			<p class="field__hint">Watched and favourite conditions in policies read these people's viewing.</p>
+			if f.UserError != "" {
+				<p class="field__error" id={ from + "-user-error" }><span aria-hidden="true">✗</span> { f.UserError }</p>
 			}
-			if len(users) == 0 {
-				<p class="setup-note">Jellyfin did not report any enabled users.</p>
-			}
-			<ul class="setup-checklist__list setup-checklist__list--inline">
-				for _, u := range users {
-					<li class="setup-checklist__item">
-						<label class="check">
-							<input type="checkbox" name="user" value={ u.ID } checked?={ u.Checked }/>
-							<span>{ u.Name }</span>
-						</label>
-					</li>
+			<label class="check watch-who__choice">
+				<input type="radio" name="watch_users" value="everyone" checked?={ f.Who != "selected" }/>
+				<span>Everyone, including people added later</span>
+			</label>
+			<label class="check watch-who__choice">
+				<input type="radio" name="watch_users" value="selected" checked?={ f.Who == "selected" }/>
+				<span>Only these people:</span>
+			</label>
+			<fieldset class="watch-who__people">
+				<legend class="visually-hidden">People whose watch history counts</legend>
+				if len(f.Users) == 0 {
+					<p class="setup-note">Jellyfin did not report any users.</p>
 				}
-			</ul>
+				<ul class="setup-checklist__list setup-checklist__list--inline">
+					for _, u := range f.Users {
+						<li class={ "setup-checklist__item", templ.KV("setup-checklist__item--off", u.Disabled) }>
+							<label class="check">
+								<input type="checkbox" name="user" value={ u.ID } checked?={ u.Checked && !u.Disabled } disabled?={ u.Disabled } data-watch-user/>
+								<span class="setup-checklist__text">
+									<span class="setup-checklist__name">{ u.Name }</span>
+									if u.Disabled {
+										<span class="watch-who__reason">disabled in Jellyfin</span>
+									}
+								</span>
+							</label>
+						</li>
+					}
+				</ul>
+			</fieldset>
 		</fieldset>
-		@Segmented("watch_mode", "An item counts as watched when", setupWatchOptions(users), mode, "")
+		<div class="watch-rule">
+			@Segmented("watch_rule", "A file counts as watched when", watchRuleOptions, f.Rule, watchRuleHint)
+			<div class="watch-rule__custom">
+				@InlineNumber(InlineNumberProps{
+					ID: from + "-watch-percent", Name: "watch_percent", Before: "At least", After: "% of the counted people",
+					Value: f.Percent, Hint: "From 1 to 100.", Error: f.RuleError,
+				})
+			</div>
+		</div>
+		@InlineNumber(InlineNumberProps{
+			ID: from + "-watch-inactive", Name: "watch_inactive_days", Before: "Ignore accounts not used for more than", After: "days",
+			Value: f.InactiveDays, Error: f.InactiveError,
+			Hint: "An unused account would otherwise stop files counting as watched by everyone or a majority. Its favourites still protect files. Enter 0 to count every account.",
+		})
 	</div>
 }
 

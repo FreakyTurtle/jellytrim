@@ -86,17 +86,46 @@ type Job struct {
 
 	MinSavingPercent int
 	SampledDecode    bool
+
+	// BeforeReplace, when set, is called once the new file has passed
+	// validation and before the original is re-checked and replaced. The
+	// queue uses it to wait until nobody is playing the file and to confirm
+	// the job should still go ahead. A nil error means go ahead; a warning
+	// is kept in the diagnostics. Any error discards the new file and
+	// leaves the original unchanged: a *StopError ends the job with its own
+	// outcome and summary, any other error stops it as Interrupted, so it
+	// can run again.
+	BeforeReplace func(ctx context.Context) (warning string, err error)
 }
 
-// Hooks report progress to the queue. Either may be nil.
+// StopError ends a job at BeforeReplace without replacing the original.
+type StopError struct {
+	Outcome Outcome
+	// Summary is one or more complete sentences shown as they are.
+	Summary string
+}
+
+// Error returns the summary.
+func (e *StopError) Error() string { return e.Summary }
+
+// Hooks report progress to the queue. Any may be nil.
 type Hooks struct {
 	Status   func(status string)
 	Progress func(ffmpeg.Progress)
+	// Note sets a short note shown with the job's status, such as why it
+	// is waiting. An empty note clears it.
+	Note func(note string)
 }
 
 func (h Hooks) status(s string) {
 	if h.Status != nil {
 		h.Status(s)
+	}
+}
+
+func (h Hooks) note(s string) {
+	if h.Note != nil {
+		h.Note(s)
 	}
 }
 
@@ -163,12 +192,12 @@ func (p *Pipeline) Execute(ctx context.Context, j Job, h Hooks) Result {
 		return res
 	}
 	h.status(store.JobValidating)
-	out, res, ok := p.validate(ctx, j, partial, &diag)
+	checked, res, ok := p.validate(ctx, j, partial, &diag)
 	if !ok {
 		return res
 	}
 	h.status(store.JobReplacing)
-	return p.replace(ctx, j, partial, out, diag)
+	return p.replace(ctx, j, partial, checked, h, diag)
 }
 
 func (p *Pipeline) log() *slog.Logger {

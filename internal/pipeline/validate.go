@@ -7,23 +7,31 @@ import (
 	"strings"
 	"time"
 
+	"github.com/freakyturtle/jellytrim/internal/fileid"
 	"github.com/freakyturtle/jellytrim/internal/media"
 	"github.com/freakyturtle/jellytrim/internal/plan"
 	"github.com/freakyturtle/jellytrim/internal/units"
 )
 
+// validated is a partial file that passed every check, and its identity at
+// that moment, so the replace step can tell if it changed since.
+type validated struct {
+	file *media.File
+	info fileid.Info
+}
+
 // validate probes the partial file, compares it with the source and the
 // plan, and decodes it. On failure the partial file is removed.
-func (p *Pipeline) validate(ctx context.Context, j Job, partial string, diag *Diagnostics) (*media.File, Result, bool) {
+func (p *Pipeline) validate(ctx context.Context, j Job, partial string, diag *Diagnostics) (validated, Result, bool) {
 	diag.Step = "validating"
-	fail := func(outcome Outcome, summary string) (*media.File, Result, bool) {
+	fail := func(outcome Outcome, summary string) (validated, Result, bool) {
 		if ctx.Err() != nil {
 			// Stopped (shutdown, cancel or the processing schedule), not a
 			// fault in the new file.
 			outcome, summary = Interrupted, "Stopped before finishing. The original is unchanged."
 		}
 		p.removePartial(context.WithoutCancel(ctx), j.ID, partial, diag)
-		return nil, Result{Outcome: outcome, Summary: summary, Diagnostics: *diag}, false
+		return validated{}, Result{Outcome: outcome, Summary: summary, Diagnostics: *diag}, false
 	}
 	info, err := p.FS.Stat(partial)
 	if err != nil {
@@ -62,7 +70,18 @@ func (p *Pipeline) validate(ctx context.Context, j Job, partial string, diag *Di
 		return fail(Failed, "The new file did not decode cleanly, so it was discarded. The original is unchanged.")
 	}
 	diag.Checks = append(diag.Checks, Check{Name: "decode", Pass: true, Detail: "decoded without errors"})
-	return out, Result{}, true
+	// The file must be the one that was probed and decoded, not one
+	// rewritten meanwhile.
+	checked, err := p.FS.Stat(partial)
+	if err != nil || !checked.Same(info) {
+		if err != nil {
+			diag.Error = err.Error()
+		} else {
+			diag.Error = "the new file changed while it was being checked"
+		}
+		return fail(Failed, "The new file could not be read after it was checked, so it was discarded. The original is unchanged.")
+	}
+	return validated{file: out, info: checked}, Result{}, true
 }
 
 // Validate compares an encoded file with its source and plan. Every check is

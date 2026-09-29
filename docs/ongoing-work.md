@@ -2,6 +2,17 @@
 
 Newest first. Written by `/session-end`. Git history holds older entries.
 
+## 2026-09-29: Watch rules for several users, and the playback check
+
+- Done:
+  - Weekly processing schedule; scale work for 100,000 items (see git history).
+  - Watch history from several users: everyone or chosen users, a share that must have watched (any one, majority, everyone, custom), inactive accounts left out of the share with their favourites still counting (ADR 0011).
+  - Playback check: no encode start while the file is playing, a wait before replacing, fresh watch state and a re-check of the decision and Dry Run before any replacement, Restore refused during playback (ADR 0012).
+  - Code and safety reviews applied.
+- Verified: build, vet, lint, `go test -race ./...` with `JELLYTRIM_REQUIRE_FFMPEG=1`, ai:check, public check. The UI was checked in a browser at 390px and 1440px against the dev Jellyfin with four users.
+- Not verified: the queue wait note and Restore callouts on the live dev stack (Dry Run blocks them there; covered by markup tests and injected renders). Playback against real Jellyfin clients (the fake server's `/Sessions` only).
+- Known limits: a change of whose history counts saved during a running sync waits for the next scheduled sync; the queue's "waits up to 6 hours" text uses the default limit.
+
 ## 2026-09-28: MVP built (M0 to M6), M7 mostly done
 
 - Done: everything in M1 to M6; code and safety reviews applied; docs brought in line; UX review applied.
