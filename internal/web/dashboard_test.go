@@ -110,3 +110,66 @@ func TestLibraryCount(t *testing.T) {
 		t.Errorf("range %q", got)
 	}
 }
+
+// rowWith is the markup of the list item or table row that mentions title.
+func rowWith(t *testing.T, body, open, close, title string) string {
+	t.Helper()
+	at := strings.Index(body, templEscape(title))
+	if at < 0 {
+		t.Fatalf("%q not found", title)
+	}
+	start := strings.LastIndex(body[:at], open)
+	end := strings.Index(body[at:], close)
+	if start < 0 || end < 0 {
+		t.Fatalf("no %s around %q", open, title)
+	}
+	return body[start : at+end]
+}
+
+func TestDashboardRecentActivity(t *testing.T) {
+	e := newQueueTestEnv(t)
+	out := int64(13_700_000_000)
+	e.seed(t, queueTestJob{item: "a", name: "Alpha (2019)", status: store.JobComplete,
+		outcome: store.JobOutcome{OutputSize: &out, Summary: "2160p H.264 → 1080p HEVC. 48.2 GB → 13.7 GB. Saved 34.5 GB."}})
+	e.seed(t, queueTestJob{item: "b", name: "Bravo (2020)", status: store.JobSkipped,
+		outcome: store.JobOutcome{Summary: "The new file would save only 3%, below the 10% minimum."}})
+	e.seed(t, queueTestJob{item: "d", name: "Delta (2022)", status: store.JobCancelled,
+		outcome: store.JobOutcome{Summary: "Cancelled before it started."}})
+	_, body := e.get(t, "/", false)
+
+	// A complete job's change and sizes have their own lines; the status
+	// adds only the saving.
+	alpha := rowWith(t, body, "<li", "</li>", "Alpha (2019)")
+	queueExpect(t, alpha, "48.2 GB → 13.7 GB", "Complete: saved 34.5 GB")
+	queueExpectNot(t, alpha, "Saved 34.5 GB.", "13.7 GB. Saved")
+	queueExpectRaw(t, alpha, "lamp--ok")
+
+	bravo := rowWith(t, body, "<li", "</li>", "Bravo (2020)")
+	queueExpect(t, bravo, "Skipped: The new file would save only 3%")
+	queueExpectRaw(t, bravo, "lamp--warn")
+
+	// Cancelled is idle, not a warning, and the word is not repeated.
+	delta := rowWith(t, body, "<li", "</li>", "Delta (2022)")
+	queueExpect(t, delta, "Cancelled before it started")
+	queueExpectNot(t, delta, "Cancelled: Cancelled")
+	queueExpectRaw(t, delta, "lamp--idle")
+	queueExpectRawNot(t, delta, "lamp--warn", `class="mono activity__sizes"`)
+
+	_, body = e.get(t, "/history", false)
+	queueExpectRaw(t, rowWith(t, body, "<tr", "</tr>", "Delta (2022)"), "lamp--idle")
+	queueExpectRaw(t, rowWith(t, body, "<tr", "</tr>", "Bravo (2020)"), "lamp--warn")
+}
+
+func TestTopbarLiveLampIsLit(t *testing.T) {
+	e := newLibraryTestEnv(t)
+	ctx := context.Background()
+	libraryTestMust(t, e.st.SetSetting(ctx, store.KeyDryRun, "false"))
+	_, body := e.get(t, "/", false)
+	mode := rowWith(t, body, `<a class="dryrun`, "</a>", "Live")
+	queueExpectRaw(t, mode, "lamp--ok")
+	queueExpectRawNot(t, mode, "lamp--idle")
+
+	libraryTestMust(t, e.st.SetSetting(ctx, store.KeyDryRun, "true"))
+	_, body = e.get(t, "/", false)
+	queueExpectRaw(t, rowWith(t, body, `<a class="dryrun`, "</a>", "Dry Run"), "lamp--active-steady")
+}

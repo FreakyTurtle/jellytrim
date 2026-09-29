@@ -139,8 +139,7 @@
   padding-block-start: 0;
 }
 
-.activity__top,
-.activity__bottom {
+.activity__top {
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
@@ -156,7 +155,7 @@
 
 .activity__when,
 .activity__change,
-.activity__bottom .mono {
+.activity__sizes {
   color: var(--ink-2);
   font-family: var(--font-mono);
   font-size: var(--text-sm);
@@ -504,6 +503,12 @@
   line-height: var(--leading-3xl);
   letter-spacing: var(--tracking-metric);
   font-variant-numeric: tabular-nums;
+}
+
+/* "Estimated saving" is sans and the value mono; a word space alone looks
+   too tight beside the mono tilde. */
+.item-estimate__saving > .mono {
+  margin-inline-start: 0.25em;
 }
 
 .item-estimate__approx {

@@ -418,6 +418,13 @@ html:not(.js) .dialog [data-dialog-close] {
   max-inline-size: 32rem;
 }
 
+/* The change fits on one line on wide screens; the outcome wraps instead. */
+@media (min-width: 1080px) {
+  .history-table__change {
+    white-space: nowrap;
+  }
+}
+
 .history-table__view {
   inline-size: 1%;
   white-space: nowrap;

@@ -187,7 +187,7 @@ func TestLibraryFilters(t *testing.T) {
 		{"?codec=av1", []string{"Foxtrot (2023)", "Showing 1 to 1 of 1"}, []string{"Alpha (2019)"}},
 		{"?res=2160&hdr=1", []string{"Delta (2022)"}, []string{"Charlie (2021)", "Alpha (2019)"}},
 		{"?q=november", []string{"November Show · S01E01"}, []string{"Mike Show"}},
-		{"?outcome=optimise", []string{"Alpha (2019)", "1080p H.264 → 1080p HEVC", "Needs optimisation"}, []string{"Bravo (2020)"}},
+		{"?outcome=optimise", []string{"Alpha (2019)", `<span class="change__side">1080p H.264</span> → `, `<span class="change__side">1080p HEVC</span>`, "Needs optimisation"}, []string{"Bravo (2020)"}},
 		{"?outcome=bogus&codec=vp9", []string{"Showing 1 to 17 of 17"}, []string{"Clear filters"}},
 		{"?q=nothing-matches-this", []string{"No items match these filters."}, nil},
 	}
@@ -393,5 +393,27 @@ func TestLibraryTitle(t *testing.T) {
 		if got := libraryTitle(c.it); got != c.want {
 			t.Errorf("%s: %q, want %q", c.name, got, c.want)
 		}
+	}
+}
+
+func TestLibraryShowsQueuedAndRunningItems(t *testing.T) {
+	e := newLibraryTestEnv(t)
+	ctx := context.Background()
+	_, _, err := e.st.CreateJob(ctx, store.Job{ItemID: e.itemID(t, "Alpha"), ItemName: "Alpha", Plan: "{}"})
+	libraryTestMust(t, err)
+	charlie, _, err := e.st.CreateJob(ctx, store.Job{ItemID: e.itemID(t, "Charlie"), ItemName: "Charlie", Plan: "{}"})
+	libraryTestMust(t, err)
+	libraryTestMust(t, e.st.SetJobStatus(ctx, charlie, store.JobEncoding))
+	decision := func(q string) string {
+		_, body := e.get(t, "/library?q="+q, false)
+		_, cell, _ := strings.Cut(body, `data-label="Decision"`)
+		cell, _, _ = strings.Cut(cell, "</td>")
+		return cell
+	}
+	if cell := decision("alpha"); !strings.Contains(cell, "Queued") {
+		t.Errorf("a queued item must show Queued, not its decision: %s", cell)
+	}
+	if cell := decision("charlie"); !strings.Contains(cell, "Encoding") {
+		t.Errorf("a running item must show its stage: %s", cell)
 	}
 }

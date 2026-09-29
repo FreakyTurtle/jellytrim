@@ -274,8 +274,10 @@ templ dashRecent(items []DashActivity) {
 						if a.Change != "" {
 							<p class="mono activity__change">{ a.Change }</p>
 						}
-						<p class="activity__bottom">
-							<span class="mono">{ a.Sizes }</span>
+						if a.Sizes != "" {
+							<p class="mono activity__sizes">{ a.Sizes }</p>
+						}
+						<p class="activity__status">
 							@Status(a.Lamp, a.Status)
 						</p>
 					</li>

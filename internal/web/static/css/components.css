@@ -182,6 +182,11 @@
   font-family: var(--font-sans);
 }
 
+/* One side of a format change ("2160p HEVC"): it wraps only at the arrow. */
+.change__side {
+  white-space: nowrap;
+}
+
 /* ---------- Status lamp ---------- */
 
 .lamp {
@@ -432,7 +437,11 @@
 /* A toggle with a hint or a reason below it. */
 .toggle-field {
   display: grid;
-  gap: 0;
+  gap: var(--space-1);
+}
+
+.toggle-field:has(.toggle--large) {
+  gap: var(--space-2);
 }
 
 .toggle-field__note {
@@ -1536,12 +1545,15 @@ html:not(.js) .schedule__hint-js {
     padding: var(--space-4);
   }
 
+  /* Scales with the screen so "~211 GB" fits a half-width cell on one
+     line; the unit still wraps rather than overflow on the narrowest. */
   .metric__value {
-    font-size: var(--text-3xl);
+    font-size: min(var(--text-3xl), 10vw);
     line-height: var(--leading-3xl);
   }
 
   .metric__unit {
+    margin-inline-start: var(--space-1);
     font-size: var(--text-body);
   }
 

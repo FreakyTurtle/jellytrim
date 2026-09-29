@@ -284,10 +284,7 @@ templ policyPart(id, label string) {
 templ policyScope(v PolicyEditorView) {
 	@policyPart("policy-in", "In") {
 		if len(v.Libraries) > 0 {
-			<div class="policy-group">
-				@Chips("library", "Libraries", v.Libraries, v.LibrariesSelected)
-				<p class="field__hint">Tick none for every managed library.</p>
-			</div>
+			@policyChecklist("library", "Libraries", "Tick none for every managed library.", v.Libraries, v.LibrariesSelected)
 		} else {
 			<p class="field__hint">No managed libraries yet. The policy applies to every library you manage later.</p>
 		}
@@ -310,7 +307,8 @@ templ policyScope(v PolicyEditorView) {
 }
 
 // policyChecklist is a scrolling list of checkboxes, for choices that can
-// run to hundreds (series, collections).
+// run to hundreds (series, collections). Libraries use it too, so the scope
+// reads as one kind of control.
 templ policyChecklist(name, legend, hint string, options []Option, selected []string) {
 	<fieldset class="policy-checklist" aria-describedby={ name + "-list-hint" }>
 		<legend class="chips__legend">{ legend }</legend>

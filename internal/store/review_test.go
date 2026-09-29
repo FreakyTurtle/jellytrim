@@ -428,3 +428,37 @@ func TestRecentJobsIgnoreJobsSkippedBeforeEncoding(t *testing.T) {
 		t.Fatalf("recent %v", got)
 	}
 }
+
+func TestActiveJobStatuses(t *testing.T) {
+	s := openTest(t)
+	ctx := context.Background()
+	a, _, err := s.CreateJob(ctx, Job{ItemID: "a", ItemName: "A", Plan: "{}"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _, err := s.CreateJob(ctx, Job{ItemID: "b", ItemName: "B", Plan: "{}"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetJobStatus(ctx, b, JobEncoding); err != nil {
+		t.Fatal(err)
+	}
+	c, _, err := s.CreateJob(ctx, Job{ItemID: "c", ItemName: "C", Plan: "{}"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.FinishJob(ctx, c, JobOutcome{Status: JobComplete}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.ActiveJobStatuses(ctx, []string{"a", "b", "c", "nothing"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{"a": JobWaiting, "b": JobEncoding}
+	if len(got) != len(want) || got["a"] != want["a"] || got["b"] != want["b"] {
+		t.Fatalf("got %v, want %v (job %d)", got, want, a)
+	}
+	if got, err := s.ActiveJobStatuses(ctx, nil); err != nil || len(got) != 0 {
+		t.Fatalf("no ids: %v %v", got, err)
+	}
+}

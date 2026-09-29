@@ -313,16 +313,20 @@ func dashJobStatus(status string) string {
 	return status
 }
 
-func dashJobLamp(status string) string {
-	switch status {
-	case store.JobComplete:
-		return "ok"
-	case store.JobFailed:
-		return "bad"
-	case store.JobSkipped:
-		return "warn"
+// dashActivityStatus is a finished job's word and, unless the lines above
+// already say it, the reason: "Skipped: the new file is ...". A complete
+// job's change and sizes are on their own lines, so only the word is kept.
+func dashActivityStatus(j store.Job) string {
+	word := jobResultWord(j)
+	sum := strings.TrimSuffix(j.Summary, ".")
+	switch {
+	case j.Status == store.JobComplete || sum == "":
+		return word
+	case strings.HasPrefix(sum, word):
+		// "Cancelled before it started" already starts with the word.
+		return sum
 	}
-	return "idle"
+	return word + ": " + sum
 }
 
 // dashRecent lists the last ten finished jobs, newest first.
@@ -337,14 +341,12 @@ func (s *Server) dashRecent(ctx context.Context) ([]views.DashActivity, error) {
 			Title:  j.ItemName,
 			Href:   "/library/" + j.ItemID,
 			Change: dashChange(j.SourceSummary, j.TargetSummary),
-			Lamp:   dashJobLamp(j.Status),
-			Status: dashJobStatus(j.Status),
+			Lamp:   jobLamp(j),
+			Status: dashActivityStatus(j),
 		}
-		if j.Summary != "" {
-			a.Status += ": " + strings.TrimSuffix(j.Summary, ".")
-		}
-		if j.SourceSize != nil && j.OutputSize != nil {
+		if saved, ok := jobSaved(j); ok && j.RestoredAt == nil {
 			a.Sizes = units.Bytes(*j.SourceSize) + " → " + units.Bytes(*j.OutputSize)
+			a.Status += ": saved " + units.Bytes(saved)
 		}
 		if j.FinishedAt != nil {
 			a.When = units.Ago(*j.FinishedAt, s.Now())

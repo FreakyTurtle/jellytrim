@@ -858,7 +858,7 @@ func historySummary(j store.Job) views.QueueNotice {
 	case store.JobFailed:
 		n.Variant, n.Title = "bad", "Failed"
 	case store.JobCancelled:
-		n.Variant, n.Title = "warn", "Cancelled"
+		n.Variant, n.Title = "info", "Cancelled"
 	case store.JobAttention:
 		n.Variant, n.Title = "bad", "Needs attention"
 	default:
@@ -1048,11 +1048,11 @@ func jobLamp(j store.Job) string {
 			return "info"
 		}
 		return "ok"
-	case store.JobSkipped, store.JobCancelled:
+	case store.JobSkipped:
 		return "warn"
 	case store.JobFailed, store.JobAttention:
 		return "bad"
-	case store.JobWaiting:
+	case store.JobWaiting, store.JobCancelled:
 		return "idle"
 	}
 	return "active"

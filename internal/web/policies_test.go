@@ -523,7 +523,12 @@ func TestPolicyPagesRender(t *testing.T) {
 			t.Fatalf("%s: status %d", target, res.StatusCode)
 		}
 	}
-	_, body := e.do(t, "GET", "/policies", nil, false)
+	// Libraries use the same checklist as series and collections.
+	_, body := e.do(t, "GET", "/policies/new", nil, false)
+	if !strings.Contains(body, `<fieldset class="policy-checklist" aria-describedby="library-list-hint">`) || strings.Contains(body, `<fieldset class="chips">`) {
+		t.Error("the editor's libraries are not a checklist")
+	}
+	_, body = e.do(t, "GET", "/policies", nil, false)
 	for _, want := range []string{"Protect favourites", "In every managed library, when a favourite: never change these files.", "How policies work", `id="policy-list"`, templEscape(`Delete "Protect favourites"?`)} {
 		if !strings.Contains(body, want) {
 			t.Errorf("list is missing %q", want)

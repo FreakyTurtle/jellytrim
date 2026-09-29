@@ -151,6 +151,22 @@ templ ValueOr(text, missing string) {
 	}
 }
 
+// Change shows a format change, "2160p HEVC → 1080p HEVC", keeping each
+// side of the arrow whole when the cell is too narrow for one line. One
+// wrapper, because a collapsed table cell makes each child a grid item.
+templ Change(text string) {
+	<span class="change">
+		for i, side := range strings.Split(text, changeArrow) {
+			if i > 0 {
+				{ changeArrow }
+			}
+			<span class="change__side">{ side }</span>
+		}
+	</span>
+}
+
+const changeArrow = " → "
+
 // ---------- Lamp and status ----------
 
 // Lamp is a small square LED: ok, warn, bad, info, idle, active (pulsing) or

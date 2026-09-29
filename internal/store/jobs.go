@@ -180,6 +180,33 @@ func (s *Store) ActiveJobForItem(ctx context.Context, itemID string) (Job, bool,
 	return j, true, nil
 }
 
+// ActiveJobStatuses returns the status of the oldest active job for each of
+// the given items that has one, keyed by item ID, in one query. The Library
+// list uses it to show which rows are already queued or running.
+func (s *Store) ActiveJobStatuses(ctx context.Context, itemIDs []string) (map[string]string, error) {
+	out := map[string]string{}
+	if len(itemIDs) == 0 {
+		return out, nil
+	}
+	marks, args := inList(itemIDs)
+	rows, err := s.db.QueryContext(ctx, `SELECT item_id, status FROM jobs WHERE item_id IN (`+marks+`)
+		AND status IN ('waiting', 'analysing', 'encoding', 'validating', 'replacing') ORDER BY id`, args...) // #nosec G202 -- only placeholders are added
+	if err != nil {
+		return nil, fmt.Errorf("reading active jobs: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var id, status string
+		if err := rows.Scan(&id, &status); err != nil {
+			return nil, fmt.Errorf("reading active jobs: %w", err)
+		}
+		if _, seen := out[id]; !seen {
+			out[id] = status
+		}
+	}
+	return out, rows.Err()
+}
+
 func orDefault(s, d string) string {
 	if s == "" {
 		return d

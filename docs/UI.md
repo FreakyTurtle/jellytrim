@@ -215,7 +215,7 @@ The page also declares a favicon (`internal/web/static/img/favicon.svg`).
 **Top bar.** 56px tall, `--surface` fill, 2px `--rule` bottom border.
 
 - **Wordmark:** `JELLYTRIM` in Plex Mono 500, uppercase, 0.12em tracking, preceded by a small 10px `--accent` square with an ink border (the "power" lamp).
-- **Dry Run lamp:** when Dry Run is on, a lit `--accent` lamp and the words "Dry Run". When it is off, an unlit lamp and the word "Live". It links to the Dry Run setting. It is always visible, at every width.
+- **Dry Run lamp:** when Dry Run is on, a lit `--accent` lamp and the words "Dry Run". When it is off, a lit `--ok` lamp and the word "Live", so live reads as switched on, not off. It links to the Dry Run setting. It is always visible, at every width.
 - **Sync status:** "Synced 12 min ago", or "Syncing" with an active lamp, or "Jellyfin unreachable" with a bad lamp. Hidden below 720px (the Dashboard shows it).
 
 **Left rail (720px and above).** `--bg` fill, 1px `--rule` right border. Items are numbered like channels on a device: `01 Dashboard`, `02 Library`, `03 Policies`, `04 Queue`, `05 History`, `06 Settings`. The index is Plex Mono in `--ink-2`.
@@ -267,7 +267,7 @@ A big number with its unit and label.
 ```
 
 - Label on top in `--text-label` style.
-- Value in `--text-metric` (drops to `--text-3xl` below 720px), weight 700, tabular figures, tight tracking.
+- Value in `--text-metric` (below 720px, `--text-3xl` or 10% of the screen width, whichever is smaller, so "~211 GB" stays on one line in a half-width cell), weight 700, tabular figures, tight tracking.
 - Unit in Plex Mono 500 at `--text-lg`, aligned to the baseline, `--ink-2`.
 - Note in `--text-sm`, `--ink-2`.
 - An estimate always shows `~` before the number and the word "Estimate" in the note. The `~` is hidden from screen readers and replaced by "About".
@@ -340,6 +340,7 @@ A chunky hardware switch with a real checkbox underneath.
 - Knob 16 × 16px square, `--ink` fill. It moves across in `--dur` and settles with 1px of extra travel, so the switch "clicks".
 - The track shows `ON` or `OFF` in 9px Plex Mono beside the knob, so the state is readable without colour.
 - Disabled: `--rule-soft` border, `--ink-2` label, with a visible reason next to it.
+- A note under the toggle (`ToggleWith`, `.toggle-field__note`) sits `--space-1` below it, or `--space-2` below the large toggle.
 - `role="switch"` is the one ARIA addition: it tells assistive technology the checkbox is an on/off switch.
 
 ### Segmented control
@@ -405,6 +406,7 @@ Dense, aligned, and readable at a glance.
 - Header: `--text-label` style, `--ink-2`, 2px `--rule` bottom border.
 - Rows: 40px minimum, `--border-soft` between rows, `--surface` fill. Hover: `--surface-sunk`.
 - Technical columns use `.mono`. Numeric columns use `.num` (right-aligned, tabular figures).
+- A format change ("2160p HEVC → 1080p HEVC") uses the `Change` component: each side of the arrow is a `.change__side` that never wraps, so a narrow cell breaks only at the arrow. The History table keeps the whole change on one line at 1080px and above and lets the outcome wrap instead.
 - A row that links somewhere has one real link in its first cell. The whole row is not clickable.
 - Wide tables scroll inside their panel, never the page.
 - **Below 720px** each row becomes a card: cells stack, and each cell shows its `data-label` as a small label. Changing `display` removes table semantics in some browsers, so collapsing tables add explicit `role` attributes (`table`, `rowgroup`, `row`, `columnheader`, `cell`). This is one of the few places ARIA is needed.
@@ -551,7 +553,7 @@ A week of hour cells for the processing schedule (`ScheduleGrid` in `components.
 
 These are the only playful touches. Each one also carries information.
 
-- **The Dry Run lamp.** A lit orange lamp in the top bar while Dry Run is on. It goes dark when JellyTrim is live.
+- **The Dry Run lamp.** A lit orange lamp in the top bar while Dry Run is on. It turns green when JellyTrim is live.
 - **Segmented progress.** Meters fill segment by segment, like an audio level meter.
 - **The toggle click.** Switches travel a little past the end and settle back 1px.
 - **Pressed buttons.** Buttons and segmented options move down 1px when pressed.
@@ -685,10 +687,11 @@ Estimated saving    ~ 1.5 TB
 ```
 Blade Runner 2049                                   2 h ago
 2160p H.264 → 1080p HEVC
-48.2 GB → 13.7 GB                        [ok] Saved 34.5 GB
+48.2 GB → 13.7 GB
+[ok] Complete: saved 34.5 GB
 ```
 
-The title in Plex Sans 500, the rest in Plex Mono. Failed and skipped entries show their lamp and the plain reason ("Skipped: the new file would have saved only 4%"). A link at the end: "All history".
+The title in Plex Sans 500, the change and sizes in Plex Mono, every line starting at the left. The status uses the same lamp and word as History. A complete entry adds only the saving, because the change and sizes are on the lines above; a restored one reads "Restored" with no sizes. Failed, skipped and cancelled entries show their lamp and the plain reason ("Skipped: the new file would have saved only 4%", "Cancelled before it started"). A link at the end: "All history".
 
 **Problems.** A list of anything that needs attention, most serious first, each with a lamp, a sentence and an action:
 
@@ -730,7 +733,7 @@ Route: `/library`. Every managed item and what JellyTrim would do with it.
 | Library | Library name |
 | Format | Badges: resolution, codec, HDR type |
 | Size | `48.2 GB` (Plex Mono, right-aligned) |
-| Decision | Lamp and word: "Would convert", "Optimal", "Protected", "Skipped" |
+| Decision | Lamp and word for the decision: "Needs optimisation", "Already optimal", "Protected", "Skipped", "No policy". An item with a job in the queue shows the job instead: "Queued" (info lamp) or its stage, such as "Encoding" (ok lamp). One query per page reads the jobs |
 | Est. saving | `~ 34.5 GB`. Without an estimate: "Unknown" for an item JellyTrim plans to optimise, "Not planned" for any other, in `--ink-2` |
 
 - Sorted by title by default; Size and Est. saving headers sort (links, with `aria-sort` on the active header).
@@ -792,6 +795,7 @@ Route: `/policies`. The ordered list of policies, and the editor.
 > **In** [Movies ▾]. **When** [watched ▾] and [last watched ▾] [more than ▾] [90] days ago and [resolution ▾] [above ▾] [1080p ▾] [+ Add condition]. **Then** convert to [1080p ▾] [HEVC ▾] at [High ▾] quality. Keep all audio and subtitles.
 
 - Each bracket is an inline slot (`.field--slot`): a native `<select>` or `<input>` with a visually hidden label ("Scope", "Condition 2", "Days"), so each section also reads correctly with a screen reader.
+- **In** holds three lists with the same control: Libraries, Series (when the policy can match episodes) and Collections are each a checklist, a bordered, scrolling box of checkboxes in columns, with a hint above it ("Tick none for every managed library."). Series and collections can run to hundreds, so chips would not scale; libraries match them. Items (Films and episodes, Films, Episodes) is a segmented control.
 - Conditions join with "and". Each condition has a remove button (`✗`, `aria-label="Remove condition: last watched"`).
 - "+ Add condition" adds a new condition slot and moves focus to it.
 - Watched conditions follow the watched state setting in Settings, and their explanation lines say so ("watched by 2 of 3 users (majority needed)").
@@ -856,7 +860,7 @@ Route: `/queue`. What is running, what is waiting, and control over both.
 | Complete | ok | Replaced; the saving is recorded |
 | Skipped | warn | Stopped safely without changes; the reason is recorded |
 | Failed | bad | Something went wrong; the original is unchanged |
-| Cancelled | idle | The user cancelled it before it finished; the original is unchanged |
+| Cancelled | idle | The user cancelled it before it finished; the original is unchanged. Idle, not warn: nothing went wrong |
 | Needs attention | warn | Stopped in a state that needs a person to look at it; not active, but it blocks new jobs for its item and file until resolved |
 
 "Optimise now" on an item's page, and any other manually triggered job, is placed at the front of the waiting jobs, ahead of jobs the scheduler queued automatically.

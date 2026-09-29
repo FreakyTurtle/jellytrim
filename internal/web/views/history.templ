@@ -161,7 +161,9 @@ templ historyTable(rows []HistoryRow) {
 						<td role="cell" data-label="Title" class="history-table__title">
 							<a href={ templ.SafeURL(row.Href) }>{ row.Title }</a>
 						</td>
-						<td role="cell" data-label="Change" class="mono">{ row.Change }</td>
+						<td role="cell" data-label="Change" class="mono history-table__change">
+							@Change(row.Change)
+						</td>
 						<td role="cell" data-label="Result">
 							@Status(row.Lamp, row.Status)
 						</td>

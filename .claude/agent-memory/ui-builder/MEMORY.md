@@ -55,3 +55,12 @@ Curate this file: keep it under 150 lines, one fact per bullet, date each entry 
 - 2026-09-29: progressive disclosure without JS: hide a sub-control with `.parent:has(input[value="x"]:not(:checked)) .child { display: none }`; old browsers just show it (watched state people list, custom share).
 - 2026-09-29: the setup Jellyfin form starts with a hidden default "Continue" submit, so Playwright's click by text times out; press Enter in a field instead.
 - 2026-09-29: to screenshot states the dev stack cannot reach (a running job's note, a restore conflict), render the fragment from a temporary env-gated test into the scratchpad, inject it with page.evaluate, then delete the test.
+- 2026-09-29: for a mid-page desktop screenshot, scroll and take a tall viewport shot rather than a full-page clip; the sticky topbar, rail and settings nav then stay in frame.
+- 2026-09-29: the demo instance takes local paths from the host checkout, so item Source, history job detail and Settings path mappings show a personal path; crop them out of published screenshots.
+- 2026-09-29: the Read tool displays .webp files, so final docs/images can be checked directly after cwebp.
+- 2026-09-29: full-page Playwright captures leave `loading="lazy"` posters blank grey; scroll the whole page and await `document.images` before the shot.
+- 2026-09-29: `go build ./scripts/demo/` drops a 22 MB `demo` binary in the repo root and check-public fails; build with `-o /dev/null` or just run `go vet`.
+- 2026-09-29: `Change` in components.templ keeps each side of "A → B" whole (`.change__side`, nowrap) inside one `.change` wrapper; without the wrapper a collapsed cell puts the arrow in the label column.
+- 2026-09-29: phone metrics use `font-size: min(var(--text-3xl), 10vw)` so "~211 GB" fits a half-width cell; measure wraps by `.metric__value` height (39px one line).
+- 2026-09-29: the Library list cannot show Queued cheaply: the store has only ActiveJobForItem (per row) or ActiveJobs (whole queue); it needs a per-page store query first.
+- 2026-09-29: demo `-running` requeues then restarts the shown job on every start, so elapsed matches 43%; the schedule is off Mon to Fri 08:00 to 17:00.

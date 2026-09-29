@@ -244,7 +244,13 @@ templ libraryTable(r LibraryResults) {
 								</span>
 							}
 						</td>
-						<td role="cell" data-label="Change" class="mono">@ValueOr(row.Change, "Unknown")</td>
+						<td role="cell" data-label="Change" class="mono">
+							if row.Change == "" {
+								@ValueOr(row.Change, "Unknown")
+							} else {
+								@Change(row.Change)
+							}
+						</td>
 						<td role="cell" data-label="Size" class="num mono">{ row.Size }</td>
 						<td role="cell" data-label="Est. saving" class="num mono">
 							if row.Saving != "" {

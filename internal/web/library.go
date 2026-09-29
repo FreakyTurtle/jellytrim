@@ -342,10 +342,32 @@ func (s *Server) libraryResults(ctx context.Context, q libraryQuery) (views.Libr
 	for _, o := range librarySorts {
 		res.SortHrefs[o.Value] = q.href(1, o.Value)
 	}
+	ids := make([]string, len(rows))
+	for i, row := range rows {
+		ids[i] = row.Item.ID
+	}
+	active, err := s.Store.ActiveJobStatuses(ctx, ids)
+	if err != nil {
+		return res, err
+	}
 	for _, row := range rows {
-		res.Rows = append(res.Rows, s.libraryRow(ctx, row))
+		v := s.libraryRow(ctx, row)
+		if status, ok := active[row.Item.ID]; ok {
+			v.Lamp, v.Decision = libraryJobState(status)
+		}
+		res.Rows = append(res.Rows, v)
 	}
 	return res, nil
+}
+
+// libraryJobState is the lamp and words for an item with an active job,
+// which say more than its decision: "Queued", or the stage it is in
+// ("Encoding").
+func libraryJobState(status string) (lamp, label string) {
+	if status == store.JobWaiting {
+		return "info", "Queued"
+	}
+	return "ok", jobStatusWord(status)
 }
 
 func (s *Server) libraryRow(ctx context.Context, row store.LibraryRow) views.LibraryRow {

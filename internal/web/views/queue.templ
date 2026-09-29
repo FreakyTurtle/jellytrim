@@ -487,7 +487,9 @@ templ queueWaitingTable(rows []QueueWaiting) {
 								}
 							</span>
 						</td>
-						<td role="cell" data-label="Change" class="mono">{ w.Change }</td>
+						<td role="cell" data-label="Change" class="mono">
+							@Change(w.Change)
+						</td>
 						<td role="cell" data-label="Policy">{ w.Policy }</td>
 						<td role="cell" data-label="Est. saving" class="num mono">
 							if w.Saving != "" {
