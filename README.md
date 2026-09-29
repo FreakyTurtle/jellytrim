@@ -1,49 +1,61 @@
 # JellyTrim
 
-JellyTrim is a media lifecycle optimiser for Jellyfin. It reads what Jellyfin knows about each film and episode (whether it has been watched, when, whether it is a favourite, which library it is in) and uses simple policies to decide when a file can be made smaller. It then re-encodes the file with ffmpeg, checks the result, and swaps it in safely. For example: keep a new 4K film as it is, and convert it to 1080p HEVC once it has been watched and 90 days have passed.
+**Shrink your Jellyfin library automatically, based on what your household has already watched.**
 
-> Keep media at the quality that makes sense now, and automatically reduce its storage cost when that quality is no longer useful.
+JellyTrim is a self-hosted media optimiser for [Jellyfin](https://jellyfin.org). It reads Jellyfin's watch history, favourites and libraries, and uses simple rules to decide when a film or episode can be made smaller. Then it re-encodes the file to HEVC (H.265) with ffmpeg, checks the result, and swaps it in without losing a single audio track, subtitle or bit of HDR. Keep a new 4K film exactly as it is; once everyone has watched it and 90 days have passed, turn the 60 GB remux into a 1080p HEVC file a fraction of the size.
 
-JellyTrim is a single Go binary with a web interface. It runs in Docker next to Jellyfin.
+It runs as one Docker container next to Jellyfin, with a web interface, no accounts and no telemetry. Dry Run is on until you turn it off, so you see exactly what it would do, and how much space it would save, before it changes anything.
 
-## Status
+[![CI](https://github.com/freakyturtle/jellytrim/actions/workflows/ci.yml/badge.svg)](https://github.com/freakyturtle/jellytrim/actions/workflows/ci.yml)
+[![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
+[![Container: ghcr.io](https://img.shields.io/badge/container-ghcr.io%2Ffreakyturtle%2Fjellytrim-informational)](https://github.com/freakyturtle/jellytrim/pkgs/container/jellytrim)
 
-JellyTrim has not reached version 1.0, but it is feature-complete for its MVP: connecting to Jellyfin, syncing and inspecting a library, policies with previews and explanations, safe encoding with x265 and Intel Quick Sync, a queue with history, scheduling, and the full web UI. `docs/MILESTONES.md` shows the detail. The one significant gap is that Intel Quick Sync has not yet been verified on real Intel hardware; the software encoder (x265) has. Expect breaking changes before 1.0.
+![The JellyTrim dashboard: library size, space saved, what the policies would optimise, and the queue](docs/images/dashboard.webp)
 
-**Dry Run is on by default.** Until you turn it off, JellyTrim only reports what it would do. It does not change any files. Keep your own backups of media you care about.
+<sub>Screenshots use the built-in demo mode. Every title, person and number in them is invented.</sub>
 
-## Features
+## What it does
 
-- **Policies that use Jellyfin data.** Watched state, last watched date, favourites, date added, library, series, collection, tag, resolution, codec and bitrate.
-- **Households with several users.** Choose whose watch history counts and how many of them must have watched something (any one, a majority, everyone, or a percentage). One person's favourite is enough for the *Protect favourites* policy. Inactive accounts are left out.
-- **Never swaps a file mid-film.** JellyTrim asks Jellyfin what is playing and waits until nobody is watching before it replaces a file.
-- **A policy editor that reads like a sentence.** "In Movies, when watched and last watched more than 90 days ago, convert to 1080p HEVC at High quality."
-- **Every decision explained.** Each item shows which policy matched and why, line by line.
-- **A useful Dry Run.** Counts, planned changes and estimated savings for the whole library and for each policy, before anything changes.
-- **Safe replacement.** New files are written alongside the original, checked, and swapped in only if every check passes. Originals are kept as backups for 7 days, with a Restore button.
-- **Streams kept.** All audio tracks, subtitles, chapters, attachments and metadata are carried over.
-- **HDR handled with care.** HDR10 and HLG keep their HDR information. HDR10+ and Dolby Vision profiles 7 and 8 are skipped unless a policy allows reducing them to HDR10. Dolby Vision profile 5 and anything unclear are always skipped, with the reason shown. JellyTrim never converts HDR to SDR.
-- **Hardware detection by test encode.** JellyTrim checks which encoders actually work on your machine, not just which ones ffmpeg lists.
-- **Queue, history and scheduling.** Progress, speed and time left; full history with technical details; a weekly processing schedule in hour blocks, so encoding only uses the GPU or CPU when you choose.
-- **Simple to run.** One container for amd64 and arm64. SQLite database. No external services. No telemetry.
+- **Uses what Jellyfin knows.** Policies can use watched state, last watched date, favourites, date added, library, series, collection, tag, resolution, codec and bitrate.
+- **Understands households.** Choose whose watch history counts and how many people must have watched something: any one, a majority, everyone, or a percentage. One person's favourite is enough to protect a file. Accounts nobody uses are left out.
+- **Policies read like sentences.** "In Movies, when watched, last watched more than 90 days ago and above 1080p, convert to 1080p HEVC at High quality."
+- **Explains every decision.** Each item shows which policy matched and why, condition by condition, and every other policy that also matched.
+- **A Dry Run you can trust.** Counts, planned changes and estimated savings for the whole library and for each policy, before anything changes.
+- **Keeps everything that matters.** All audio tracks, subtitles, chapters, attachments and metadata are carried over. Watched state and favourites survive, because the file keeps its path.
+- **Handles HDR with care.** HDR10 and HLG keep their HDR information. HDR10+ and Dolby Vision are skipped unless a policy allows reducing them to HDR10. JellyTrim never converts HDR to SDR.
+- **Never swaps a file mid-film.** It asks Jellyfin what is playing, and waits until nobody is watching before it replaces a file.
+- **Works when you choose.** A weekly schedule in hour blocks, so encoding only uses the CPU or GPU overnight, or whenever suits you.
+- **Uses your hardware.** Software x265 everywhere, and Intel Quick Sync (QSV) where available. JellyTrim tests each encoder with a real encode instead of trusting what ffmpeg lists.
+- **Built for big libraries.** Tested with 100,000 items: a full re-evaluation takes about 3 seconds.
+
+| | |
+|---|---|
+| ![Library list with posters, filters and the decision for each item](docs/images/library.webp) | ![An item page explaining which policy matched and why](docs/images/item.webp) |
+| **Library.** Every film and episode with its size, codec, resolution and what JellyTrim would do. | **Item.** Why this file would be converted, condition by condition, and who has watched it. |
+| ![The policy editor with a live preview of matches and savings](docs/images/policy-editor.webp) | ![The queue with a running encode and waiting jobs](docs/images/queue.webp) |
+| **Policies.** Plain-language rules with a live preview of what they match and save. | **Queue.** Progress, speed and time left, with the processing schedule applied. |
+| ![History of finished jobs and the space each one saved](docs/images/history.webp) | ![Settings, including the weekly processing schedule](docs/images/settings.webp) |
+| **History.** Every job, with the saving, technical details and a Restore button. | **Settings.** The weekly schedule, backups, watch history rules and encoders. |
+
+<p align="center"><img src="docs/images/mobile.webp" alt="The dashboard on a phone" width="300"></p>
 
 ## How it keeps your media safe
 
+JellyTrim's first rule is that a skipped file is always better than a damaged one.
+
 - Dry Run is on until you turn it off.
 - The original file is never opened for writing. The new file is written as a hidden file in the same folder.
-- The new file is checked before it replaces anything: codec, resolution, every audio and subtitle stream, duration, HDR information, and a full decode.
+- The new file must pass every check before it replaces anything: codec, resolution, every audio and subtitle stream, duration, HDR information, and a full decode.
 - A file is replaced only if it saves at least 10% (you can change this).
 - The original is kept as a hard-linked backup for 7 days, and can be restored from History.
-- Every file operation is recorded before it happens, so JellyTrim can recover cleanly after a crash or power cut.
-- When JellyTrim is unsure about a file, it skips it and says why. Symlinks, hard-linked files, interlaced video and unusual HDR are always skipped.
+- Every file operation is recorded before it happens, so JellyTrim recovers cleanly after a crash or power cut.
+- If a file is unusual (symlinked, hard-linked by a download client, interlaced, rotated, or unclear HDR), JellyTrim skips it and says why.
 
 The details are in [docs/TRANSCODING.md](docs/TRANSCODING.md).
 
 ## Quick start
 
-You need Docker with Compose, a running Jellyfin server (10.10 or later), and a Jellyfin API key (in Jellyfin: Dashboard, then API Keys).
-
-Create a `docker-compose.yml`:
+You need Docker with Compose, Jellyfin 10.10 or later, and a Jellyfin API key (in Jellyfin: **Dashboard**, then **API Keys**).
 
 ```yaml
 services:
@@ -51,69 +63,58 @@ services:
     image: ghcr.io/freakyturtle/jellytrim:latest
     container_name: jellytrim
     restart: unless-stopped
-    # Run as the user that owns your media files, so JellyTrim can replace them.
-    user: "1000:1000"
+    user: "1000:1000"               # the user that owns your media files
     ports:
-      # This machine only. To reach it from your LAN, use "8080:8080" and
-      # read SECURITY.md first: JellyTrim has no login.
-      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:8080:8080"       # JellyTrim has no login: see "Security" below
+    environment:
+      TZ: Europe/London             # used by the processing schedule
     volumes:
-      - ./config:/config
-      # Your media, mounted read-write. Use the same path Jellyfin uses if you can.
-      - /path/to/media:/media
-    # Intel Quick Sync (QSV) only. Remove these lines for software encoding.
-    devices:
-      - /dev/dri:/dev/dri
-    group_add:
-      # The group ID that owns /dev/dri/renderD128 on the host.
-      # Find it with: stat -c %g /dev/dri/renderD128
-      - "993"
-```
+      - ./jellytrim-config:/config  # local disk, not a network share
+      - /path/to/media:/media       # read-write; ideally the same path Jellyfin uses
+    networks:
+      - jellyfin                    # a network Jellyfin is also on (see the install guide)
 
-Start it:
+networks:
+  jellyfin:
+    external: true
+```
 
 ```sh
 docker compose up -d
 ```
 
-Open `http://<your-server>:8080`. The setup wizard asks for your Jellyfin address (for example `http://jellyfin:8096`) and API key, lets you choose libraries and check path mappings, tests your hardware, and runs a first Dry Run scan.
+Open `http://localhost:8080`. The setup wizard asks for Jellyfin's address as the container sees it (for example `http://jellyfin:8096`) and the API key, then helps you choose libraries, check path mappings and test your hardware. It finishes with a first Dry Run.
 
-If Jellyfin runs in another Compose project, put both containers on the same Docker network so JellyTrim can reach it by name.
+The [install guide](docs/guide/install.md) covers every option: a shared network with Jellyfin, choosing the user, path mapping, Intel Quick Sync, Docker secrets, and notes for Unraid, Synology, TrueNAS and Portainer.
 
-## Configuration
+> **No release has been published yet.** Until the first version is tagged, build the image yourself: `git clone https://github.com/freakyturtle/jellytrim.git && cd jellytrim && docker build -t ghcr.io/freakyturtle/jellytrim:latest .`
 
-Most settings are made in the web interface and stored in the SQLite database in `/config`. These environment variables are read at start-up:
+## User guide
 
-| Variable | Default | What it does |
-|---|---|---|
-| `JELLYTRIM_LISTEN` | `:8080` | Address and port to listen on |
-| `JELLYTRIM_CONFIG_DIR` | `/config` | Folder for the database and state |
-| `JELLYTRIM_JELLYFIN_URL` | (none) | Optional. Sets the Jellyfin address and skips that step of setup |
-| `JELLYTRIM_JELLYFIN_API_KEY` | (none) | Optional. Sets the Jellyfin API key |
-| `JELLYTRIM_JELLYFIN_API_KEY_FILE` | (none) | Optional. Reads the API key from a file, for Docker secrets |
-| `JELLYTRIM_FFMPEG` | set in the image | Path to `ffmpeg` |
-| `JELLYTRIM_FFPROBE` | set in the image | Path to `ffprobe` |
-| `JELLYTRIM_LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error` |
-| `JELLYTRIM_LOG_FORMAT` | `text` | `text` or `json` |
-| `TZ` | `UTC` | Time zone for the processing schedule and daily sync time, for example `Europe/London` |
+1. [Install](docs/guide/install.md) with Docker Compose.
+2. [First run](docs/guide/first-run.md): the setup wizard, your first Dry Run, and a cautious first rollout.
+3. [Settings](docs/guide/settings.md): every setting and environment variable.
+4. [Policies](docs/guide/policies.md): recipes for common goals.
+5. [Adding a login with a reverse proxy](docs/guide/reverse-proxy.md): Caddy, nginx and Traefik examples.
+6. [Backups and restore](docs/guide/backups-and-restore.md).
+7. [Upgrading](docs/guide/upgrading.md).
+8. [Troubleshooting and FAQ](docs/guide/troubleshooting.md).
 
-Values set by environment variables are shown as read-only in Settings.
+## Is JellyTrim for you?
 
-## Path mapping
+**A good fit if** you run Jellyfin with a library big enough that storage matters, you keep high-bitrate or 4K files you rarely rewatch, and you want the saving without learning ffmpeg.
 
-Jellyfin and JellyTrim may see the same files under different paths. For example, a film might be at `/media/movies/Example (2019)/Example.mkv` in the Jellyfin container and at `/mnt/media/movies/Example (2019)/Example.mkv` in the JellyTrim container.
+**Not a fit if** you use Plex or Emby (JellyTrim needs Jellyfin's API), you want to transcode for playback while streaming (Jellyfin already does that), or you want a general-purpose media processing pipeline.
 
-A path mapping tells JellyTrim how to translate: Jellyfin path `/media/movies` is JellyTrim path `/mnt/media/movies`. You can add several mappings. The longest matching prefix wins.
-
-The setup wizard fills in each library's folders from Jellyfin, then checks as you type: how many files it can find, and whether it can write, hard-link and rename in that folder. The simplest set-up is to mount your media at the same path in both containers, so no translation is needed.
+**Compared with Tdarr, Unmanic and FileFlows.** Those are general-purpose tools for processing whole libraries, configured with plugin stacks or flows, and they work well for that. JellyTrim does one narrower job. It decides from Jellyfin's viewing data *when* each file should get smaller, explains each decision in plain words, and keeps the choice of encoder settings to a few quality levels.
 
 ## Security
 
-JellyTrim has **no built-in login**. Anyone who can reach its web interface can change policies and turn off Dry Run. Run it on a private network, or put it behind a reverse proxy that adds authentication.
+JellyTrim has **no built-in login**. Anyone who can open its web interface can change policies and turn off Dry Run. Keep it on a private network, or put it behind a reverse proxy that adds authentication. The [reverse proxy guide](docs/guide/reverse-proxy.md) has working examples.
 
-- JellyTrim rejects cross-origin requests that change state, so another website cannot act through your browser.
-- The Jellyfin API key is stored in `/config`, is never shown in the interface and is never logged. Artwork is fetched by JellyTrim, so your browser never sees the key.
-- Use a dedicated Jellyfin API key for JellyTrim.
+- Requests that change anything are refused if they come from another website, so a malicious page cannot act through your browser.
+- The Jellyfin API key stays on the server. It is never shown in the interface or written to logs, and artwork is fetched through JellyTrim.
+- Give JellyTrim its own Jellyfin API key, so you can revoke it on its own.
 
 See [SECURITY.md](SECURITY.md) for the threat model and how to report a vulnerability.
 
@@ -121,17 +122,23 @@ See [SECURITY.md](SECURITY.md) for the threat model and how to report a vulnerab
 
 | Encoder | Platforms | Status |
 |---|---|---|
-| x265 (software HEVC) | amd64, arm64 | Supported and verified on real hardware |
-| Intel Quick Sync (QSV) HEVC | amd64 with `/dev/dri` passed through | Built and covered by golden argument tests; not yet verified on real Intel hardware |
+| x265 (software HEVC) | amd64, arm64 | Supported and verified |
+| Intel Quick Sync (QSV) HEVC | amd64 with `/dev/dri` passed through | Supported; not yet verified on real Intel hardware |
 | NVIDIA NVENC | | Planned |
 | VAAPI (AMD and Intel) | | Planned |
 | AV1 (SVT-AV1 and hardware) | | Planned |
 
-The image includes jellyfin-ffmpeg, the same ffmpeg build Jellyfin uses. **Auto** picks the best working encoder for each job, and falls back to x265 when a hardware encoder cannot keep HDR information.
+The image includes [jellyfin-ffmpeg](https://github.com/jellyfin/jellyfin-ffmpeg), the same ffmpeg build Jellyfin uses. **Auto** picks the best working encoder for each job, and falls back to x265 when a hardware encoder cannot keep a file's HDR information.
 
-## Building from source
+## Status
 
-You need Go 1.26 or later, [Task](https://taskfile.dev), and ffmpeg with libx265 on your `PATH`.
+JellyTrim is feature-complete for its first release but has not reached 1.0, so expect breaking changes. The software encoder (x265) has been verified end to end against Jellyfin 12. Intel Quick Sync has golden-argument tests but has not yet run on real Intel hardware. [docs/MILESTONES.md](docs/MILESTONES.md) shows the detail.
+
+Keep your own backups of media you care about.
+
+## Building from source and contributing
+
+You need Go 1.26 or later, [Task](https://taskfile.dev), and ffmpeg with libx265.
 
 ```sh
 git clone https://github.com/freakyturtle/jellytrim.git
@@ -139,46 +146,24 @@ cd jellytrim
 task setup
 task build        # writes bin/jellytrim
 task check        # everything CI runs
+task demo         # the demo used for the screenshots, on http://127.0.0.1:8098
 ```
 
-Or install the binary directly:
+[CONTRIBUTING.md](CONTRIBUTING.md) covers the development set-up, including a throwaway Jellyfin with generated test media. Contributions are welcome. For anything large, open an issue first. Please follow the [code of conduct](CODE_OF_CONDUCT.md).
 
-```sh
-go install github.com/freakyturtle/jellytrim/cmd/jellytrim@latest
-```
-
-[CONTRIBUTING.md](CONTRIBUTING.md) covers the development set-up, including a throwaway Jellyfin with generated test media.
-
-## Documentation
-
-- [Product specification](docs/PRODUCT.md): what JellyTrim is for and what it does.
-- [Architecture](docs/ARCHITECTURE.md): how the code fits together.
-- [Transcoding](docs/TRANSCODING.md): media decisions, encoder settings and validation.
-- [Policies](docs/POLICIES.md): the policy model, conditions and precedence.
-- [UI](docs/UI.md): the design system and page specifications.
-- [Development](docs/DEVELOPMENT.md) and [testing](docs/TESTING.md).
-- [Milestones](docs/MILESTONES.md): the plan and progress.
-- [Decision records](docs/adr/).
-- [AI agent set-up](docs/agents/README.md).
-
-## Contributing
-
-Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) first, and follow the [code of conduct](CODE_OF_CONDUCT.md). For anything large, open an issue to discuss it before you start.
-
-## Licence
-
-MIT. See [LICENSE](LICENSE).
+Documentation for contributors: [product](docs/PRODUCT.md), [architecture](docs/ARCHITECTURE.md), [transcoding](docs/TRANSCODING.md), [policies](docs/POLICIES.md), [UI](docs/UI.md), [development](docs/DEVELOPMENT.md), [testing](docs/TESTING.md), [decision records](docs/adr/) and the [AI agent set-up](docs/agents/README.md).
 
 ## No telemetry
 
 JellyTrim does not collect usage data, does not call home, and does not need an account. It talks only to your Jellyfin server.
 
+## Licence
+
+MIT. See [LICENSE](LICENSE).
+
 ## Acknowledgements
 
-JellyTrim builds on:
-
-- [Jellyfin](https://jellyfin.org), the free media server it works with.
-- [FFmpeg](https://ffmpeg.org), which does the encoding and inspection.
-- [jellyfin-ffmpeg](https://github.com/jellyfin/jellyfin-ffmpeg), the ffmpeg build in the image.
-- [templ](https://templ.guide) and [htmx](https://htmx.org) for the web interface.
+- [Jellyfin](https://jellyfin.org), the free media server JellyTrim works with.
+- [FFmpeg](https://ffmpeg.org) and [jellyfin-ffmpeg](https://github.com/jellyfin/jellyfin-ffmpeg), which do the encoding and inspection.
+- [templ](https://templ.guide) and [htmx](https://htmx.org), for the web interface.
 - [IBM Plex](https://github.com/IBM/plex), the typeface, under the SIL Open Font Licence.

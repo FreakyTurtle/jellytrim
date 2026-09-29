@@ -70,6 +70,49 @@ Do not open `tmp/config/jellytrim.db` (or any config directory a running contain
 
 If you need to inspect the database while the dev stack is running, do it from inside a container (for example `docker compose exec jellytrim sh` and a SQLite client installed there), not from the host.
 
+## Demo mode: an invented library for screenshots and UI work
+
+```
+task demo                     # or: go run ./scripts/demo
+task demo -- -reset -running  # rebuild from scratch, and show a job encoding
+```
+
+The demo serves the real web UI on `http://127.0.0.1:8098` with an invented library that looks lived in. It needs no Docker, no Jellyfin and no ffmpeg. Every title, person and job in it is made up.
+
+What it contains:
+
+- 40 films and three series (88 items) in two libraries, Films and TV: 4K H.264 and HDR10 remuxes of 40 to 70 GB, 1080p H.264 and HEVC films, and episodes of 1 to 4 GB.
+- Four people with two years of viewing, favourites, two collections and tags. One person (`jo`) has not signed in for over 140 days, so the default inactive filter leaves them out.
+- Files that are skipped with a reason: a Dolby Vision profile 5 film, an interlaced episode and a hard-linked film.
+- 14 finished jobs in History (complete with backups kept or expired, one restored, one skipped for a small saving, one failed, one cancelled) and 8 jobs waiting in the Queue.
+
+How it works: an in-process fake Jellyfin (`jellyfintest`) serves the library; the media files are sparse (the right size, but no data and no disk space); a fake prober answers from the ffprobe fixtures in `internal/media/testdata/probe`, patched to match each file; and the hardware test results are fixed (software x265 works, there is no Intel GPU). The config is seeded the way the setup wizard and `scripts/devseed` do it, with three starter policies on and Efficient encoding off. Past jobs are written through the same store methods the queue uses.
+
+Nothing is ever encoded. The demo never runs ffmpeg or ffprobe, never starts the queue's workers, and only writes inside its folder. It marks that folder with a `.jellytrim-demo` file and refuses to use a non-empty folder without it.
+
+| Flag | Default | What it does |
+|---|---|---|
+| `-listen` | `127.0.0.1:8098` | Where to serve the web UI |
+| `-dir` | `./tmp/demo` | The demo's folder: `config/` for the database and `media/` for the sparse files |
+| `-reset` | `false` | Delete the demo's config and media and build them again |
+| `-running` | `false` | Show one job encoding in the Queue (43%). This also turns Dry Run off and sets a schedule with every hour active except Monday to Friday, 08:00 to 17:00, so the page is consistent. Otherwise Dry Run is on and the schedule is nights and weekends. |
+| `-v` | `false` | Log every request |
+
+A second start reuses the folder, so changes you make in the UI are kept; only Dry Run and the processing schedule are set again from `-running`. Use `-reset` after changing the catalogue.
+
+To change the data, edit the tables in `scripts/demo/catalogue.go`. The demo's tests (`go test ./scripts/demo/`) fail if a job in the History or Queue tables names an item that the policies do not choose.
+
+Item pages, History, the ffmpeg commands in job details and the path mapping settings all show the local file path, which includes the full path of `-dir`. On a Mac, even `/tmp` resolves to a per-user folder. For screenshots, run the demo in a container so every path starts with `/data`:
+
+```sh
+docker run -d --name jellytrim-demo -p 127.0.0.1:8098:8098 \
+  -v "$PWD":/src:ro -v jellytrim-demo-gomod:/go/pkg/mod -v jellytrim-demo-gocache:/root/.cache/go-build \
+  -w /src -e GOFLAGS=-buildvcs=false -e TZ=Europe/London \
+  golang:1.26-trixie go run ./scripts/demo -dir /data -listen 0.0.0.0:8098 -running
+```
+
+`docker restart jellytrim-demo` rebuilds it after a code change, and `docker rm -f jellytrim-demo` removes it. The README screenshots in `docs/images/` were taken this way.
+
 ## Configuration
 
 JellyTrim reads a few bootstrap settings from the environment; everything else is set in the UI and stored in SQLite. See `config.example.env`.

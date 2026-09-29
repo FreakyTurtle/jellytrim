@@ -126,6 +126,11 @@ tasks:
     cmds:
       - scripts/dev-jellyfin-bootstrap.sh
 
+  demo:
+    desc: Serve the web UI on :8098 with an invented library, for screenshots (pass flags after --, e.g. task demo -- -reset -running)
+    cmds:
+      - go run ./scripts/demo {{.CLI_ARGS}}
+
   # --- Images and releases ---------------------------------------------------
 
   docker:build:

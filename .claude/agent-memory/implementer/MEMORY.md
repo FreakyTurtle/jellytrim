@@ -35,3 +35,6 @@ Curate this file: keep it under 150 lines, one fact per bullet, date each entry 
 - 2026-09-29: a throwaway `_name/main.go` inside the repo can import internal packages and runs with `go run ./_name`; point it at a config dir in the scratchpad (seed one with `go run ./scripts/devseed -config <dir>`), then delete the folder.
 - 2026-09-29: `st.SetSelectedUsers` only ticks users; the watch_users mode defaults to "everyone", so a test about "selected" mode must also set `store.KeyWatchUsers` to `store.WatchUsersSelected`.
 - 2026-09-29: the default Jellyfin client makes 3 attempts on a 503 with 0.5 s then 1 s backoff, so a failing call in queue, library or web tests needs 3 queued `FailNext` faults and costs about 1.5 s.
+- 2026-09-29: jellyfintest can run outside tests through a small testing.TB shim (embed a nil testing.TB, implement Helper, Cleanup, Errorf, Fatalf); scripts/demo does this. Date seeded rows with `store.SetClock`, then set it back.
+- 2026-09-29: macOS has no `timeout`; start a server in the background, wait with an `until grep ... log` loop, stop it with `pkill -INT`.
+- 2026-09-29: Poster PNGs drawn with SetRGBA per pixel dominated a race-enabled test; fill rows with `copy` into `img.Pix` and draw each title once per build.
