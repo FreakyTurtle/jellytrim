@@ -22,7 +22,8 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
 FROM debian:trixie-slim
 ARG TARGETARCH
 # jellyfin-ffmpeg is pinned by version and checksum (ADR 0004). Update both
-# architectures together from https://github.com/jellyfin/jellyfin-ffmpeg/releases
+# architectures together from https://github.com/jellyfin/jellyfin-ffmpeg/releases,
+# and the matching CI package in .github/workflows/ci.yml
 ARG JFFMPEG_VERSION=8.1.3-1
 ARG JFFMPEG_SHA256_AMD64=fbef9f81a53e175194e3f67832618a86111f7bd37197df21a5d748c34289f9c0
 ARG JFFMPEG_SHA256_ARM64=4af743bd776eda082d40c851a4201e51a77a258145dd6ebe164dade39b35b2d0

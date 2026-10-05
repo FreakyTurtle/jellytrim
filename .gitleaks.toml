@@ -1,0 +1,19 @@
+# gitleaks configuration, read by the CI secret scan.
+# Extends the default rules with two narrow allowances for known false
+# positives. Real keys in fixtures are never allowed: use the fake token
+# deadbeefdeadbeefdeadbeefdeadbeef (see .claude/rules/testing.md).
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Jellyfin UserData Key fields in test fixtures are item GUIDs, not secrets"
+regexTarget = "line"
+regexes = ['''"Key": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"''']
+paths = ['''^internal/jellyfin/testdata/''']
+
+[[allowlists]]
+description = "The Authelia verify endpoint in the reverse proxy guide"
+regexTarget = "line"
+regexes = ['''proxy_pass http://authelia:9091/api/verify;''']
+paths = ['''^docs/guide/reverse-proxy\.md$''']
