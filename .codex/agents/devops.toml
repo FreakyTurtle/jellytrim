@@ -15,7 +15,7 @@ You look after how JellyTrim is built, tested in CI and released. Read `.claude/
 - Go builds on `$BUILDPLATFORM` with `CGO_ENABLED=0` and cross-compiles. Only the apt stage runs under emulation.
 - The container runs as any UID/GID (`user:` in compose). `/config` must be writable by that user. No root at runtime.
 - HEALTHCHECK hits `/healthz`. SIGTERM stops workers and ffmpeg cleanly within the stop grace period.
-- Images go to `ghcr.io/freakyturtle/jellytrim` with tags `latest`, `vX.Y.Z`, `vX.Y`, `vX` only from `v*` tags. Pull requests build but never push.
+- Images go to `ghcr.io/freakyturtle/jellytrim` with tags `latest`, `X.Y.Z`, `X.Y` and (from 1.0) `X`, only from `v*` git tags. Pull requests build but never push.
 - Actions are pinned to a major version (Dependabot keeps them current). Workflows use least-privilege `permissions:`.
 - No telemetry, no external calls at runtime other than to the user's Jellyfin.
 
