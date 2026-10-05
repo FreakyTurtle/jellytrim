@@ -1,15 +1,14 @@
-# Contributing to JellyTrim
+# Contributing
 
-Thank you for helping. This guide covers how to set up, how to make a change, and what a pull request needs.
+**JellyTrim is open source, but it is not open to contributions.** It is maintained by one person in their spare time, as a tool they use themselves. To keep it that way:
 
-JellyTrim changes people's media files. The most important rule is the first product principle: never destroy a user's media because JellyTrim was unsure. Contributions that touch file handling get extra review.
+- **Pull requests are not accepted.** They are closed automatically with a short note. This is not a judgement of the change.
+- **There is no issue tracker, discussion forum or support channel.** The [user guide](docs/guide/README.md) and its [troubleshooting page](docs/guide/troubleshooting.md) are the help that exists.
+- **Security problems are the exception.** Please report them privately, as [SECURITY.md](SECURITY.md) describes.
 
-## Before you start
+You are welcome to fork it. The [MIT licence](LICENSE) lets you use, change and share your own version, as long as you keep the copyright and licence notice. The rest of this page is for anyone working on the code, including in a fork.
 
-- For a bug fix or a small improvement, open a pull request.
-- For a new feature, a new encoder or anything that changes how files are handled, open an issue first so we can agree the approach.
-- Read [docs/PRODUCT.md](docs/PRODUCT.md) for what JellyTrim is for, and what is deliberately out of scope.
-- Follow the [code of conduct](CODE_OF_CONDUCT.md).
+JellyTrim changes people's media files. The most important rule is the first product principle: never destroy a user's media because JellyTrim was unsure. Read [docs/PRODUCT.md](docs/PRODUCT.md) for what JellyTrim is for, and what is deliberately out of scope.
 
 ## Prerequisites
 
@@ -123,17 +122,3 @@ Set your commit email to a noreply address if you do not want your personal emai
 ## AI coding agents
 
 JellyTrim has a set-up for Claude Code and Codex: `AGENTS.md` is the shared guide, and [docs/agents/README.md](docs/agents/README.md) explains the rest.
-
-AI-assisted contributions are welcome. You are responsible for them in the same way as for code you wrote by hand: read every line, run `task check`, test the behaviour yourself, and be able to explain the change in review.
-
-## Pull requests
-
-1. Create a branch from `main`.
-2. Make the change, with tests and any doc updates.
-3. Run `task check`.
-4. Open a pull request and fill in the template: what and why, how you checked it, the media-safety checklist, and screenshots for UI changes.
-5. A maintainer reviews it. Changes to file handling may need a second review.
-
-Keep pull requests focused. Several small ones are easier to review than one large one.
-
-You do not need to sign a CLA or add a Developer Certificate of Origin sign-off. By opening a pull request you agree that your contribution is licensed under the [MIT licence](LICENSE).

@@ -17,9 +17,9 @@ Please report vulnerabilities privately. Do not open a public issue.
 2. Open the **Security** tab.
 3. Choose **Report a vulnerability**.
 
-This opens a private security advisory that only the maintainers can see. Include what you found, how to reproduce it, which version you used, and what an attacker could do with it. Remove real API keys, hostnames and personal paths from logs before you attach them.
+This opens a private security advisory that only the maintainer can see. Include what you found, how to reproduce it, which version you used, and what an attacker could do with it. Remove real API keys, hostnames and personal paths from logs before you attach them.
 
-We aim to reply within 7 days, and to agree a fix and a disclosure date with you. We will credit you in the advisory unless you ask us not to.
+JellyTrim is maintained by one person in their spare time, so there is no guaranteed response time. Security reports are read and taken seriously, and are the only kind of report JellyTrim accepts (see [CONTRIBUTING.md](CONTRIBUTING.md)). You will be credited in the advisory unless you ask not to be.
 
 ## Threat model
 

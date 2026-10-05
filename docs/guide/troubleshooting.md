@@ -11,7 +11,9 @@ For more detail, set `JELLYTRIM_LOG_LEVEL=debug` in your compose file's `environ
 
 ## Reporting a bug
 
-Open an issue on the JellyTrim repository. Include your JellyTrim version (`docker exec jellytrim jellytrim -version`, or the start-up line in `docker logs jellytrim`), what you expected, what happened, and the relevant lines from `docker logs jellytrim` at `debug` level. Remove real hostnames, paths and API keys from anything you paste. Report a security issue privately instead; see `SECURITY.md`.
+JellyTrim has no issue tracker or support channel; see [Contributing](../../CONTRIBUTING.md). This page and the rest of the guide are the help that exists. A new release may already fix your problem, so check the release notes and [upgrade](upgrading.md) first.
+
+Security problems are the exception. Report them privately, as [SECURITY.md](../../SECURITY.md) describes. Include your JellyTrim version (`docker exec jellytrim jellytrim -version`, or the start-up line in `docker logs jellytrim`), and remove real hostnames, paths and API keys from anything you paste.
 
 ## Cannot reach Jellyfin
 
@@ -53,7 +55,7 @@ Some filesystems, including many SMB/CIFS mounts and some FUSE-based mounts, do 
 - Add `devices: ["/dev/dri:/dev/dri"]` and `group_add` with the render group's GID (`stat -c %g /dev/dri/renderD128`) to the compose file. See [Install](install.md#7-intel-quick-sync-qsv).
 - Use **Test again** on the Hardware section of Settings after fixing the compose file and recreating the container.
 - Check the result in **Settings, Hardware**: it tests each encoder (not each individual capability) and shows a table of Encoder, Codec, Device, Result and Notes, with an error detail in Notes on failure.
-- Quick Sync HEVC encoding is built and covered by tests but has not yet been verified by the maintainers on real Intel hardware; x265 (software) is always available as a fallback and is the one that has been verified.
+- Quick Sync HEVC encoding is built and covered by tests but has not yet been verified on real Intel hardware; x265 (software) is always available as a fallback and is the one that has been verified.
 
 ## Why was my file skipped
 

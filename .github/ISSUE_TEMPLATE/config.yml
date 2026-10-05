@@ -1,8 +1,0 @@
-blank_issues_enabled: false
-contact_links:
-  - name: Report a security vulnerability
-    url: https://github.com/freakyturtle/jellytrim/security/advisories/new
-    about: Report security problems privately. Do not open a public issue.
-  - name: Questions and ideas
-    url: https://github.com/freakyturtle/jellytrim/discussions
-    about: Ask for help with setup, or talk through an idea before opening an issue.

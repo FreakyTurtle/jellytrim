@@ -136,7 +136,7 @@ JellyTrim is feature-complete for its first release but has not reached 1.0, so 
 
 Keep your own backups of media you care about.
 
-## Building from source and contributing
+## Building from source
 
 You need Go 1.26 or later, [Task](https://taskfile.dev), and ffmpeg with libx265.
 
@@ -149,9 +149,13 @@ task check        # everything CI runs
 task demo         # the demo used for the screenshots, on http://127.0.0.1:8098
 ```
 
-[CONTRIBUTING.md](CONTRIBUTING.md) covers the development set-up, including a throwaway Jellyfin with generated test media. Contributions are welcome. For anything large, open an issue first. Please follow the [code of conduct](CODE_OF_CONDUCT.md).
+[CONTRIBUTING.md](CONTRIBUTING.md) covers the development set-up, including a throwaway Jellyfin with generated test media.
 
-Documentation for contributors: [product](docs/PRODUCT.md), [architecture](docs/ARCHITECTURE.md), [transcoding](docs/TRANSCODING.md), [policies](docs/POLICIES.md), [UI](docs/UI.md), [development](docs/DEVELOPMENT.md), [testing](docs/TESTING.md), [decision records](docs/adr/) and the [AI agent set-up](docs/agents/README.md).
+Documentation for developers: [product](docs/PRODUCT.md), [architecture](docs/ARCHITECTURE.md), [transcoding](docs/TRANSCODING.md), [policies](docs/POLICIES.md), [UI](docs/UI.md), [development](docs/DEVELOPMENT.md), [testing](docs/TESTING.md), [decision records](docs/adr/) and the [AI agent set-up](docs/agents/README.md).
+
+## Contributions and support
+
+JellyTrim is open source but **not open to contributions**: it is maintained by one person, as a tool they use themselves. Pull requests are closed automatically, and there is no issue tracker or support channel. The [user guide](docs/guide/README.md) and [troubleshooting page](docs/guide/troubleshooting.md) are the help that exists. You are welcome to fork it under the MIT licence. Security problems are the exception: report them privately, as [SECURITY.md](SECURITY.md) describes.
 
 ## No telemetry
 

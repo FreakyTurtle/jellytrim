@@ -1,0 +1,28 @@
+# JellyTrim does not accept outside contributions (see CONTRIBUTING.md).
+# This closes pull requests from anyone who is not an owner, member or
+# collaborator, with a short note. It never checks out or runs the pull
+# request's code, which is what makes pull_request_target safe here.
+name: Close outside pull requests
+
+on:
+  pull_request_target:
+    types: [opened, reopened]
+
+permissions: {}
+
+jobs:
+  close:
+    if: >-
+      github.event.pull_request.user.login != 'dependabot[bot]' &&
+      !contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association)
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Close with a note
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          gh pr close "$PR" --repo "$REPO" --comment "Thank you for taking the time. JellyTrim is open source but does not accept pull requests, so this has been closed automatically. It is not a judgement of the change. You are welcome to keep it in a fork: the MIT licence allows that. If this is a security problem, please report it privately as SECURITY.md describes."
