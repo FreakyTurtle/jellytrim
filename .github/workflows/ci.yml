@@ -50,7 +50,7 @@ jobs:
         with:
           version: v2.12.2
       - name: Generate media fixtures
-        run: scripts/make-fixtures.sh
+        run: scripts/make-fixtures.sh --media-only
       - name: Test
         run: go test -race -count=1 ./...
       - name: Agent setup copies are up to date

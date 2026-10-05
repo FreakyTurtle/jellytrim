@@ -7,7 +7,12 @@
 #   internal/media/testdata/probe/     ffprobe JSON for each clip (committed),
 #                                      with paths rewritten to /media/...
 #
-# Usage: scripts/make-fixtures.sh [--probe-only]
+# Usage: scripts/make-fixtures.sh [--probe-only | --media-only]
+#
+# --media-only makes the clips but leaves the committed probe JSON alone.
+# CI uses it: the JSON is a test input, and a different ffmpeg build (even a
+# patch release) changes encoder tags and sizes, so only a maintainer should
+# regenerate it, then review the golden diffs.
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -22,7 +27,13 @@ command -v "$FFMPEG" >/dev/null || { echo "make-fixtures: ffmpeg not found" >&2;
 command -v "$FFPROBE" >/dev/null || { echo "make-fixtures: ffprobe not found" >&2; exit 1; }
 
 probe_only=0
-[ "${1:-}" = "--probe-only" ] && probe_only=1
+media_only=0
+case "${1:-}" in
+  --probe-only) probe_only=1 ;;
+  --media-only) media_only=1 ;;
+  "") ;;
+  *) echo "make-fixtures: unknown option $1" >&2; exit 2 ;;
+esac
 
 mkdir -p "$media/movies" "$media/tv" "$media/seed" "$probe_dir"
 
@@ -198,6 +209,11 @@ for ep in 01 02; do
     -c:a aac -metadata:s:a:0 language=eng \
     "$t/November Show/Season 01/November Show - S01E$ep.mkv"
 done
+
+if [ "$media_only" = 1 ]; then
+  echo "make-fixtures: clips in dev/media (probe JSON left as committed)"
+  exit 0
+fi
 
 # ffprobe JSON, using the same arguments as internal/ffmpeg. The absolute
 # path is replaced with the path Jellyfin would see, so nothing personal is
