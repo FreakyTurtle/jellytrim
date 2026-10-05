@@ -88,10 +88,13 @@ build() {
 m="$media/movies"
 t="$media/tv"
 
-# H.264 1080p at a high bitrate: the classic "inefficient" file.
+# H.264 1080p at a high bitrate: the classic "inefficient" file. Constant
+# bitrate with filler, so its size is the same with any x264 build and the
+# queue tests' re-encode always clears the minimum saving.
 mkdir -p "$m/Alpha (2019)"
 build ff $(video 1920x1080 3) $(tone 440 3) -map 0:v -map 1:a \
-  -c:v libx264 -preset veryfast -b:v 8M -pix_fmt yuv420p \
+  -c:v libx264 -preset veryfast -b:v 12M -minrate 12M -maxrate 12M -bufsize 12M \
+  -x264-params nal-hrd=cbr -pix_fmt yuv420p \
   -c:a aac -b:a 128k -metadata:s:a:0 language=eng \
   "$m/Alpha (2019)/Alpha (2019).mkv"
 

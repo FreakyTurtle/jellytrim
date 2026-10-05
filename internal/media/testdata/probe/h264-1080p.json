@@ -1,7 +1,7 @@
 {
   "chapters": [],
   "format": {
-    "bit_rate": "9146870",
+    "bit_rate": "11748146",
     "duration": "3.021000",
     "filename": "file:/media/movies/Alpha (2019)/Alpha (2019).mkv",
     "format_long_name": "Matroska / WebM",
@@ -10,7 +10,7 @@
     "nb_stream_groups": 0,
     "nb_streams": 2,
     "probe_score": 100,
-    "size": "3454087",
+    "size": "4436394",
     "start_time": "0.000000",
     "tags": {
       "ENCODER": "Lavf62.12.102"
@@ -51,7 +51,7 @@
         "timed_thumbnails": 0,
         "visual_impaired": 0
       },
-      "extradata_size": 46,
+      "extradata_size": 58,
       "field_order": "progressive",
       "has_b_frames": 2,
       "height": 1080,

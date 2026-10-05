@@ -1,8 +1,8 @@
 path: /media/movies/Alpha (2019)/Alpha (2019).mkv
 container: matroska (format matroska,webm)
-size: 3454087
+size: 4436394
 duration: 3.021s
-bitrate: 9146870
+bitrate: 11748146
 chapters: 0
 stream count: 2
 tags: {ENCODER="Lavf62.12.102"}
@@ -15,7 +15,7 @@ video #0: codec=h264 profile="High" tag="" 1920x1080 (1080p) sar=1:1 dar=16:9 fp
   first frame: primaries="" transfer="" matrix="" dolby vision rpu=false
 audio #1: codec=aac profile="LC" channels=1 layout="mono" rate=48000 bitrate=0 lang="eng" title="" disp=[] commentary=false
 real video streams: 1, cover art: 0
-video bitrate: 9050870 known=true source="container" (estimated from the container bitrate)
+video bitrate: 11652146 known=true source="container" (estimated from the container bitrate)
 main video: #0 resolution=1080p interlaced=false
 hdr: sdr (SDR)
   fact: 8-bit video with no transfer characteristics is treated as SDR
