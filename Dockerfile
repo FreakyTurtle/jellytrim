@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # ---- Build: runs on the build machine's architecture and cross-compiles ----
-FROM --platform=$BUILDPLATFORM golang:1.26-trixie AS build
+FROM --platform=$BUILDPLATFORM golang:1.27-trixie AS build
 ARG TARGETOS
 ARG TARGETARCH
 ARG VERSION=dev
