@@ -155,7 +155,7 @@ Documentation for developers: [product](docs/PRODUCT.md), [architecture](docs/AR
 
 ## Contributions and support
 
-JellyTrim is open source but **not open to contributions**: it is maintained by one person, as a tool they use themselves. Pull requests are closed automatically, and there is no issue tracker or support channel. The [user guide](docs/guide/README.md) and [troubleshooting page](docs/guide/troubleshooting.md) are the help that exists. You are welcome to fork it under the MIT licence. Security problems are the exception: report them privately, as [SECURITY.md](SECURITY.md) describes.
+JellyTrim is open source but **not open to contributions**: it is maintained by one person, as a tool they use themselves. Pull requests are not accepted, and there is no issue tracker or support channel. The [user guide](docs/guide/README.md) and [troubleshooting page](docs/guide/troubleshooting.md) are the help that exists. You are welcome to fork it under the MIT licence. Security problems are the exception: report them privately, as [SECURITY.md](SECURITY.md) describes.
 
 ## No telemetry
 

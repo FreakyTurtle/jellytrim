@@ -2,7 +2,7 @@
 
 **JellyTrim is open source, but it is not open to contributions.** It is maintained by one person in their spare time, as a tool they use themselves. To keep it that way:
 
-- **Pull requests are not accepted.** They are closed automatically with a short note. This is not a judgement of the change.
+- **Pull requests are not accepted.** The repository only lets its owner open them, and any that get through are closed automatically with a short note. This is not a judgement of the change.
 - **There is no issue tracker, discussion forum or support channel.** The [user guide](docs/guide/README.md) and its [troubleshooting page](docs/guide/troubleshooting.md) are the help that exists.
 - **Security problems are the exception.** Please report them privately, as [SECURITY.md](SECURITY.md) describes.
 
