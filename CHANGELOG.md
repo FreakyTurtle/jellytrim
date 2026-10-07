@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- A quiet "Support JellyTrim" link at the bottom of the menu (and in the phone menu's More list) that opens Ko-fi in a new tab. It is a plain link: nothing is loaded from Ko-fi, and JellyTrim never asks for support anywhere else.
+
 ## [0.1.0] - 2026-10-07
 
 The first public release.

@@ -227,6 +227,25 @@
   flex: 1;
 }
 
+/* The donation link: small and quiet, below the channels. */
+.rail__support {
+  padding: var(--space-4) var(--space-4) 0;
+  font-size: var(--text-sm);
+}
+
+.rail__support a,
+.bottombar__menu .bottombar__support a {
+  color: var(--ink-2);
+  font-weight: 400;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.rail__support a:hover,
+.bottombar__menu .bottombar__support a:hover {
+  color: var(--ink);
+}
+
 /* ---------- Bottom bar (phones) ---------- */
 
 .bottombar {

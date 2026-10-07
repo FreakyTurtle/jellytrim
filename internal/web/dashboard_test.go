@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/freakyturtle/jellytrim/internal/store"
+	"github.com/freakyturtle/jellytrim/internal/web/views"
 )
 
 func TestDashboardMetricsAndSummary(t *testing.T) {
@@ -172,4 +173,20 @@ func TestTopbarLiveLampIsLit(t *testing.T) {
 	libraryTestMust(t, e.st.SetSetting(ctx, store.KeyDryRun, "true"))
 	_, body = e.get(t, "/", false)
 	queueExpectRaw(t, rowWith(t, body, `<a class="dryrun`, "</a>", "Dry Run"), "lamp--active-steady")
+}
+
+func TestSupportLinkIsQuietAndPrivate(t *testing.T) {
+	e := newLibraryTestEnv(t)
+	_, body := e.get(t, "/", false)
+	link := `<a href="` + views.SupportURL + `" target="_blank" rel="noopener noreferrer">`
+	if n := strings.Count(body, link); n != 2 {
+		t.Fatalf("the support link appears %d times; want 2 (rail and the phone More menu)", n)
+	}
+	queueExpect(t, body, "Support JellyTrim", "(opens Ko-fi in a new tab)")
+	// Nothing is loaded from the donation site: no images, scripts or frames.
+	for _, tag := range []string{"<img", "<script", "<iframe"} {
+		if strings.Contains(body, tag+` src="https://ko-fi.com`) {
+			t.Errorf("the page loads %s from Ko-fi", tag)
+		}
+	}
 }

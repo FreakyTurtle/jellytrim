@@ -223,8 +223,9 @@ The page also declares a favicon (`internal/web/static/img/favicon.svg`).
 - Current page: `aria-current="page"`, a 4px `--accent` bar on the left edge, label weight 700.
 - Hover: `--surface-sunk` fill.
 - The Queue item shows a count badge when jobs are waiting or running ("Queue 3").
+- Below the list, a quiet "Support JellyTrim" text link (`--text-sm`, `--ink-2`, underlined; `--ink` on hover) opens Ko-fi in a new tab with `rel="noopener noreferrer"` and a visually hidden "(opens Ko-fi in a new tab)". It is not a channel and has no index. This is the only place JellyTrim mentions support: never a banner, pop-up, badge, setup step or dashboard panel, and nothing is loaded from Ko-fi.
 
-**Bottom bar (below 720px).** Fixed to the bottom, 2px `--rule` top border, four equal cells: Dashboard, Library, Queue, More. "More" is a `<details>` that opens upwards with Policies, History and Settings. Each cell is at least 48px tall. Page content has bottom padding so nothing hides behind the bar.
+**Bottom bar (below 720px).** Fixed to the bottom, 2px `--rule` top border, four equal cells: Dashboard, Library, Queue, More. "More" is a `<details>` that opens upwards with Policies, History and Settings, then the same quiet "Support JellyTrim" link as the rail. Each cell is at least 48px tall. Page content has bottom padding so nothing hides behind the bar.
 
 **Page.** `.page` holds a page header (title in `--text-2xl`, an optional one-line description in `--ink-2`, and page actions on the right) and then the page grid.
 

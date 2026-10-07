@@ -155,6 +155,12 @@ Documentation for developers: [product](docs/PRODUCT.md), [architecture](docs/AR
 
 JellyTrim is open source but **not open to contributions**: it is maintained by one person, as a tool they use themselves. Pull requests are not accepted, and there is no issue tracker or support channel. The [user guide](docs/guide/README.md) and [troubleshooting page](docs/guide/troubleshooting.md) are the help that exists. You are welcome to fork it under the MIT licence. Security problems are the exception: report them privately, as [SECURITY.md](SECURITY.md) describes.
 
+## Support JellyTrim
+
+JellyTrim is free, with no paid version and nothing held back. If it has saved you some disk space and you would like to say thanks, you can [leave a tip on Ko-fi](https://ko-fi.com/freakyturtle). It is entirely optional.
+
+The app has the same quiet "Support JellyTrim" link at the bottom of its menu. It is a plain link: JellyTrim never asks for support anywhere else and loads nothing from Ko-fi.
+
 ## No telemetry
 
 JellyTrim does not collect usage data, does not call home, and does not need an account. It talks only to your Jellyfin server.
