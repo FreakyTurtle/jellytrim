@@ -1,14 +1,16 @@
 # JellyTrim
 
+[![CI](https://github.com/freakyturtle/jellytrim/actions/workflows/ci.yml/badge.svg)](https://github.com/freakyturtle/jellytrim/actions/workflows/ci.yml)
+[![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
+[![Container: ghcr.io](https://img.shields.io/badge/container-ghcr.io%2Ffreakyturtle%2Fjellytrim-informational)](https://github.com/freakyturtle/jellytrim/pkgs/container/jellytrim)
+
+[![Support JellyTrim on Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/freakyturtle)
+
 **Shrink your Jellyfin library automatically, based on what your household has already watched.**
 
 JellyTrim is a self-hosted media optimiser for [Jellyfin](https://jellyfin.org). It reads Jellyfin's watch history, favourites and libraries, and uses simple rules to decide when a film or episode can be made smaller. Then it re-encodes the file to HEVC (H.265) with ffmpeg, checks the result, and swaps it in without losing a single audio track, subtitle or bit of HDR. Keep a new 4K film exactly as it is; once everyone has watched it and 90 days have passed, turn the 60 GB remux into a 1080p HEVC file a fraction of the size.
 
 It runs as one Docker container next to Jellyfin, with a web interface, no accounts and no telemetry. Dry Run is on until you turn it off, so you see exactly what it would do, and how much space it would save, before it changes anything.
-
-[![CI](https://github.com/freakyturtle/jellytrim/actions/workflows/ci.yml/badge.svg)](https://github.com/freakyturtle/jellytrim/actions/workflows/ci.yml)
-[![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
-[![Container: ghcr.io](https://img.shields.io/badge/container-ghcr.io%2Ffreakyturtle%2Fjellytrim-informational)](https://github.com/freakyturtle/jellytrim/pkgs/container/jellytrim)
 
 ![The JellyTrim dashboard: library size, space saved, what the policies would optimise, and the queue](docs/images/dashboard.webp)
 
@@ -157,7 +159,9 @@ JellyTrim is open source but **not open to contributions**: it is maintained by 
 
 ## Support JellyTrim
 
-JellyTrim is free, with no paid version and nothing held back. If it has saved you some disk space and you would like to say thanks, you can [leave a tip on Ko-fi](https://ko-fi.com/freakyturtle). It is entirely optional.
+JellyTrim is free, with no paid version and nothing held back. If it has saved you some disk space and you would like to say thanks, you can leave a tip on Ko-fi. It is entirely optional.
+
+[![Support JellyTrim on Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/freakyturtle)
 
 The app has the same quiet "Support JellyTrim" link at the bottom of its menu. It is a plain link: JellyTrim never asks for support anywhere else and loads nothing from Ko-fi.
 
