@@ -12,4 +12,4 @@ Release **$ARGUMENTS**.
 3. In `CHANGELOG.md`, move Unreleased to `## [X.Y.Z] - YYYY-MM-DD`, and update the comparison links.
 4. `go run github.com/goreleaser/goreleaser/v2@latest release --snapshot --clean` must succeed.
 5. Commit `chore(release): vX.Y.Z` and create an annotated tag: `git tag -a vX.Y.Z -m "JellyTrim vX.Y.Z"`.
-6. Stop. Tell the user that `git push origin main vX.Y.Z` will start the release workflow, which publishes `ghcr.io/freakyturtle/jellytrim` (tags `vX.Y.Z`, `vX.Y`, `vX`, `latest`) and a GitHub release with binaries and checksums. Push only if they say so.
+6. Stop. Tell the user that `git push origin main vX.Y.Z` will start the release workflow, which publishes `ghcr.io/freakyturtle/jellytrim` (tags `X.Y.Z`, `X.Y`, `latest`, and `X` from 1.0; a pre-release such as `v0.2.0-rc.1` gets no `latest`) and a GitHub release with binaries and checksums. Push only if they say so.
