@@ -4,7 +4,8 @@
 [![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
 [![Container: ghcr.io](https://img.shields.io/badge/container-ghcr.io%2Ffreakyturtle%2Fjellytrim-informational)](https://github.com/freakyturtle/jellytrim/pkgs/container/jellytrim)
 
-[![Support JellyTrim on Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/freakyturtle)
+[![Support on Ko-fi](https://img.shields.io/badge/Ko--fi-Support%20JellyTrim-FF5E5B?style=for-the-badge&logo=kofi&logoColor=white)](https://ko-fi.com/freakyturtle)
+[![Sponsor on GitHub](https://img.shields.io/badge/GitHub%20Sponsors-Sponsor-EA4AAA?style=for-the-badge&logo=githubsponsors&logoColor=white)](https://github.com/sponsors/FreakyTurtle)
 
 **Shrink your Jellyfin library automatically, based on what your household has already watched.**
 
@@ -159,9 +160,10 @@ JellyTrim is open source but **not open to contributions**: it is maintained by 
 
 ## Support JellyTrim
 
-JellyTrim is free, with no paid version and nothing held back. If it has saved you some disk space and you would like to say thanks, you can leave a tip on Ko-fi. It is entirely optional.
+JellyTrim is free, with no paid version and nothing held back. If it has saved you some disk space and you would like to say thanks, you can leave a tip on Ko-fi or sponsor it through GitHub Sponsors. It is entirely optional.
 
-[![Support JellyTrim on Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/freakyturtle)
+[![Support on Ko-fi](https://img.shields.io/badge/Ko--fi-Support%20JellyTrim-FF5E5B?style=for-the-badge&logo=kofi&logoColor=white)](https://ko-fi.com/freakyturtle)
+[![Sponsor on GitHub](https://img.shields.io/badge/GitHub%20Sponsors-Sponsor-EA4AAA?style=for-the-badge&logo=githubsponsors&logoColor=white)](https://github.com/sponsors/FreakyTurtle)
 
 The app has the same quiet "Support JellyTrim" link at the bottom of its menu. It is a plain link: JellyTrim never asks for support anywhere else and loads nothing from Ko-fi.
 
