@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-07
+
+The first public release.
+
 ### Added
 
 - Application shell, design system and Docker image with a dev stack.
@@ -19,7 +23,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Watch history from several Jellyfin users: count everyone (including users added later) or chosen users, require any one, a majority, everyone or a set percentage to have watched, and leave accounts inactive for more than a set number of days (90 by default) out of that share. Everyone's favourites still count.
 - A playback check: JellyTrim does not start encoding a file someone is playing, waits (up to 6 hours) before replacing a file that is playing, and Restore refuses while a file is playing.
 - Settings for every configurable behaviour, Dry Run (on by default), and the setup wizard.
+- Large libraries: tested with 100,000 items. A full re-evaluation takes about 3 seconds, policy previews under a second, and the queue orders jobs by the biggest estimated saving.
+- A user guide for running JellyTrim with Docker (`docs/guide/`): install, setup wizard, settings, policy recipes, reverse proxy logins, backups and restore, upgrading and troubleshooting.
 - `scripts/devseed` for seeding a local config against the dev Jellyfin without repeating the wizard by hand.
+- A demo mode (`task demo`) that serves the real interface on an invented library, used for the screenshots.
 
 ### Security
 
@@ -27,4 +34,5 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The Jellyfin API key is stored with file mode 0600, never rendered, logged or included in diagnostics; artwork is proxied through `/img/{id}` so the browser never sees it.
 - ffmpeg and ffprobe run with explicit argument lists, never a shell; paths are `file:`-prefixed and confined to configured local roots.
 
-[Unreleased]: https://github.com/freakyturtle/jellytrim/commits/main
+[Unreleased]: https://github.com/freakyturtle/jellytrim/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/freakyturtle/jellytrim/releases/tag/v0.1.0

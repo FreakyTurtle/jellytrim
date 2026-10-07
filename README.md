@@ -87,8 +87,6 @@ Open `http://localhost:8080`. The setup wizard asks for Jellyfin's address as th
 
 The [install guide](docs/guide/install.md) covers every option: a shared network with Jellyfin, choosing the user, path mapping, Intel Quick Sync, Docker secrets, and notes for Unraid, Synology, TrueNAS and Portainer.
 
-> **No release has been published yet.** Until the first version is tagged, build the image yourself: `git clone https://github.com/freakyturtle/jellytrim.git && cd jellytrim && docker build -t ghcr.io/freakyturtle/jellytrim:latest .`
-
 ## User guide
 
 1. [Install](docs/guide/install.md) with Docker Compose.
