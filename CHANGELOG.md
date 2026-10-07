@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-07
+
 ### Added
 
 - A quiet "Support JellyTrim" link at the bottom of the menu (and in the phone menu's More list) that opens Ko-fi in a new tab. It is a plain link: nothing is loaded from Ko-fi, and JellyTrim never asks for support anywhere else.
@@ -38,5 +40,6 @@ The first public release.
 - The Jellyfin API key is stored with file mode 0600, never rendered, logged or included in diagnostics; artwork is proxied through `/img/{id}` so the browser never sees it.
 - ffmpeg and ffprobe run with explicit argument lists, never a shell; paths are `file:`-prefixed and confined to configured local roots.
 
-[Unreleased]: https://github.com/freakyturtle/jellytrim/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/freakyturtle/jellytrim/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/freakyturtle/jellytrim/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/freakyturtle/jellytrim/releases/tag/v0.1.0
