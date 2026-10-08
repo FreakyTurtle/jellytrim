@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-08
+
 ### Added
 
 - A **Hardware only** encoder setting, for keeping encoding off the CPU. Files no hardware encoder can handle are skipped, with the reason.
@@ -59,7 +61,8 @@ The first public release.
 - The Jellyfin API key is stored with file mode 0600, never rendered, logged or included in diagnostics; artwork is proxied through `/img/{id}` so the browser never sees it.
 - ffmpeg and ffprobe run with explicit argument lists, never a shell; paths are `file:`-prefixed and confined to configured local roots.
 
-[Unreleased]: https://github.com/freakyturtle/jellytrim/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/freakyturtle/jellytrim/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/freakyturtle/jellytrim/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/freakyturtle/jellytrim/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/freakyturtle/jellytrim/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/freakyturtle/jellytrim/releases/tag/v0.1.0
