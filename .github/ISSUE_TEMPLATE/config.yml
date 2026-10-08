@@ -1,0 +1,9 @@
+# Bug reports only: no blank issues, questions or feature requests.
+blank_issues_enabled: false
+contact_links:
+  - name: Security problem
+    url: https://github.com/freakyturtle/jellytrim/security/advisories/new
+    about: Report it privately. Do not open a public issue.
+  - name: Help setting it up
+    url: https://github.com/freakyturtle/jellytrim/blob/main/docs/guide/README.md
+    about: The user guide and its troubleshooting page are the help that exists.

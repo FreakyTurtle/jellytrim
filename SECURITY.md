@@ -19,7 +19,7 @@ Please report vulnerabilities privately. Do not open a public issue.
 
 This opens a private security advisory that only the maintainer can see. Include what you found, how to reproduce it, which version you used, and what an attacker could do with it. Remove real API keys, hostnames and personal paths from logs before you attach them.
 
-JellyTrim is maintained by one person in their spare time, so there is no guaranteed response time. Security reports are read and taken seriously, and are the only kind of report JellyTrim accepts (see [CONTRIBUTING.md](CONTRIBUTING.md)). You will be credited in the advisory unless you ask not to be.
+JellyTrim is maintained by one person in their spare time, so there is no guaranteed response time. Security reports are read and taken seriously. Ordinary bugs go in the public bug report form instead (see [CONTRIBUTING.md](CONTRIBUTING.md)). You will be credited in the advisory unless you ask not to be.
 
 ## Threat model
 

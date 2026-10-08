@@ -11,9 +11,9 @@ For more detail, set `JELLYTRIM_LOG_LEVEL=debug` in your compose file's `environ
 
 ## Reporting a bug
 
-JellyTrim has no issue tracker or support channel; see [Contributing](../../CONTRIBUTING.md). This page and the rest of the guide are the help that exists. A new release may already fix your problem, so check the release notes and [upgrade](upgrading.md) first.
+A new release may already fix your problem, so check the release notes and [upgrade](upgrading.md) first. If it is still there, use the [bug report form](https://github.com/freakyturtle/jellytrim/issues/new/choose). Every report is read, but there is no promise of a reply or a fix. Issues are for bugs only: there is no support channel, so this page and the rest of the guide are the help that exists.
 
-Security problems are the exception. Report them privately, as [SECURITY.md](../../SECURITY.md) describes. Include your JellyTrim version (`docker exec jellytrim jellytrim -version`, or the start-up line in `docker logs jellytrim`), and remove real hostnames, paths and API keys from anything you paste.
+Do not report security problems in a public issue. Report them privately, as [SECURITY.md](../../SECURITY.md) describes. In any report, include your JellyTrim version (`docker exec jellytrim jellytrim -version`, or the start-up line in `docker logs jellytrim`), and remove real hostnames, paths and API keys from anything you paste.
 
 ## Cannot reach Jellyfin
 

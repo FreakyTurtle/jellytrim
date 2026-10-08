@@ -1,0 +1,79 @@
+name: Bug report
+description: JellyTrim did something wrong, crashed, or damaged a file.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This tracker is for bugs only. Questions and feature requests are closed without a reply.
+
+        JellyTrim is maintained by one person in their spare time. Every report is read, but there is no promise of a reply or a fix.
+
+        **Before you paste anything, remove real hostnames, paths, user names and API keys.** This page is public.
+  - type: input
+    id: version
+    attributes:
+      label: JellyTrim version
+      description: "Run `docker exec jellytrim jellytrim -version`, or look for the start-up line in `docker logs jellytrim`."
+      placeholder: jellytrim v0.1.1
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How you run it
+      options:
+        - Docker image (ghcr.io/freakyturtle/jellytrim)
+        - Binary from a GitHub release
+        - Built from source
+    validations:
+      required: true
+  - type: input
+    id: jellyfin
+    attributes:
+      label: Jellyfin version
+      placeholder: "10.11.2"
+  - type: dropdown
+    id: encoder
+    attributes:
+      label: Encoder
+      description: Shown on the Settings page and in each History entry.
+      options:
+        - x265 (software)
+        - Intel Quick Sync
+        - Not sure, or it did not get that far
+  - type: dropdown
+    id: dry-run
+    attributes:
+      label: Dry Run
+      options:
+        - "On"
+        - "Off"
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what JellyTrim did, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Technical details from History
+      description: If a job failed, open it in History and copy what the "Technical details" panel shows (the ffmpeg command, its error output and the error). The command contains file paths, so shorten or replace them.
+      render: text
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: "The relevant part of `docker logs jellytrim`. `JELLYTRIM_LOG_LEVEL=debug` gives more detail."
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I have removed real hostnames, paths, user names and API keys from everything above.
+          required: true
+        - label: This is not a security problem. Those go through a private report instead (see SECURITY.md).
+          required: true

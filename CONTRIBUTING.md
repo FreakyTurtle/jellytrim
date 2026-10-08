@@ -3,7 +3,7 @@
 **JellyTrim is open source, but it is not open to contributions.** It is maintained by one person in their spare time, as a tool they use themselves. To keep it that way:
 
 - **Pull requests are not accepted.** The repository only lets its owner open them, and any that get through are closed automatically with a short note. This is not a judgement of the change.
-- **There is no issue tracker, discussion forum or support channel.** The [user guide](docs/guide/README.md) and its [troubleshooting page](docs/guide/troubleshooting.md) are the help that exists.
+- **Issues are for bug reports only**, through the [bug report form](https://github.com/freakyturtle/jellytrim/issues/new/choose). Every report is read, but there is no promise of a reply or a fix. Questions and feature requests are closed. There is no discussion forum or support channel: the [user guide](docs/guide/README.md) and its [troubleshooting page](docs/guide/troubleshooting.md) are the help that exists.
 - **Security problems are the exception.** Please report them privately, as [SECURITY.md](SECURITY.md) describes.
 
 You are welcome to fork it. The [MIT licence](LICENSE) lets you use, change and share your own version, as long as you keep the copyright and licence notice. The rest of this page is for anyone working on the code, including in a fork.
