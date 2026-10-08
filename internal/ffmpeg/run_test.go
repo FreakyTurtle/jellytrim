@@ -154,6 +154,35 @@ func TestDecodeFailsOnStderr(t *testing.T) {
 	}
 }
 
+func TestDecodeIgnoresLibvaInfo(t *testing.T) {
+	r := fakeRunner(t, "libva-info")
+	if err := r.Decode(context.Background(), "/tmp/x.mkv", false, 0); err != nil {
+		t.Errorf("err = %v", err)
+	}
+}
+
+func TestRunnerAsksLibvaForErrorsOnly(t *testing.T) {
+	r := fakeRunner(t, "libva-env")
+	if err := r.Decode(context.Background(), "/tmp/x.mkv", false, 0); err != nil {
+		t.Errorf("libva was not told to keep quiet: %v", err)
+	}
+}
+
+func TestReportedErrors(t *testing.T) {
+	cases := []struct{ name, tail, want string }{
+		{"empty", "", ""},
+		{"libva only", libvaInfo, ""},
+		{"libva then an error", libvaInfo + "[hevc @ 0x0] Could not find ref with POC 12\n", "[hevc @ 0x0] Could not find ref with POC 12"},
+		{"libva errors count", "libva error: vaGetDriverNames() failed with unknown libva error\n", "libva error: vaGetDriverNames() failed with unknown libva error"},
+		{"blank lines", "\n  \r\n", ""},
+	}
+	for _, tc := range cases {
+		if got := ReportedErrors(tc.tail); got != tc.want {
+			t.Errorf("%s: got %q, want %q", tc.name, got, tc.want)
+		}
+	}
+}
+
 func TestDecodeFailsOnExitCode(t *testing.T) {
 	r := fakeRunner(t, "fail")
 	if err := r.Decode(context.Background(), "/tmp/x.mkv", false, 0); !errors.Is(err, ErrDecode) {

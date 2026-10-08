@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- Every Intel Quick Sync encode failed with "ffmpeg reported errors while encoding". The VA-API library prints start-up messages ("libva info: ...") that JellyTrim counted as errors. It now tells the library to print errors only, and ignores those messages if they still appear. Real errors still reject the new file.
+
 ## [0.1.1] - 2026-10-07
 
 ### Added

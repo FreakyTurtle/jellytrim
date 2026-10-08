@@ -54,6 +54,17 @@ func fakeFFmpeg(mode string, args []string) int {
 		return 0
 	case "quiet":
 		return 0
+	case "libva-info":
+		// What Intel Quick Sync prints when libva ignores
+		// LIBVA_MESSAGING_LEVEL.
+		fmt.Fprint(os.Stderr, libvaInfo)
+		return 0
+	case "libva-env":
+		// Stays quiet only when the runner asked libva for errors only.
+		if v := os.Getenv("LIBVA_MESSAGING_LEVEL"); v != "1" {
+			fmt.Fprintf(os.Stderr, "LIBVA_MESSAGING_LEVEL is %q\n", v)
+		}
+		return 0
 	case "decode-error":
 		fmt.Fprintln(os.Stderr, "[hevc @ 0x0] Could not find ref with POC 12")
 		return 0
@@ -64,6 +75,14 @@ func fakeFFmpeg(mode string, args []string) int {
 	fmt.Fprintln(os.Stderr, "unknown fake mode", mode)
 	return 2
 }
+
+// libvaInfo is libva's start-up output with Intel Quick Sync, as reported
+// from a real encode.
+const libvaInfo = `libva info: VA-API version 1.24.0
+libva info: Trying to open /usr/lib/jellyfin-ffmpeg/lib/dri/iHD_drv_video.so
+libva info: Found init function __vaDriverInit_1_24
+libva info: va_openDriver() returns 0
+`
 
 // fakeProgress writes what ffmpeg 8 writes with -progress pipe:1, including
 // the N/A values of the first block and padded speeds.

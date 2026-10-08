@@ -72,7 +72,7 @@ func (p *Pipeline) encode(ctx context.Context, j Job, partial string, h Hooks, d
 	wasAborted := aborted
 	lastProgress := last
 	mu.Unlock()
-	if runErr == nil && !wasAborted && strings.TrimSpace(res.StderrTail) == "" {
+	if runErr == nil && !wasAborted && ffmpeg.ReportedErrors(res.StderrTail) == "" {
 		return Result{}, true
 	}
 	if runErr == nil && !wasAborted {

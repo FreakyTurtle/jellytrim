@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -69,8 +68,8 @@ func (r *Runner) decode(ctx context.Context, args []string) error {
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrDecode, commandError(ctx, "ffmpeg", err, tail))
 	}
-	if strings.TrimSpace(tail) != "" {
-		return fmt.Errorf("%w: %s", ErrDecode, lastLine(tail))
+	if errs := ReportedErrors(tail); errs != "" {
+		return fmt.Errorf("%w: %s", ErrDecode, lastLine(errs))
 	}
 	return nil
 }

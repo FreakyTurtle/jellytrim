@@ -213,7 +213,7 @@ After encoding, JellyTrim probes the partial file and rejects it if any check fa
 4. The number of audio, subtitle and attachment streams equals the source's. Each stream keeps its codec (copied), language, title and default and forced flags, in the same order.
 5. The chapters count equals the source's.
 6. The duration is within 0.5 seconds or 0.5% of the source, whichever is larger.
-7. The encode itself logged nothing at error level (ffmpeg errors on a clean exit, such as undecodable source frames, reject the output); the main video stream's own duration matches the source's where both files record it (Matroska `DURATION` tags); and a full decode of the output finishes with no errors (`ffmpeg -v error -i file:<partial> -map 0:v:0 -f null -`). Settings can reduce this to a sampled decode.
+7. The encode itself logged nothing at error level (ffmpeg errors on a clean exit, such as undecodable source frames, reject the output). libva's own "libva info:" start-up lines are not errors: JellyTrim runs ffmpeg with `LIBVA_MESSAGING_LEVEL=1` so libva prints only errors, and ignores any info lines that still appear; the main video stream's own duration matches the source's where both files record it (Matroska `DURATION` tags); and a full decode of the output finishes with no errors (`ffmpeg -v error -i file:<partial> -map 0:v:0 -f null -`). Settings can reduce this to a sampled decode.
 8. The saving is at least the minimum (default 10%).
 
 A failure keeps the original, deletes the partial file, and records the failing check in plain words with the details.

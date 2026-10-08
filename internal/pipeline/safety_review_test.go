@@ -123,6 +123,25 @@ func TestSafetyEncoderErrorsOnCleanExit(t *testing.T) {
 	r.assertOriginalIntact(res)
 }
 
+func TestLibvaInfoIsNotAnEncoderError(t *testing.T) {
+	r := newRig(t)
+	r.runner.stderrTail = "libva info: VA-API version 1.24.0\nlibva info: va_openDriver() returns 0\n"
+	res := r.pipeline().Execute(context.Background(), r.job, Hooks{})
+	if res.Outcome != Complete {
+		t.Fatalf("%s: %s", res.Outcome, res.Summary)
+	}
+}
+
+func TestSafetyLibvaInfoDoesNotHideAnError(t *testing.T) {
+	r := newRig(t)
+	r.runner.stderrTail = "libva info: VA-API version 1.24.0\n[h264 @ 0x1] error while decoding MB 12 34\n"
+	res := r.pipeline().Execute(context.Background(), r.job, Hooks{})
+	if res.Outcome != Failed || !strings.Contains(res.Summary, "reported errors") {
+		t.Fatalf("%s: %s", res.Outcome, res.Summary)
+	}
+	r.assertOriginalIntact(res)
+}
+
 func TestRestoreRefusesANewerFile(t *testing.T) {
 	r := newRig(t)
 	ctx := context.Background()

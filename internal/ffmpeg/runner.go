@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -73,6 +74,9 @@ func (r *Runner) killDelay() time.Duration {
 // KillDelay) and runs in its own process group.
 func (r *Runner) command(ctx context.Context, bin string, args []string) *exec.Cmd {
 	cmd := exec.CommandContext(ctx, bin, args...)
+	// libva prints its start-up messages straight to stderr, whatever
+	// ffmpeg's log level. Level 1 keeps its errors and drops the rest.
+	cmd.Env = append(os.Environ(), "LIBVA_MESSAGING_LEVEL=1")
 	configure(cmd)
 	cmd.WaitDelay = r.killDelay()
 	return cmd
@@ -172,6 +176,23 @@ func (e *ExitError) Error() string {
 		return fmt.Sprintf("exited with code %d", e.Code)
 	}
 	return fmt.Sprintf("exited with code %d: %s", e.Code, last)
+}
+
+// ReportedErrors returns the lines of a stderr tail that report a problem.
+// ffmpeg runs with -loglevel error, so any line is one, except libva's
+// informational lines ("libva info: ..."), which Intel Quick Sync prints on
+// start-up. LIBVA_MESSAGING_LEVEL normally stops them; this also covers a
+// libva that ignores it.
+func ReportedErrors(tail string) string {
+	var kept []string
+	for line := range strings.Lines(tail) {
+		line = strings.TrimRight(line, "\r\n")
+		if strings.TrimSpace(line) == "" || strings.HasPrefix(line, "libva info:") {
+			continue
+		}
+		kept = append(kept, line)
+	}
+	return strings.Join(kept, "\n")
 }
 
 func lastLine(s string) string {
