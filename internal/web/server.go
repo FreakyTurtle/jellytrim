@@ -42,6 +42,9 @@ type Hardware interface {
 	Capabilities() []Capability
 	// Retest runs the hardware test again. It may take a few seconds.
 	Retest(ctx context.Context) error
+	// SetEncoderPreference applies a saved encoder preference ("hardware",
+	// "software" or "hardware-only") without a restart.
+	SetEncoderPreference(p string)
 }
 
 // Capability is one encoder backend's test result, for display.

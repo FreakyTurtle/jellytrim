@@ -58,6 +58,12 @@ func (h *hardware) Retest(ctx context.Context) error {
 	return nil
 }
 
+// SetEncoderPreference applies a saved encoder preference at once. The
+// caller re-evaluates the library.
+func (h *hardware) SetEncoderPreference(p string) {
+	h.registry.SetPreference(p)
+}
+
 // Capabilities converts the registry's results for the web layer.
 func (h *hardware) Capabilities() []web.Capability {
 	var out []web.Capability

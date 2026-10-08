@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- A **Hardware only** encoder setting, for keeping encoding off the CPU. Files no hardware encoder can handle are skipped, with the reason.
+
+### Fixed
+
+- Changing the encoder setting now applies at once and re-checks the library. Before, it applied only after a restart.
+- **Software only** now never uses a hardware encoder. Before, it fell back to one when the software encoder could not handle a file.
+
 ## [0.1.2] - 2026-10-08
 
 ### Fixed

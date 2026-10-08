@@ -61,7 +61,7 @@ When an active hour ends, a running encode stops. The original file is never tou
 | Queue matching items automatically | On | On or off | Whether the queue picks up new jobs on its own. Off pauses automatic processing; "Optimise now" on an item still queues it. |
 | Check each new file with | Full decode check | Full decode check or Sampled (faster) | Full decodes the whole new file before it replaces the original, the safest choice. Sampled decodes several short parts of it, faster but less thorough. |
 | Jobs at a time | 1 | 1 to 4 | How many encodes can run at once. Raise this only if your CPU or GPU has spare capacity; each concurrent software encode competes for the same cores. |
-| Encoder | Auto | Auto or Software only | Whether JellyTrim uses a hardware encoder that passed the test (falling back to software otherwise), or software (x265) only. |
+| Encoder | Auto | Auto, Software only or Hardware only | **Auto** uses a hardware encoder that passed the test, and software (x265) otherwise. **Software only** never uses hardware. **Hardware only** never uses the CPU to encode: files no hardware encoder can handle (for example HDR, if Quick Sync did not prove it keeps HDR, or a Dolby Vision reduction) are skipped, with the reason on the item page. The change applies at once. |
 
 ## Saving and backups
 

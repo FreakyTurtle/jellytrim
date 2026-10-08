@@ -617,7 +617,7 @@ Route: `/setup`. Shown on first run, and again if the Jellyfin connection is rem
 
 - Quality: segmented control (Maximum, High, Balanced, Space Saver). Default High. The hint describes the choice in viewing terms, never in encoder numbers.
 - Codec: segmented control (HEVC, H.264, AV1 marked "(planned)" and disabled). Default HEVC.
-- Encoder: a second segmented control, "Auto" (default) or "Software only". This is a coarser choice than a specific backend: it says whether JellyTrim may use a working hardware encoder at all, not which one.
+- Encoder: a second segmented control, "Auto" (default), "Software only" or "Hardware only". This is a coarser choice than a specific backend: it says which kinds of encoder JellyTrim may use, not which one. With either "only" choice, files that no allowed encoder can handle are skipped, with the reason.
 - A note: "Policies can override these. Encoder settings are under Advanced in Settings."
 - A second note: "Encoding runs at any time by default. You can limit it to certain hours in Settings." The schedule grid itself stays out of setup to keep it short.
 

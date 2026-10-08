@@ -121,7 +121,13 @@ H.264 uses 1.6 times these values; AV1 uses 0.8 times. These are rough and will 
 
 Each backend (`x265`, `qsv-hevc`) implements `encoder.Backend`: its name and label, codec, whether it is hardware, the native quality number for each tier, a `Check` that refuses jobs it cannot do safely, and the three parts of its arguments (input options, the `-filter:v:0` chain, the encoder options). `encoder.BuildArgs(backend, job)` assembles the full argument list. Backends carry their detected `Capability`, so `BuildArgs` refuses HDR on a backend that has not proved it keeps HDR metadata.
 
-**Auto** chooses, for the target codec, the first backend in the preference order (hardware first, by default) whose probe passed, and which can preserve HDR metadata if the source is HDR. Reducing Dolby Vision or HDR10+ to HDR10 always uses x265, because only libx265 has the `-dolbyvision 0` option. Users can pick a backend explicitly, and can set Auto to prefer software.
+**Auto** chooses, for the target codec, the first backend in the preference order (hardware first, by default) whose probe passed, and which can preserve HDR metadata if the source is HDR. Reducing Dolby Vision or HDR10+ to HDR10 always uses x265, because only libx265 has the `-dolbyvision 0` option. The **Encoder** setting has three values:
+
+- **Auto** (`hardware`, the default): hardware backends first, then software.
+- **Software only** (`software`): only software backends.
+- **Hardware only** (`hardware-only`): only hardware backends, so the CPU is never used to encode. The CPU still decodes the new file for the validation check.
+
+With either "only" value, a file that no allowed backend can handle is skipped, with the reason. Examples are HDR when Quick Sync has not proved it keeps HDR metadata, a Dolby Vision or HDR10+ reduction (which needs x265), or a codec with no hardware encoder. The setting applies at once and the library is re-evaluated. A queued job re-checks its plan when it starts, so it uses the current setting.
 
 ### Quality maps
 

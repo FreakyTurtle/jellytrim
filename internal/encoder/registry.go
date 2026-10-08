@@ -18,9 +18,19 @@ const Auto = "auto"
 type Registry struct {
 	mu       sync.RWMutex
 	backends []Backend // hardware first
-	// preferSoftware puts software backends first in Auto.
-	preferSoftware bool
+	pref     string    // PreferHardware, SoftwareOnly or HardwareOnly
 }
+
+// The encoder preferences, as stored in settings. With either "only"
+// preference, a file no allowed backend can handle is skipped with a reason.
+const (
+	// PreferHardware ("Auto") tries hardware backends first, then software.
+	PreferHardware = "hardware"
+	// SoftwareOnly never uses a hardware backend.
+	SoftwareOnly = "software"
+	// HardwareOnly never uses a software backend.
+	HardwareOnly = "hardware-only"
+)
 
 var _ plan.Encoders = (*Registry)(nil)
 
@@ -36,11 +46,12 @@ func NewRegistry(backends []Backend) *Registry {
 	return &Registry{backends: backends}
 }
 
-// SetPreferSoftware makes Auto try software backends before hardware.
-func (r *Registry) SetPreferSoftware(v bool) {
+// SetPreference sets the encoder preference: PreferHardware, SoftwareOnly
+// or HardwareOnly. Anything else means PreferHardware.
+func (r *Registry) SetPreference(p string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.preferSoftware = v
+	r.pref = p
 }
 
 // SetCapabilities records detection results (for example loaded from the
@@ -118,6 +129,15 @@ func (r *Registry) Select(codec media.Codec, hdr bool, requested string) (string
 			return b.Name(), true, ""
 		}
 	}
+	if only, kind := r.only(); only != "" {
+		switch {
+		case !any:
+			return "", false, fmt.Sprintf("%s is on in Settings, and JellyTrim has no %s encoder for %s.", only, kind, codec.Label())
+		case !usable:
+			return "", false, fmt.Sprintf("%s is on in Settings, and no %s %s encoder passed its test on this machine. See Settings for details.", only, kind, codec.Label())
+		}
+		return "", false, fmt.Sprintf("%s is on in Settings, and no %s %s encoder on this machine proved that it keeps HDR metadata.", only, kind, codec.Label())
+	}
 	switch {
 	case !any:
 		return "", false, fmt.Sprintf("JellyTrim has no encoder for %s.", codec.Label())
@@ -139,6 +159,9 @@ func (r *Registry) selectNamed(codec media.Codec, hdr bool, name string) (string
 		return "", false, fmt.Sprintf("The encoder %q was requested but JellyTrim does not know it.", name)
 	case b.Codec() != codec:
 		return "", false, fmt.Sprintf("%s was requested but it cannot produce %s.", shortLabel(b), codec.Label())
+	case !r.allowed(b):
+		only, _ := r.only()
+		return "", false, fmt.Sprintf("This needs %s, but %s is on in Settings.", shortLabel(b), only)
 	case !b.Capability().Available:
 		test := "its test"
 		if b.Hardware() {
@@ -154,8 +177,14 @@ func (r *Registry) selectNamed(codec media.Codec, hdr bool, name string) (string
 // ordered is the Auto preference order. The caller holds the lock.
 func (r *Registry) ordered() []Backend {
 	out := make([]Backend, 0, len(r.backends))
-	first := !r.preferSoftware // hardware first unless software is preferred
-	for _, pass := range []bool{first, !first} {
+	passes := []bool{true, false} // hardware first
+	switch r.pref {
+	case SoftwareOnly:
+		passes = []bool{false}
+	case HardwareOnly:
+		passes = []bool{true}
+	}
+	for _, pass := range passes {
 		for _, b := range r.backends {
 			if b.Hardware() == pass {
 				out = append(out, b)
@@ -163,6 +192,31 @@ func (r *Registry) ordered() []Backend {
 		}
 	}
 	return out
+}
+
+// allowed reports whether the preference lets b run. The caller holds the
+// lock.
+func (r *Registry) allowed(b Backend) bool {
+	switch r.pref {
+	case SoftwareOnly:
+		return !b.Hardware()
+	case HardwareOnly:
+		return b.Hardware()
+	}
+	return true
+}
+
+// only names the "only" preference in force for messages ("Hardware only",
+// "hardware"), or returns "" when backends of both kinds may run. The
+// caller holds the lock.
+func (r *Registry) only() (setting, kind string) {
+	switch r.pref {
+	case SoftwareOnly:
+		return "Software only", "software"
+	case HardwareOnly:
+		return "Hardware only", "hardware"
+	}
+	return "", ""
 }
 
 // shortLabel drops the codec from the label in sentences ("Intel Quick

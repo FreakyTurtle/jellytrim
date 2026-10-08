@@ -352,7 +352,7 @@ func (s *Server) checkPaths(w http.ResponseWriter, r *http.Request) {
 func (s *Server) setupSaveDefaults(w http.ResponseWriter, r *http.Request) {
 	v := views.SetupDefaultsView{Quality: r.PostForm.Get("quality"), Codec: r.PostForm.Get("codec"), Encoder: r.PostForm.Get("encoder")}
 	if !setupValid(v.Quality, "maximum", "high", "balanced", "space_saver") ||
-		!setupValid(v.Codec, "hevc", "h264") || !setupValid(v.Encoder, "hardware", "software") {
+		!setupValid(v.Codec, "hevc", "h264") || !setupValid(v.Encoder, encoderPreferences...) {
 		v.Error = "Choose a quality, a codec and an encoder."
 		s.setupRender(w, r, http.StatusUnprocessableEntity, views.SetupDefaults(v, assetVersion()))
 		return
@@ -366,7 +366,19 @@ func (s *Server) setupSaveDefaults(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
+	s.applyEncoderPreference(v.Encoder)
 	redirect(w, r, "/setup/policies")
+}
+
+// encoderPreferences are the stored values of the encoder setting.
+var encoderPreferences = []string{"hardware", "software", "hardware-only"}
+
+// applyEncoderPreference tells the encoder registry about a saved
+// preference, so it applies without a restart.
+func (s *Server) applyEncoderPreference(p string) {
+	if s.Hardware != nil {
+		s.Hardware.SetEncoderPreference(p)
+	}
 }
 
 func setupValid(v string, allowed ...string) bool {

@@ -129,7 +129,7 @@ See [SECURITY.md](SECURITY.md) for the threat model and how to report a vulnerab
 | VAAPI (AMD and Intel) | | Planned |
 | AV1 (SVT-AV1 and hardware) | | Planned |
 
-The image includes [jellyfin-ffmpeg](https://github.com/jellyfin/jellyfin-ffmpeg), the same ffmpeg build Jellyfin uses. **Auto** picks the best working encoder for each job, and falls back to x265 when a hardware encoder cannot keep a file's HDR information.
+The image includes [jellyfin-ffmpeg](https://github.com/jellyfin/jellyfin-ffmpeg), the same ffmpeg build Jellyfin uses. **Auto** picks the best working encoder for each job, and falls back to x265 when a hardware encoder cannot keep a file's HDR information. **Hardware only** keeps encoding off the CPU entirely, and skips the files the hardware cannot handle.
 
 ## Status
 

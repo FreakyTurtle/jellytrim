@@ -43,7 +43,7 @@ const (
 	// KeyProcessingSchedule is the weekly hour grid (see internal/timetable):
 	// 168 characters of 0 and 1, Monday 00:00 first. Empty means any time.
 	KeyProcessingSchedule = "processing_schedule"
-	KeyEncoderPreference  = "encoder_preference" // hardware, software
+	KeyEncoderPreference  = "encoder_preference" // hardware, software, hardware-only
 	KeyMatchBitDepth      = "match_source_bit_depth"
 	KeyValidation         = "validation" // full, sampled
 	KeyX265Preset         = "x265_preset"

@@ -241,7 +241,10 @@ func TestSettingsUnknownSection(t *testing.T) {
 	expectStatus(t, res, body, http.StatusNotFound)
 }
 
-type settingsFakeHardware struct{ retests atomic.Int32 }
+type settingsFakeHardware struct {
+	retests atomic.Int32
+	pref    atomic.Value // the last encoder preference applied
+}
 
 func (h *settingsFakeHardware) Capabilities() []Capability {
 	return []Capability{
@@ -249,6 +252,8 @@ func (h *settingsFakeHardware) Capabilities() []Capability {
 		{Backend: "qsv-hevc", Label: "Intel Quick Sync", Codec: "hevc", Device: "/dev/dri/renderD128", Error: "No /dev/dri device in the container"},
 	}
 }
+
+func (h *settingsFakeHardware) SetEncoderPreference(p string) { h.pref.Store(p) }
 
 func (h *settingsFakeHardware) Retest(context.Context) error {
 	h.retests.Add(1)
@@ -266,6 +271,27 @@ func TestSettingsHardwareTestAgain(t *testing.T) {
 	expectContains(t, body, `id="hardware-body"`, "Works")
 	if strings.Contains(body, "<html") || hw.retests.Load() != 1 {
 		t.Fatalf("want a fragment after one re-test, got %d re-tests", hw.retests.Load())
+	}
+}
+
+func TestSettingsHardwareOnlyAppliesAtOnce(t *testing.T) {
+	e := newSettingsEnv(t)
+	hw := &settingsFakeHardware{}
+	e.s.Hardware = hw
+	_, body := e.get("/settings", false)
+	expectContains(t, body, "Hardware only", "Never uses the CPU to encode.")
+	res, body := e.post("/settings/processing", url.Values{"validation": {"full"}, "concurrency": {"1"}, "encoder": {"hardware-only"}}, false)
+	e.expectRedirect(res, body, "/settings?saved=processing#processing")
+	if st := e.settings(); st.EncoderPreference != "hardware-only" {
+		t.Fatalf("encoder preference = %q", st.EncoderPreference)
+	}
+	if got, _ := hw.pref.Load().(string); got != "hardware-only" {
+		t.Fatalf("the registry was told %q, want hardware-only without a restart", got)
+	}
+	res, body = e.post("/settings/processing", url.Values{"validation": {"full"}, "concurrency": {"1"}, "encoder": {"gpu-please"}}, false)
+	expectStatus(t, res, body, http.StatusUnprocessableEntity)
+	if got, _ := hw.pref.Load().(string); got != "hardware-only" {
+		t.Fatalf("an invalid choice reached the registry: %q", got)
 	}
 }
 

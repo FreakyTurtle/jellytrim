@@ -65,7 +65,7 @@ func New(ctx context.Context, cfg config.Config, log *slog.Logger) (*App, error)
 	hw := &hardware{registry: registry, runner: runner, store: st, library: lib, log: log}
 	hw.load(ctx)
 	if s, err := st.Settings(ctx); err == nil {
-		registry.SetPreferSoftware(s.EncoderPreference == "software")
+		registry.SetPreference(s.EncoderPreference)
 	}
 	q := queue.New(queue.Options{Store: st, Library: lib, Registry: registry, Runner: runner, Log: log})
 	sched := &scheduler.Scheduler{Store: st, Library: lib, Queue: q, Log: log}

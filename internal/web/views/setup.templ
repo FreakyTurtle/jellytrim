@@ -634,6 +634,7 @@ var setupCodecOptions = []Option{
 var SetupEncoderOptions = []Option{
 	{Value: "hardware", Label: "Auto", Hint: "Uses a hardware encoder that passed the test, and software otherwise."},
 	{Value: "software", Label: "Software only", Hint: "Slower, but gives the same result on any machine."},
+	{Value: "hardware-only", Label: "Hardware only", Hint: "Never uses the CPU to encode. Files no hardware encoder can handle are skipped, with the reason."},
 }
 
 // SetupDefaults is step 6.

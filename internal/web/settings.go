@@ -320,7 +320,7 @@ func (s *Server) settingsReevaluate(section string) {
 	switch section {
 	case "libraries", "paths":
 		s.Library.RunAsync()
-	case "dryrun", "safety", "advanced":
+	case "dryrun", "safety", "advanced", "processing":
 		s.Library.EvaluateAsync()
 	}
 }
@@ -448,18 +448,22 @@ func (s *Server) settingsSaveProcessing(ctx context.Context, form url.Values, v 
 	v.Concurrency = form.Get("concurrency")
 	v.Encoder = form.Get("encoder")
 	settingsCheckInt(v, "concurrency", v.Concurrency, 1, settingsMaxJobs, "Choose from 1 to 4 jobs at a time.")
-	if !setupValid(v.Validation, "full", "sampled") || !setupValid(v.Encoder, "hardware", "software") {
+	if !setupValid(v.Validation, "full", "sampled") || !setupValid(v.Encoder, encoderPreferences...) {
 		v.Problems["processing"] = views.SetupConnResult{Variant: "bad", Title: "Choose a check and an encoder."}
 	}
 	if len(v.Errors) > 0 || len(v.Problems) > 0 {
 		return http.StatusUnprocessableEntity, nil
 	}
-	return 0, s.Store.SetSettings(ctx, map[string]string{
+	if err := s.Store.SetSettings(ctx, map[string]string{
 		store.KeyAutoProcess:       store.FormatBool(v.AutoProcess),
 		store.KeyValidation:        v.Validation,
 		store.KeyConcurrency:       v.Concurrency,
 		store.KeyEncoderPreference: v.Encoder,
-	})
+	}); err != nil {
+		return 0, err
+	}
+	s.applyEncoderPreference(v.Encoder)
+	return 0, nil
 }
 
 func (s *Server) settingsSaveSafety(ctx context.Context, form url.Values, v *views.SettingsView) (int, error) {

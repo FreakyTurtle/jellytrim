@@ -1945,6 +1945,7 @@ var setupCodecOptions = []Option{
 var SetupEncoderOptions = []Option{
 	{Value: "hardware", Label: "Auto", Hint: "Uses a hardware encoder that passed the test, and software otherwise."},
 	{Value: "software", Label: "Software only", Hint: "Slower, but gives the same result on any machine."},
+	{Value: "hardware-only", Label: "Hardware only", Hint: "Never uses the CPU to encode. Files no hardware encoder can handle are skipped, with the reason."},
 }
 
 // SetupDefaults is step 6.
@@ -2133,7 +2134,7 @@ func SetupPolicies(v SetupPoliciesView, assetVersion string) templ.Component {
 					var templ_7745c5c3_Var79 string
 					templ_7745c5c3_Var79, templ_7745c5c3_Err = templ.JoinStringErrs(c.Sentence)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/views/setup.templ`, Line: 676, Col: 51}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/views/setup.templ`, Line: 677, Col: 51}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var79))
 					if templ_7745c5c3_Err != nil {
@@ -2234,7 +2235,7 @@ func setupTVPicker(libs []SetupLibrary) templ.Component {
 			var templ_7745c5c3_Var81 string
 			templ_7745c5c3_Var81, templ_7745c5c3_Err = templ.ResolveAttributeValue(l.ID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/views/setup.templ`, Line: 702, Col: 51}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/views/setup.templ`, Line: 703, Col: 51}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var81)
 			if templ_7745c5c3_Err != nil {
@@ -2257,7 +2258,7 @@ func setupTVPicker(libs []SetupLibrary) templ.Component {
 			var templ_7745c5c3_Var82 string
 			templ_7745c5c3_Var82, templ_7745c5c3_Err = templ.JoinStringErrs(l.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/views/setup.templ`, Line: 703, Col: 20}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/views/setup.templ`, Line: 704, Col: 20}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var82))
 			if templ_7745c5c3_Err != nil {
@@ -2403,7 +2404,7 @@ func SetupScanStatus(v SetupScanView) templ.Component {
 			var templ_7745c5c3_Var87 string
 			templ_7745c5c3_Var87, templ_7745c5c3_Err = templ.JoinStringErrs(v.Phase)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/views/setup.templ`, Line: 737, Col: 20}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/views/setup.templ`, Line: 738, Col: 20}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var87))
 			if templ_7745c5c3_Err != nil {
@@ -2559,7 +2560,7 @@ func setupScanSummary(s SetupScanSummary) templ.Component {
 				var templ_7745c5c3_Var91 string
 				templ_7745c5c3_Var91, templ_7745c5c3_Err = templ.JoinStringErrs(l.Count)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/views/setup.templ`, Line: 786, Col: 54}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/views/setup.templ`, Line: 787, Col: 54}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var91))
 				if templ_7745c5c3_Err != nil {
@@ -2572,7 +2573,7 @@ func setupScanSummary(s SetupScanSummary) templ.Component {
 				var templ_7745c5c3_Var92 string
 				templ_7745c5c3_Var92, templ_7745c5c3_Err = templ.JoinStringErrs(l.Text)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/views/setup.templ`, Line: 786, Col: 72}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/views/setup.templ`, Line: 787, Col: 72}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var92))
 				if templ_7745c5c3_Err != nil {

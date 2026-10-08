@@ -62,6 +62,9 @@ func (h *hardware) apply(ctx context.Context) error {
 // Retest implements web.Hardware.
 func (h *hardware) Retest(ctx context.Context) error { return h.apply(ctx) }
 
+// SetEncoderPreference does nothing: the demo never encodes.
+func (h *hardware) SetEncoderPreference(string) {}
+
 // Capabilities implements web.Hardware, as the app does.
 func (h *hardware) Capabilities() []web.Capability {
 	var out []web.Capability
